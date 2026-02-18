@@ -54,7 +54,7 @@ public class VentaController {
 
     @GetMapping
     public ResponseEntity<List<VentaDTO>> obtenerTodas() {
-        List<Venta> ventas = ventaService.obtenerTodasVentas(); // ← Cambia esto
+        List<Venta> ventas = ventaService.obtenerTodasVentas();
         List<VentaDTO> ventasDTO = ventas.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
