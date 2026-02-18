@@ -38,8 +38,8 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     @Override
-    public List<Usuario> obtenerUsuariosActivos() {
-        return usuarioRepository.findByActivoTrue();
+    public List<Usuario> obtenerTodos() {
+        return usuarioRepository.findAll();
     }
 
     @Override
@@ -65,6 +65,15 @@ public class UsuarioServiceImpl implements UsuarioService {
                     usuario.setActivo(false);
                     usuarioRepository.save(usuario);
                 });
+    }
+
+    @Override
+    public void activarUsuario(Long id) {
+        Usuario usuario = obtenerUsuarioPorId(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        usuario.setActivo(true);
+        usuarioRepository.save(usuario);
+//        log.info("✅ Usuario activado: {}", usuario.getEmail());
     }
 
     @Override

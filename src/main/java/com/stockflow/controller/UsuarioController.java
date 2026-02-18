@@ -1,9 +1,13 @@
 package com.stockflow.controller;
 
 import com.stockflow.dto.UsuarioDTO;
+import com.stockflow.dto.UsuarioUpdateDTO;
+import com.stockflow.entity.Rol;
 import com.stockflow.entity.Usuario;
+import com.stockflow.repository.RolRepository;
 import com.stockflow.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,12 +15,14 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/usuarios")
 @RequiredArgsConstructor
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
+    private final RolRepository rolRepository;
 
     private UsuarioDTO convertToDTO(Usuario usuario) {
         return UsuarioDTO.builder()
@@ -31,7 +37,7 @@ public class UsuarioController {
 
     @GetMapping
     public ResponseEntity<List<UsuarioDTO>> obtenerTodos() {
-        List<Usuario> usuarios = usuarioService.obtenerUsuariosActivos();
+        List<Usuario> usuarios = usuarioService.obtenerTodos();
         List<UsuarioDTO> usuariosDTO = usuarios.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
@@ -70,24 +76,51 @@ public class UsuarioController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UsuarioDTO> actualizar(@PathVariable Long id, @Valid @RequestBody UsuarioDTO usuarioDTO) {
+    public ResponseEntity<UsuarioDTO> actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody UsuarioUpdateDTO updateDTO) { // ← Cambiar aquí
         try {
+            log.info("📝 Actualizando usuario ID: {}", id);
+            log.info("📦 Datos: nombre={}, rol={}, activo={}, tenant={}",
+                    updateDTO.getNombre(),
+                    updateDTO.getRolNombre(),
+                    updateDTO.getActivo(),
+                    updateDTO.getTenantId());
+
             Usuario usuario = usuarioService.obtenerUsuarioPorId(id)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-            usuario.setNombre(usuarioDTO.getNombre());
-            usuario.setTenantId(usuarioDTO.getTenantId());
+            // Actualizar campos
+            usuario.setNombre(updateDTO.getNombre());
+            usuario.setTenantId(updateDTO.getTenantId());
+            usuario.setActivo(updateDTO.getActivo());
+
+            // Actualizar rol
+            Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())
+                    .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + updateDTO.getRolNombre()));
+            usuario.setRol(rol);
 
             Usuario usuarioActualizado = usuarioService.actualizarUsuario(id, usuario);
+
+            log.info("✅ Usuario actualizado exitosamente");
+
             return ResponseEntity.ok(convertToDTO(usuarioActualizado));
         } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
+            log.error("❌ Error al actualizar: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
         }
     }
 
     @PatchMapping("/{id}/desactivar")
     public ResponseEntity<Void> desactivar(@PathVariable Long id) {
         usuarioService.desactivarUsuario(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/activar")
+    public ResponseEntity<Void> activar(@PathVariable Long id) {
+        log.info("✅ Activando usuario ID: {}", id);
+        usuarioService.activarUsuario(id);
         return ResponseEntity.noContent().build();
     }
 

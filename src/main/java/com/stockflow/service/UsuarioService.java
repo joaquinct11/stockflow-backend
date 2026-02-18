@@ -14,11 +14,13 @@ public interface UsuarioService {
 
     List<Usuario> obtenerUsuariosPorTenant(String tenantId);
 
-    List<Usuario> obtenerUsuariosActivos();
+    List<Usuario> obtenerTodos();
 
     Usuario actualizarUsuario(Long id, Usuario usuarioActualizado);
 
     void desactivarUsuario(Long id);
+
+    void activarUsuario(Long id);
 
     void eliminarUsuario(Long id);
 }
