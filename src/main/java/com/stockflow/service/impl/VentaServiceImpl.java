@@ -68,4 +68,9 @@ public class VentaServiceImpl implements VentaService {
     public void eliminarVenta(Long id) {
         ventaRepository.deleteById(id);
     }
+
+    @Override
+    public List<Venta> obtenerTodasVentas() {
+        return ventaRepository.findAll();
+    }
 }

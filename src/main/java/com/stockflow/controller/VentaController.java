@@ -54,12 +54,7 @@ public class VentaController {
 
     @GetMapping
     public ResponseEntity<List<VentaDTO>> obtenerTodas() {
-        // Como no hay método para obtener todas, usamos un período amplio
-        List<Venta> ventas = ventaService.obtenerVentasPorPeriodo(
-                "farmacia-001",
-                LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10)
-        );
+        List<Venta> ventas = ventaService.obtenerTodasVentas(); // ← Cambia esto
         List<VentaDTO> ventasDTO = ventas.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());

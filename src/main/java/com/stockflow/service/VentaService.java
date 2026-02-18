@@ -21,4 +21,6 @@ public interface VentaService {
     List<DetalleVenta> obtenerDetallesVenta(Long ventaId);
 
     void eliminarVenta(Long id);
+
+    List<Venta> obtenerTodasVentas();
 }
