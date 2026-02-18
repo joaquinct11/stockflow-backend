@@ -71,8 +71,33 @@ public class UsuarioController {
 
     @PostMapping
     public ResponseEntity<UsuarioDTO> crear(@Valid @RequestBody UsuarioDTO usuarioDTO) {
-        // Este endpoint está protegido por AuthService.registroUsuario
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        try {
+            log.info("📝 Creando nuevo usuario: {}", usuarioDTO.getEmail());
+
+            // Buscar el rol
+            Rol rol = rolRepository.findByNombre(usuarioDTO.getRolNombre())
+                    .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + usuarioDTO.getRolNombre()));
+
+            // Crear entidad Usuario
+            Usuario usuario = Usuario.builder()
+                    .email(usuarioDTO.getEmail())
+                    .contraseña(usuarioDTO.getContraseña()) // Se encriptará en el service
+                    .nombre(usuarioDTO.getNombre())
+                    .rol(rol)
+                    .activo(usuarioDTO.getActivo() != null ? usuarioDTO.getActivo() : true)
+                    .tenantId(usuarioDTO.getTenantId())
+                    .build();
+
+            // Guardar en BD
+            Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
+
+            log.info("✅ Usuario creado exitosamente: {}", usuarioCreado.getEmail());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(usuarioCreado));
+        } catch (RuntimeException e) {
+            log.error("❌ Error al crear usuario: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @PutMapping("/{id}")
