@@ -55,6 +55,22 @@ public class SuscripcionServiceImpl implements SuscripcionService {
     }
 
     @Override
+    public Suscripcion activarSuscripcion(Long id) {
+//        log.info("✅ Activando suscripción con ID: {}", id);
+        Suscripcion suscripcion = suscripcionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Suscripción no encontrada con ID: " + id));
+
+        // Cambiar el estado a ACTIVA
+        suscripcion.setEstado("ACTIVA");
+
+        // Guardar en la base de datos
+        Suscripcion suscripcionActivada = suscripcionRepository.save(suscripcion);
+//        log.info("✅ Suscripción activada exitosamente: ID {}", suscripcionActivada.getId());
+
+        return suscripcionActivada;
+    }
+
+    @Override
     public void eliminarSuscripcion(Long id) {
         suscripcionRepository.deleteById(id);
     }

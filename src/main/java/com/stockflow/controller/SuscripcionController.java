@@ -132,6 +132,12 @@ public class SuscripcionController {
         return ResponseEntity.ok(convertToDTO(suscripcionActualizada));
     }
 
+    @PutMapping("/{id}/activar")
+    public ResponseEntity<SuscripcionDTO> activar(@PathVariable Long id) {
+        Suscripcion suscripcionActivada = suscripcionService.activarSuscripcion(id);
+        return ResponseEntity.ok(convertToDTO(suscripcionActivada));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         suscripcionService.eliminarSuscripcion(id);

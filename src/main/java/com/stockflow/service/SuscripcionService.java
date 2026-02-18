@@ -18,5 +18,7 @@ public interface SuscripcionService {
 
     Suscripcion actualizarSuscripcion(Long id, Suscripcion suscripcion);
 
+    Suscripcion activarSuscripcion(Long id);
+
     void eliminarSuscripcion(Long id);
 }
