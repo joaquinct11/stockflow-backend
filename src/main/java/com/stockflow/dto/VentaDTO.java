@@ -22,6 +22,8 @@ public class VentaDTO {
     @NotNull(message = "El vendedor es requerido")
     private Long vendedorId;
 
+    private String vendedorNombre;
+
     @DecimalMin(value = "0.01", message = "El total debe ser mayor a 0")
     private BigDecimal total;
 
@@ -30,6 +32,8 @@ public class VentaDTO {
     private String estado;
 
     private String tenantId;
+
+    private String createdAt;
 
     @NotEmpty(message = "La venta debe tener al menos un detalle")
     @Valid

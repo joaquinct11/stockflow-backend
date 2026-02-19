@@ -60,6 +60,7 @@ public class ProductoServiceImpl implements ProductoService {
                     producto.setPrecioVenta(productoActualizado.getPrecioVenta());
                     producto.setFechaVencimiento(productoActualizado.getFechaVencimiento());
                     producto.setLote(productoActualizado.getLote());
+                    producto.setProveedorId(productoActualizado.getProveedorId());
                     producto.setActivo(productoActualizado.getActivo());
                     return productoRepository.save(producto);
                 })

@@ -31,6 +31,7 @@ public class ProductoController {
                 .precioVenta(producto.getPrecioVenta())
                 .fechaVencimiento(producto.getFechaVencimiento())
                 .lote(producto.getLote())
+                .proveedorId(producto.getProveedorId())
                 .activo(producto.getActivo())
                 .tenantId(producto.getTenantId())
                 .build();
@@ -48,6 +49,7 @@ public class ProductoController {
                 .precioVenta(dto.getPrecioVenta())
                 .fechaVencimiento(dto.getFechaVencimiento())
                 .lote(dto.getLote())
+                .proveedorId(dto.getProveedorId())
                 .activo(dto.getActivo() != null ? dto.getActivo() : true)
                 .tenantId(dto.getTenantId())
                 .build();

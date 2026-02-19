@@ -20,6 +20,8 @@ public class DetalleVentaDTO {
     @NotNull(message = "El producto es requerido")
     private Long productoId;
 
+    private String productoNombre;
+
     @NotNull(message = "La cantidad es requerida")
     @Min(value = 1, message = "La cantidad debe ser mayor a 0")
     private Integer cantidad;

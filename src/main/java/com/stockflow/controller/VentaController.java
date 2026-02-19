@@ -35,6 +35,7 @@ public class VentaController {
                 .map(detalle -> DetalleVentaDTO.builder()
                         .id(detalle.getId())
                         .productoId(detalle.getProducto().getId())
+                        .productoNombre(detalle.getProducto().getNombre())
                         .cantidad(detalle.getCantidad())
                         .precioUnitario(detalle.getPrecioUnitario())
                         .subtotal(detalle.getSubtotal())
@@ -44,10 +45,12 @@ public class VentaController {
         return VentaDTO.builder()
                 .id(venta.getId())
                 .vendedorId(venta.getVendedor().getId())
+                .vendedorNombre(venta.getVendedor().getNombre())
                 .total(venta.getTotal())
                 .metodoPago(venta.getMetodoPago())
                 .estado(venta.getEstado())
                 .tenantId(venta.getTenantId())
+                .createdAt(venta.getCreatedAt() != null ? venta.getCreatedAt().toString() : null)
                 .detalles(detallesDTO)
                 .build();
     }
