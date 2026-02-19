@@ -24,7 +24,7 @@ public class SuscripcionDTO {
     private String planId;
 
     @NotNull(message = "El precio mensual es requerido")
-    @DecimalMin(value = "0.01", message = "El precio debe ser mayor a 0")
+//    @DecimalMin(value = "0.01", message = "El precio debe ser mayor a 0")
     private BigDecimal precioMensual;
 
     private String preapprovalId;

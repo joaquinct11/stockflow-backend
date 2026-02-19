@@ -12,6 +12,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -85,16 +88,20 @@ public class SuscripcionController {
                 });
 
         // Validar plan
-        if (!suscripcionDTO.getPlanId().matches("BASICO|PROFESIONAL|EMPRESARIAL")) {
-            throw new BadRequestException("Plan no válido. Use: BASICO, PROFESIONAL, EMPRESARIAL");
+        if (!suscripcionDTO.getPlanId().matches("FREE|BASICO|PRO")) {
+            throw new BadRequestException("Plan no válido. Use: FREE, BASICO, PRO");
         }
+
+        // GENERAR preapprovalId automáticamente ← AQUÍ
+        String preapprovalId = generarPreapprovalId();
+//        log.info("✅ PreapprovalId generado: {}", preapprovalId);
 
         // Crear suscripción
         Suscripcion suscripcion = Suscripcion.builder()
                 .usuarioPrincipal(usuario)
                 .planId(suscripcionDTO.getPlanId())
                 .precioMensual(suscripcionDTO.getPrecioMensual())
-                .preapprovalId(suscripcionDTO.getPreapprovalId())
+                .preapprovalId(preapprovalId)
                 .estado("ACTIVA")
                 .metodoPago(suscripcionDTO.getMetodoPago())
                 .ultimos4Digitos(suscripcionDTO.getUltimos4Digitos())
@@ -102,6 +109,24 @@ public class SuscripcionController {
 
         Suscripcion suscripcionCreada = suscripcionService.crearSuscripcion(suscripcion);
         return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(suscripcionCreada));
+    }
+
+    private String generarPreapprovalId() {
+        // Formato: PRE-YYYYMMDD-XXXXXX
+        // Ejemplo: PRE-20260218-ABC123
+        LocalDateTime ahora = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+        String fecha = ahora.format(formatter);
+
+        // Generar 6 caracteres aleatorios
+        String caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder sb = new StringBuilder();
+        java.util.Random random = new java.util.Random();
+        for (int i = 0; i < 6; i++) {
+            sb.append(caracteres.charAt(random.nextInt(caracteres.length())));
+        }
+
+        return "PRE-" + fecha + "-" + sb.toString();
     }
 
     @PutMapping("/{id}")
