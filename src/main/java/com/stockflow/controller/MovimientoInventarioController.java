@@ -4,6 +4,7 @@ import com.stockflow.dto.MovimientoInventarioDTO;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.Usuario;
+import com.stockflow.mapper.MovimientoInventarioMapper;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
@@ -14,10 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/movimientos-inventario")
@@ -27,70 +26,49 @@ public class MovimientoInventarioController {
     private final MovimientoInventarioService movimientoService;
     private final ProductoService productoService;
     private final UsuarioService usuarioService;
-
-    private MovimientoInventarioDTO convertToDTO(MovimientoInventario movimiento) {
-        return MovimientoInventarioDTO.builder()
-                .id(movimiento.getId())
-                .productoId(movimiento.getProducto().getId())
-                .cantidad(movimiento.getCantidad())
-                .tipo(movimiento.getTipo())
-                .usuarioId(movimiento.getUsuario().getId())
-                .descripcion(movimiento.getDescripcion())
-                .tenantId(movimiento.getTenantId())
-                .build();
-    }
+    private final MovimientoInventarioMapper movimientoMapper;
 
     @GetMapping
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerTodos() {
-        List<MovimientoInventario> movimientos = movimientoService.obtenerTodosMovimientos();
-        List<MovimientoInventarioDTO> movimientosDTO = movimientos.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(movimientosDTO);
+        return ResponseEntity.ok(
+                movimientoMapper.toDTOList(movimientoService.obtenerTodosMovimientos())
+        );
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<MovimientoInventarioDTO> obtenerPorId(@PathVariable Long id) {
         return movimientoService.obtenerMovimientoPorId(id)
-                .map(this::convertToDTO)
+                .map(movimientoMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/producto/{productoId}")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorProducto(@PathVariable Long productoId) {
-        List<MovimientoInventario> movimientos = movimientoService.obtenerMovimientosPorProducto(productoId);
-        List<MovimientoInventarioDTO> movimientosDTO = movimientos.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(movimientosDTO);
+        return ResponseEntity.ok(
+                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorProducto(productoId))
+        );
     }
 
     @GetMapping("/usuario/{usuarioId}")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorUsuario(@PathVariable Long usuarioId) {
-        List<MovimientoInventario> movimientos = movimientoService.obtenerMovimientosPorUsuario(usuarioId);
-        List<MovimientoInventarioDTO> movimientosDTO = movimientos.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(movimientosDTO);
+        return ResponseEntity.ok(
+                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorUsuario(usuarioId))
+        );
     }
 
     @GetMapping("/tipo/{tipo}")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorTipo(@PathVariable String tipo) {
-        List<MovimientoInventario> movimientos = movimientoService.obtenerMovimientosPorTipo(tipo);
-        List<MovimientoInventarioDTO> movimientosDTO = movimientos.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(movimientosDTO);
+        return ResponseEntity.ok(
+                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorTipo(tipo))
+        );
     }
 
     @GetMapping("/tenant/{tenantId}")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorTenant(@PathVariable String tenantId) {
-        List<MovimientoInventario> movimientos = movimientoService.obtenerMovimientosPorTenant(tenantId);
-        List<MovimientoInventarioDTO> movimientosDTO = movimientos.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(movimientosDTO);
+        return ResponseEntity.ok(
+                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorTenant(tenantId))
+        );
     }
 
     @PostMapping
@@ -119,16 +97,10 @@ public class MovimientoInventarioController {
             throw new BadRequestException("Stock insuficiente para esta salida");
         }
 
-        // Crear movimiento
-        MovimientoInventario movimiento = MovimientoInventario.builder()
-                .producto(producto)
-                .cantidad(movimientoDTO.getCantidad())
-                .tipo(movimientoDTO.getTipo())
-                .usuario(usuario)
-                .descripcion(movimientoDTO.getDescripcion())
-                .tenantId(movimientoDTO.getTenantId())
-                .createdAt(LocalDateTime.now())
-                .build();
+        // Crear movimiento usando mapper
+        MovimientoInventario movimiento = movimientoMapper.toEntity(movimientoDTO);
+        movimiento.setProducto(producto);
+        movimiento.setUsuario(usuario);
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);
 
@@ -150,7 +122,8 @@ public class MovimientoInventarioController {
         producto.setStockActual(nuevoStock);
         productoService.actualizarProducto(producto.getId(), producto);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(movimientoCreado));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(movimientoMapper.toDTO(movimientoCreado));
     }
 
     @DeleteMapping("/{id}")

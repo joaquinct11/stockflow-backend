@@ -2,15 +2,14 @@ package com.stockflow.controller;
 
 import com.stockflow.dto.ProveedorDTO;
 import com.stockflow.entity.Proveedor;
+import com.stockflow.mapper.ProveedorMapper;
 import com.stockflow.service.ProveedorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/proveedores")
@@ -18,59 +17,26 @@ import java.util.stream.Collectors;
 public class ProveedorController {
 
     private final ProveedorService proveedorService;
+    private final ProveedorMapper proveedorMapper;
 
-    private ProveedorDTO convertToDTO(Proveedor proveedor) {
-        return ProveedorDTO.builder()
-                .id(proveedor.getId())
-                .nombre(proveedor.getNombre())
-                .ruc(proveedor.getRuc())
-                .contacto(proveedor.getContacto())
-                .telefono(proveedor.getTelefono())
-                .email(proveedor.getEmail())
-                .direccion(proveedor.getDireccion())
-                .activo(proveedor.getActivo())
-                .tenantId(proveedor.getTenantId())
-                .createdAt(proveedor.getCreatedAt())
-                .build();
-    }
-
-    private Proveedor convertToEntity(ProveedorDTO dto) {
-        return Proveedor.builder()
-                .nombre(dto.getNombre())
-                .ruc(dto.getRuc())
-                .contacto(dto.getContacto())
-                .telefono(dto.getTelefono())
-                .email(dto.getEmail())
-                .direccion(dto.getDireccion())
-                .activo(dto.getActivo() != null ? dto.getActivo() : true)
-                .tenantId(dto.getTenantId())
-                .build();
-    }
-
-    // ✅ CAMBIAR - Ahora devuelve TODOS los proveedores (activos e inactivos)
     @GetMapping
     public ResponseEntity<List<ProveedorDTO>> obtenerTodos() {
-        List<Proveedor> proveedores = proveedorService.obtenerTodosProveedores();
-        List<ProveedorDTO> proveedoresDTO = proveedores.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(proveedoresDTO);
+        return ResponseEntity.ok(
+                proveedorMapper.toDTOList(proveedorService.obtenerTodosProveedores())
+        );
     }
 
-    // ✅ NUEVO - Obtener solo proveedores activos
     @GetMapping("/activos")
     public ResponseEntity<List<ProveedorDTO>> obtenerActivos() {
-        List<Proveedor> proveedores = proveedorService.obtenerProveedoresActivos();
-        List<ProveedorDTO> proveedoresDTO = proveedores.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(proveedoresDTO);
+        return ResponseEntity.ok(
+                proveedorMapper.toDTOList(proveedorService.obtenerProveedoresActivos())
+        );
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ProveedorDTO> obtenerPorId(@PathVariable Long id) {
         return proveedorService.obtenerProveedorPorId(id)
-                .map(this::convertToDTO)
+                .map(proveedorMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -78,71 +44,57 @@ public class ProveedorController {
     @GetMapping("/ruc/{ruc}")
     public ResponseEntity<ProveedorDTO> obtenerPorRuc(@PathVariable String ruc) {
         return proveedorService.obtenerProveedorPorRuc(ruc)
-                .map(this::convertToDTO)
+                .map(proveedorMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/buscar")
     public ResponseEntity<List<ProveedorDTO>> buscarPorNombre(@RequestParam String nombre) {
-        List<Proveedor> proveedores = proveedorService.buscarProveedoresPorNombre(nombre);
-        List<ProveedorDTO> proveedoresDTO = proveedores.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(proveedoresDTO);
+        return ResponseEntity.ok(
+                proveedorMapper.toDTOList(proveedorService.buscarProveedoresPorNombre(nombre))
+        );
     }
 
     @PostMapping
     public ResponseEntity<ProveedorDTO> crear(@Valid @RequestBody ProveedorDTO proveedorDTO) {
-        Proveedor proveedor = Proveedor.builder()
-                .nombre(proveedorDTO.getNombre())
-                .ruc(proveedorDTO.getRuc())
-                .contacto(proveedorDTO.getContacto())
-                .telefono(proveedorDTO.getTelefono())
-                .email(proveedorDTO.getEmail())
-                .direccion(proveedorDTO.getDireccion())
-                .activo(proveedorDTO.getActivo() != null ? proveedorDTO.getActivo() : true)
-                .tenantId(proveedorDTO.getTenantId())
-                .createdAt(LocalDateTime.now())
-                .build();
-
+        Proveedor proveedor = proveedorMapper.toEntity(proveedorDTO);
         Proveedor proveedorCreado = proveedorService.crearProveedor(proveedor);
-        return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(proveedorCreado));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(proveedorMapper.toDTO(proveedorCreado));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ProveedorDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProveedorDTO proveedorDTO) {
-        try {
-            Proveedor proveedor = convertToEntity(proveedorDTO);
-            Proveedor proveedorActualizado = proveedorService.actualizarProveedor(id, proveedor);
-            return ResponseEntity.ok(convertToDTO(proveedorActualizado));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return proveedorService.obtenerProveedorPorId(id)
+                .map(proveedorExistente -> {
+                    proveedorMapper.updateEntityFromDTO(proveedorDTO, proveedorExistente);
+                    Proveedor proveedorActualizado = proveedorService.actualizarProveedor(id, proveedorExistente);
+                    return ResponseEntity.ok(proveedorMapper.toDTO(proveedorActualizado));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ NUEVO - Activar proveedor
     @PatchMapping("/{id}/activar")
     public ResponseEntity<ProveedorDTO> activar(@PathVariable Long id) {
-        try {
-            Proveedor proveedorActivado = proveedorService.activarProveedor(id);
-            return ResponseEntity.ok(convertToDTO(proveedorActivado));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return proveedorService.obtenerProveedorPorId(id)
+                .map(proveedor -> {
+                    Proveedor proveedorActivado = proveedorService.activarProveedor(id);
+                    return ResponseEntity.ok(proveedorMapper.toDTO(proveedorActivado));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    // ✅ NUEVO - Desactivar proveedor
     @PatchMapping("/{id}/desactivar")
     public ResponseEntity<ProveedorDTO> desactivar(@PathVariable Long id) {
-        try {
-            Proveedor proveedorDesactivado = proveedorService.desactivarProveedor(id);
-            return ResponseEntity.ok(convertToDTO(proveedorDesactivado));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return proveedorService.obtenerProveedorPorId(id)
+                .map(proveedor -> {
+                    Proveedor proveedorDesactivado = proveedorService.desactivarProveedor(id);
+                    return ResponseEntity.ok(proveedorMapper.toDTO(proveedorDesactivado));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")

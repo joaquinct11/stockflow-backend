@@ -6,6 +6,8 @@ import com.stockflow.entity.Venta;
 import com.stockflow.entity.DetalleVenta;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.Usuario;
+import com.stockflow.mapper.VentaMapper;
+import com.stockflow.mapper.DetalleVentaMapper;
 import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
@@ -29,65 +31,36 @@ public class VentaController {
     private final VentaService ventaService;
     private final ProductoService productoService;
     private final UsuarioService usuarioService;
-
-    private VentaDTO convertToDTO(Venta venta) {
-        List<DetalleVentaDTO> detallesDTO = venta.getDetalles().stream()
-                .map(detalle -> DetalleVentaDTO.builder()
-                        .id(detalle.getId())
-                        .productoId(detalle.getProducto().getId())
-                        .productoNombre(detalle.getProducto().getNombre())
-                        .cantidad(detalle.getCantidad())
-                        .precioUnitario(detalle.getPrecioUnitario())
-                        .subtotal(detalle.getSubtotal())
-                        .build())
-                .collect(Collectors.toList());
-
-        return VentaDTO.builder()
-                .id(venta.getId())
-                .vendedorId(venta.getVendedor().getId())
-                .vendedorNombre(venta.getVendedor().getNombre())
-                .total(venta.getTotal())
-                .metodoPago(venta.getMetodoPago())
-                .estado(venta.getEstado())
-                .tenantId(venta.getTenantId())
-                .createdAt(venta.getCreatedAt() != null ? venta.getCreatedAt().toString() : null)
-                .detalles(detallesDTO)
-                .build();
-    }
+    private final VentaMapper ventaMapper;
+    private final DetalleVentaMapper detalleVentaMapper;
 
     @GetMapping
     public ResponseEntity<List<VentaDTO>> obtenerTodas() {
-        List<Venta> ventas = ventaService.obtenerTodasVentas();
-        List<VentaDTO> ventasDTO = ventas.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(ventasDTO);
+        return ResponseEntity.ok(
+                ventaMapper.toDTOList(ventaService.obtenerTodasVentas())
+        );
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<VentaDTO> obtenerPorId(@PathVariable Long id) {
         return ventaService.obtenerVentaPorId(id)
-                .map(this::convertToDTO)
+                .map(ventaMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/vendedor/{vendedorId}")
     public ResponseEntity<List<VentaDTO>> obtenerPorVendedor(@PathVariable Long vendedorId) {
-        List<Venta> ventas = ventaService.obtenerVentasPorVendedor(vendedorId);
-        List<VentaDTO> ventasDTO = ventas.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(ventasDTO);
+        return ResponseEntity.ok(
+                ventaMapper.toDTOList(ventaService.obtenerVentasPorVendedor(vendedorId))
+        );
     }
 
     @GetMapping("/tenant/{tenantId}")
     public ResponseEntity<List<VentaDTO>> obtenerPorTenant(@PathVariable String tenantId) {
-        List<Venta> ventas = ventaService.obtenerVentasPorTenant(tenantId);
-        List<VentaDTO> ventasDTO = ventas.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(ventasDTO);
+        return ResponseEntity.ok(
+                ventaMapper.toDTOList(ventaService.obtenerVentasPorTenant(tenantId))
+        );
     }
 
     @GetMapping("/periodo")
@@ -99,26 +72,18 @@ public class VentaController {
         LocalDateTime inicioDateTime = LocalDateTime.parse(inicio);
         LocalDateTime finDateTime = LocalDateTime.parse(fin);
 
-        List<Venta> ventas = ventaService.obtenerVentasPorPeriodo(tenantId, inicioDateTime, finDateTime);
-        List<VentaDTO> ventasDTO = ventas.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(ventasDTO);
+        return ResponseEntity.ok(
+                ventaMapper.toDTOList(
+                        ventaService.obtenerVentasPorPeriodo(tenantId, inicioDateTime, finDateTime)
+                )
+        );
     }
 
     @GetMapping("/{ventaId}/detalles")
     public ResponseEntity<List<DetalleVentaDTO>> obtenerDetalles(@PathVariable Long ventaId) {
-        List<DetalleVenta> detalles = ventaService.obtenerDetallesVenta(ventaId);
-        List<DetalleVentaDTO> detallesDTO = detalles.stream()
-                .map(detalle -> DetalleVentaDTO.builder()
-                        .id(detalle.getId())
-                        .productoId(detalle.getProducto().getId())
-                        .cantidad(detalle.getCantidad())
-                        .precioUnitario(detalle.getPrecioUnitario())
-                        .subtotal(detalle.getSubtotal())
-                        .build())
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(detallesDTO);
+        return ResponseEntity.ok(
+                detalleVentaMapper.toDTOList(ventaService.obtenerDetallesVenta(ventaId))
+        );
     }
 
     @PostMapping
@@ -184,7 +149,8 @@ public class VentaController {
             productoService.actualizarProducto(producto.getId(), producto);
         });
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(ventaCreada));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ventaMapper.toDTO(ventaCreada));
     }
 
     @DeleteMapping("/{id}")

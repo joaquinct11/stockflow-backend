@@ -2,15 +2,14 @@ package com.stockflow.controller;
 
 import com.stockflow.dto.RolDTO;
 import com.stockflow.entity.Rol;
+import com.stockflow.mapper.RolMapper;
 import com.stockflow.service.RolService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/roles")
@@ -18,70 +17,42 @@ import java.util.stream.Collectors;
 public class RolController {
 
     private final RolService rolService;
+    private final RolMapper rolMapper;
 
     @GetMapping
     public ResponseEntity<List<RolDTO>> obtenerTodos() {
-        List<Rol> roles = rolService.obtenerTodosRoles();
-        List<RolDTO> rolesDTO = roles.stream()
-                .map(rol -> RolDTO.builder()
-                        .id(rol.getId())
-                        .nombre(rol.getNombre())
-                        .descripcion(rol.getDescripcion())
-                        .build())
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(rolesDTO);
+        return ResponseEntity.ok(
+                rolMapper.toDTOList(rolService.obtenerTodosRoles())
+        );
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<RolDTO> obtenerPorId(@PathVariable Long id) {
         return rolService.obtenerRolPorId(id)
-                .map(rol -> RolDTO.builder()
-                        .id(rol.getId())
-                        .nombre(rol.getNombre())
-                        .descripcion(rol.getDescripcion())
-                        .build())
+                .map(rolMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
     public ResponseEntity<RolDTO> crear(@Valid @RequestBody RolDTO rolDTO) {
-        Rol rol = Rol.builder()
-                .nombre(rolDTO.getNombre())
-                .descripcion(rolDTO.getDescripcion())
-                .build();
-
+        Rol rol = rolMapper.toEntity(rolDTO);
         Rol rolCreado = rolService.crearRol(rol);
-
-        RolDTO response = RolDTO.builder()
-                .id(rolCreado.getId())
-                .nombre(rolCreado.getNombre())
-                .descripcion(rolCreado.getDescripcion())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(rolMapper.toDTO(rolCreado));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<RolDTO> actualizar(@PathVariable Long id, @Valid @RequestBody RolDTO rolDTO) {
-        try {
-            Rol rol = Rol.builder()
-                    .nombre(rolDTO.getNombre())
-                    .descripcion(rolDTO.getDescripcion())
-                    .build();
-
-            Rol rolActualizado = rolService.actualizarRol(id, rol);
-
-            RolDTO response = RolDTO.builder()
-                    .id(rolActualizado.getId())
-                    .nombre(rolActualizado.getNombre())
-                    .descripcion(rolActualizado.getDescripcion())
-                    .build();
-
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<RolDTO> actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody RolDTO rolDTO) {
+        return rolService.obtenerRolPorId(id)
+                .map(rolExistente -> {
+                    rolMapper.updateEntityFromDTO(rolDTO, rolExistente);
+                    Rol rolActualizado = rolService.actualizarRol(id, rolExistente);
+                    return ResponseEntity.ok(rolMapper.toDTO(rolActualizado));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")

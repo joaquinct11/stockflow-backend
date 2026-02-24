@@ -3,6 +3,7 @@ package com.stockflow.controller;
 import com.stockflow.dto.SuscripcionDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
+import com.stockflow.mapper.SuscripcionMapper;
 import com.stockflow.service.SuscripcionService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.exception.ResourceNotFoundException;
@@ -12,11 +13,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/suscripciones")
@@ -25,33 +24,19 @@ public class SuscripcionController {
 
     private final SuscripcionService suscripcionService;
     private final UsuarioService usuarioService;
-
-    private SuscripcionDTO convertToDTO(Suscripcion suscripcion) {
-        return SuscripcionDTO.builder()
-                .id(suscripcion.getId())
-                .usuarioPrincipalId(suscripcion.getUsuarioPrincipal().getId())
-                .planId(suscripcion.getPlanId())
-                .precioMensual(suscripcion.getPrecioMensual())
-                .preapprovalId(suscripcion.getPreapprovalId())
-                .estado(suscripcion.getEstado())
-                .metodoPago(suscripcion.getMetodoPago())
-                .ultimos4Digitos(suscripcion.getUltimos4Digitos())
-                .build();
-    }
+    private final SuscripcionMapper suscripcionMapper;
 
     @GetMapping
     public ResponseEntity<List<SuscripcionDTO>> obtenerTodas() {
-        List<Suscripcion> suscripciones = suscripcionService.obtenerTodasSuscripciones();
-        List<SuscripcionDTO> suscripcionesDTO = suscripciones.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(suscripcionesDTO);
+        return ResponseEntity.ok(
+                suscripcionMapper.toDTOList(suscripcionService.obtenerTodasSuscripciones())
+        );
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<SuscripcionDTO> obtenerPorId(@PathVariable Long id) {
         return suscripcionService.obtenerSuscripcionPorId(id)
-                .map(this::convertToDTO)
+                .map(suscripcionMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -59,18 +44,16 @@ public class SuscripcionController {
     @GetMapping("/usuario/{usuarioId}")
     public ResponseEntity<SuscripcionDTO> obtenerPorUsuario(@PathVariable Long usuarioId) {
         return suscripcionService.obtenerSuscripcionPorUsuario(usuarioId)
-                .map(this::convertToDTO)
+                .map(suscripcionMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/estado/{estado}")
     public ResponseEntity<List<SuscripcionDTO>> obtenerPorEstado(@PathVariable String estado) {
-        List<Suscripcion> suscripciones = suscripcionService.obtenerSuscripcionesPorEstado(estado);
-        List<SuscripcionDTO> suscripcionesDTO = suscripciones.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(suscripcionesDTO);
+        return ResponseEntity.ok(
+                suscripcionMapper.toDTOList(suscripcionService.obtenerSuscripcionesPorEstado(estado))
+        );
     }
 
     @PostMapping
@@ -92,28 +75,22 @@ public class SuscripcionController {
             throw new BadRequestException("Plan no válido. Use: FREE, BASICO, PRO");
         }
 
-        // GENERAR preapprovalId automáticamente ← AQUÍ
+        // Generar preapprovalId automáticamente
         String preapprovalId = generarPreapprovalId();
-//        log.info("✅ PreapprovalId generado: {}", preapprovalId);
 
-        // Crear suscripción
-        Suscripcion suscripcion = Suscripcion.builder()
-                .usuarioPrincipal(usuario)
-                .planId(suscripcionDTO.getPlanId())
-                .precioMensual(suscripcionDTO.getPrecioMensual())
-                .preapprovalId(preapprovalId)
-                .estado("ACTIVA")
-                .metodoPago(suscripcionDTO.getMetodoPago())
-                .ultimos4Digitos(suscripcionDTO.getUltimos4Digitos())
-                .build();
+        // Crear suscripción usando mapper
+        Suscripcion suscripcion = suscripcionMapper.toEntity(suscripcionDTO);
+        suscripcion.setUsuarioPrincipal(usuario);
+        suscripcion.setPreapprovalId(preapprovalId);
+        suscripcion.setEstado("ACTIVA");
 
         Suscripcion suscripcionCreada = suscripcionService.crearSuscripcion(suscripcion);
-        return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(suscripcionCreada));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(suscripcionMapper.toDTO(suscripcionCreada));
     }
 
     private String generarPreapprovalId() {
         // Formato: PRE-YYYYMMDD-XXXXXX
-        // Ejemplo: PRE-20260218-ABC123
         LocalDateTime ahora = LocalDateTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
         String fecha = ahora.format(formatter);
@@ -130,37 +107,37 @@ public class SuscripcionController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<SuscripcionDTO> actualizar(@PathVariable Long id, @Valid @RequestBody SuscripcionDTO suscripcionDTO) {
-        try {
-            Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorId(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
+    public ResponseEntity<SuscripcionDTO> actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody SuscripcionDTO suscripcionDTO) {
+        return suscripcionService.obtenerSuscripcionPorId(id)
+                .map(suscripcion -> {
+                    suscripcion.setPlanId(suscripcionDTO.getPlanId());
+                    suscripcion.setPrecioMensual(suscripcionDTO.getPrecioMensual());
+                    suscripcion.setMetodoPago(suscripcionDTO.getMetodoPago());
+                    suscripcion.setUltimos4Digitos(suscripcionDTO.getUltimos4Digitos());
 
-            suscripcion.setPlanId(suscripcionDTO.getPlanId());
-            suscripcion.setPrecioMensual(suscripcionDTO.getPrecioMensual());
-            suscripcion.setMetodoPago(suscripcionDTO.getMetodoPago());
-            suscripcion.setUltimos4Digitos(suscripcionDTO.getUltimos4Digitos());
-
-            Suscripcion suscripcionActualizada = suscripcionService.actualizarSuscripcion(id, suscripcion);
-            return ResponseEntity.ok(convertToDTO(suscripcionActualizada));
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
+                    Suscripcion suscripcionActualizada = suscripcionService.actualizarSuscripcion(id, suscripcion);
+                    return ResponseEntity.ok(suscripcionMapper.toDTO(suscripcionActualizada));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}/cancelar")
     public ResponseEntity<SuscripcionDTO> cancelar(@PathVariable Long id) {
-        Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorId(id)
+        return suscripcionService.obtenerSuscripcionPorId(id)
+                .map(suscripcion -> {
+                    suscripcion.setEstado("CANCELADA");
+                    Suscripcion suscripcionActualizada = suscripcionService.actualizarSuscripcion(id, suscripcion);
+                    return ResponseEntity.ok(suscripcionMapper.toDTO(suscripcionActualizada));
+                })
                 .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
-
-        suscripcion.setEstado("CANCELADA");
-        Suscripcion suscripcionActualizada = suscripcionService.actualizarSuscripcion(id, suscripcion);
-        return ResponseEntity.ok(convertToDTO(suscripcionActualizada));
     }
 
     @PutMapping("/{id}/activar")
     public ResponseEntity<SuscripcionDTO> activar(@PathVariable Long id) {
         Suscripcion suscripcionActivada = suscripcionService.activarSuscripcion(id);
-        return ResponseEntity.ok(convertToDTO(suscripcionActivada));
+        return ResponseEntity.ok(suscripcionMapper.toDTO(suscripcionActivada));
     }
 
     @DeleteMapping("/{id}")
