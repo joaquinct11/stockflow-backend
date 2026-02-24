@@ -172,6 +172,7 @@ public class VentaController {
                 .estado("COMPLETADA")
                 .tenantId(ventaDTO.getTenantId())
                 .detalles(detalles)
+                .createdAt(LocalDateTime.now())
                 .build();
 
         Venta ventaCreada = ventaService.crearVenta(venta);

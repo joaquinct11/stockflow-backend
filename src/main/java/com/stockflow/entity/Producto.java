@@ -57,9 +57,9 @@ public class Producto {
     @Column(nullable = false)
     private Boolean activo = true;
 
-    @Column(name = "fecha_creacion")
-    private LocalDateTime fechaCreacion = LocalDateTime.now();
-
     @Column(name = "tenant_id")
     private String tenantId;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 }

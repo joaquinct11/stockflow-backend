@@ -37,9 +37,6 @@ public class Venta {
     @Column(nullable = false, length = 50)
     private String estado = "COMPLETADA";
 
-    @Column(name = "fecha")
-    private LocalDateTime fecha = LocalDateTime.now();
-
     @Column(name = "tenant_id")
     private String tenantId;
 

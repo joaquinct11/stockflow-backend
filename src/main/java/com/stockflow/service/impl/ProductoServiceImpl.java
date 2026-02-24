@@ -62,6 +62,9 @@ public class ProductoServiceImpl implements ProductoService {
                     producto.setLote(productoActualizado.getLote());
                     producto.setProveedorId(productoActualizado.getProveedorId());
                     producto.setActivo(productoActualizado.getActivo());
+                    producto.setStockActual(productoActualizado.getStockActual());
+                    producto.setStockMinimo(productoActualizado.getStockMinimo());
+                    producto.setStockMaximo(productoActualizado.getStockMaximo());
                     return productoRepository.save(producto);
                 })
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));

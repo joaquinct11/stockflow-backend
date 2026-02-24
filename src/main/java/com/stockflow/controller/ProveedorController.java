@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +30,7 @@ public class ProveedorController {
                 .direccion(proveedor.getDireccion())
                 .activo(proveedor.getActivo())
                 .tenantId(proveedor.getTenantId())
+                .createdAt(proveedor.getCreatedAt())
                 .build();
     }
 
@@ -93,7 +94,18 @@ public class ProveedorController {
 
     @PostMapping
     public ResponseEntity<ProveedorDTO> crear(@Valid @RequestBody ProveedorDTO proveedorDTO) {
-        Proveedor proveedor = convertToEntity(proveedorDTO);
+        Proveedor proveedor = Proveedor.builder()
+                .nombre(proveedorDTO.getNombre())
+                .ruc(proveedorDTO.getRuc())
+                .contacto(proveedorDTO.getContacto())
+                .telefono(proveedorDTO.getTelefono())
+                .email(proveedorDTO.getEmail())
+                .direccion(proveedorDTO.getDireccion())
+                .activo(proveedorDTO.getActivo() != null ? proveedorDTO.getActivo() : true)
+                .tenantId(proveedorDTO.getTenantId())
+                .createdAt(LocalDateTime.now())
+                .build();
+
         Proveedor proveedorCreado = proveedorService.crearProveedor(proveedor);
         return ResponseEntity.status(HttpStatus.CREATED).body(convertToDTO(proveedorCreado));
     }

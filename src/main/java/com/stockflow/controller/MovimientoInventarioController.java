@@ -14,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,7 +34,6 @@ public class MovimientoInventarioController {
                 .productoId(movimiento.getProducto().getId())
                 .cantidad(movimiento.getCantidad())
                 .tipo(movimiento.getTipo())
-                .ventaId(movimiento.getVenta() != null ? movimiento.getVenta().getId() : null)
                 .usuarioId(movimiento.getUsuario().getId())
                 .descripcion(movimiento.getDescripcion())
                 .tenantId(movimiento.getTenantId())
@@ -126,6 +127,7 @@ public class MovimientoInventarioController {
                 .usuario(usuario)
                 .descripcion(movimientoDTO.getDescripcion())
                 .tenantId(movimientoDTO.getTenantId())
+                .createdAt(LocalDateTime.now())
                 .build();
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);

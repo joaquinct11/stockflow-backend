@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,6 +54,7 @@ public class ProductoController {
                 .proveedorId(dto.getProveedorId())
                 .activo(dto.getActivo() != null ? dto.getActivo() : true)
                 .tenantId(dto.getTenantId())
+                .createdAt(LocalDateTime.now())
                 .build();
     }
 

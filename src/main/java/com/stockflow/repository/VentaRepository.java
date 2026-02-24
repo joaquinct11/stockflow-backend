@@ -12,9 +12,9 @@ import java.util.List;
 public interface VentaRepository extends JpaRepository<Venta, Long> {
     List<Venta> findByVendedorId(Long vendedorId);
     List<Venta> findByTenantId(String tenantId);
-    List<Venta> findByFechaBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
+    List<Venta> findByCreatedAtBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
 
-    @Query("SELECT v FROM Venta v WHERE v.tenantId = :tenantId AND v.fecha BETWEEN :inicio AND :fin")
+    @Query("SELECT v FROM Venta v WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin")
     List<Venta> findVentasPorPeriodo(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,

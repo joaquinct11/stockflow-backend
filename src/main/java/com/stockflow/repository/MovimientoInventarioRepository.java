@@ -19,7 +19,7 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
 
     List<MovimientoInventario> findByTipo(String tipo);
 
-    @Query("SELECT m FROM MovimientoInventario m WHERE m.producto.id = :productoId AND m.fecha BETWEEN :inicio AND :fin")
+    @Query("SELECT m FROM MovimientoInventario m WHERE m.producto.id = :productoId AND m.createdAt BETWEEN :inicio AND :fin")
     List<MovimientoInventario> findMovimientosPorProductoYPeriodo(
             @Param("productoId") Long productoId,
             @Param("inicio") LocalDateTime inicio,

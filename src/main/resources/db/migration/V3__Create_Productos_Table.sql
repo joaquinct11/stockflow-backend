@@ -12,7 +12,6 @@ CREATE TABLE productos (
                            lote VARCHAR(50),
                            proveedor_id BIGINT,
                            activo BOOLEAN DEFAULT true,
-                           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                            tenant_id VARCHAR(100),
                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

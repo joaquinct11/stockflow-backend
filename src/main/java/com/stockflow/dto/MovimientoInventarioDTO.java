@@ -34,4 +34,6 @@ public class MovimientoInventarioDTO {
     private String descripcion;
 
     private String tenantId;
+
+
 }

@@ -30,19 +30,15 @@ public class MovimientoInventario {
     private String tipo;
 
     @ManyToOne
-    @JoinColumn(name = "venta_id")
-    private Venta venta;
-
-    @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
-
-    @Column(name = "fecha")
-    private LocalDateTime fecha = LocalDateTime.now();
 
     @Column(columnDefinition = "TEXT")
     private String descripcion;
 
     @Column(name = "tenant_id")
     private String tenantId;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 }
