@@ -1,0 +1,51 @@
+# ========================================
+# DESARROLLO (LOCAL)
+# ========================================
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/stockflows
+    username: stockflow_user
+    password: stockflow_password
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update  # ✅ Actualiza automáticamente en dev
+    show-sql: true      # ✅ Muestra SQL en consola
+
+  flyway:
+    enabled: true
+    clean-disabled: false  # ✅ Permite limpiar BD en dev
+
+  devtools:
+    restart:
+      enabled: true
+
+# JWT (dev - menos seguro pero fácil de recordar)
+jwt:
+  secret: mySecretKeyForJwtTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm
+
+# CORS permisivo
+cors:
+  allowed-origins:
+    - http://localhost:5173
+    - http://localhost:3000
+    - http://127.0.0.1:5173
+
+# Servidor
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-stacktrace: always
+
+# Logging detallado
+logging:
+  level:
+    root: INFO
+    com.stockflow: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
