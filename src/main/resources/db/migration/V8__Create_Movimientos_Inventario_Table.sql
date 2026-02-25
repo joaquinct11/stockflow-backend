@@ -1,9 +1,9 @@
 CREATE TABLE movimientos_inventario (
                                         id BIGSERIAL PRIMARY KEY,
-                                        producto_id BIGINT NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
+                                        producto_id BIGINT NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
                                         cantidad INTEGER NOT NULL,
                                         tipo VARCHAR(50) NOT NULL,
-                                        usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+                                        usuario_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                                         descripcion TEXT,
                                         tenant_id VARCHAR(100) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
                                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

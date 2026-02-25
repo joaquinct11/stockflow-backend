@@ -14,7 +14,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     List<Producto> findByNombreContainingIgnoreCase(String nombre);
     List<Producto> findByTenantId(String tenantId);
     List<Producto> findByActivoTrue();
-
+    long countByTenantId(String tenantId);
     @Query("SELECT p FROM Producto p WHERE p.stockActual < p.stockMinimo AND p.tenantId = :tenantId")
     List<Producto> findProductosBajoStock(@Param("tenantId") String tenantId);
 }

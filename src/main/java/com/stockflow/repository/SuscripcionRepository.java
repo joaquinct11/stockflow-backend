@@ -14,7 +14,7 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
     Optional<Suscripcion> findByUsuarioPrincipalId(Long usuarioPrincipalId);
     List<Suscripcion> findByEstado(String estado);
     List<Suscripcion> findByEstadoAndFechaProximoCobro(String estado, LocalDateTime fecha);
-
+    long countByTenantId(String tenantId);
     @Query("SELECT s FROM Suscripcion s WHERE s.estado = 'ACTIVA' AND s.fechaProximoCobro <= :ahora")
     List<Suscripcion> findSuscripcionesParaCobrar(@Param("ahora") LocalDateTime ahora);
 }

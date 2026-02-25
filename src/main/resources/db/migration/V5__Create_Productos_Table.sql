@@ -10,7 +10,7 @@ CREATE TABLE productos (
                            precio_venta NUMERIC(10, 2) NOT NULL,
                            fecha_vencimiento DATE,
                            lote VARCHAR(50),
-                           proveedor_id BIGINT NOT NULL REFERENCES proveedores(id) ON DELETE RESTRICT,
+                           proveedor_id BIGINT NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
                            activo BOOLEAN DEFAULT true,
                            deleted_at TIMESTAMP DEFAULT NULL,
                            tenant_id VARCHAR(100) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,

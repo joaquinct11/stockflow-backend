@@ -1,5 +1,6 @@
 package com.stockflow.controller;
 
+import com.stockflow.dto.DeleteAccountValidationDTO;
 import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.dto.UsuarioUpdateDTO;
 import com.stockflow.entity.Rol;
@@ -138,6 +139,20 @@ public class UsuarioController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         usuarioService.eliminarUsuario(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/validar-eliminacion")
+    public ResponseEntity<DeleteAccountValidationDTO> validarEliminacion(@PathVariable Long id) {
+        log.info("🔍 Validando eliminación de usuario ID: {}", id);
+        DeleteAccountValidationDTO validacion = usuarioService.validarEliminacion(id);
+        return ResponseEntity.ok(validacion);
+    }
+
+    @DeleteMapping("/{id}/cuenta-completa")
+    public ResponseEntity<Void> eliminarCuentaCompleta(@PathVariable Long id) {
+        log.warn("⚠️ ELIMINACIÓN PERMANENTE de cuenta completa ID: {}", id);
+        usuarioService.eliminarCuentaCompleta(id);
         return ResponseEntity.noContent().build();
     }
 }

@@ -20,6 +20,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     List<Usuario> findByActivoTrue();
 
+    long countByTenantId(String tenantId);  // ✅ NUEVO
+
     @Query("SELECT u FROM Usuario u WHERE u.deletedAt IS NULL AND u.tenantId = :tenantId AND u.activo = true")
     List<Usuario> findActivosByTenant(@Param("tenantId") String tenantId);
 

@@ -1,11 +1,13 @@
 package com.stockflow.service.impl;
 
+import com.stockflow.dto.DatosEliminacionDTO;
 import com.stockflow.entity.Tenant;
-import com.stockflow.repository.TenantRepository;
+import com.stockflow.repository.*;
 import com.stockflow.service.TenantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,6 +18,11 @@ import java.util.UUID;
 public class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final ProductoRepository productoRepository;
+    private final VentaRepository ventaRepository;
+    private final ProveedorRepository proveedorRepository;
+    private final SuscripcionRepository suscripcionRepository;
 
     @Override
     public Tenant crearTenant(String nombreFarmacia) {
@@ -71,18 +78,49 @@ public class TenantServiceImpl implements TenantService {
     }
 
     @Override
+    @Transactional
     public void eliminarPermanentemente(String tenantId) {
+        log.warn("⚠️ ELIMINACIÓN PERMANENTE de tenant: {}", tenantId);
+
         tenantRepository.findByTenantId(tenantId)
                 .ifPresent(tenant -> {
-                    log.warn("🗑️ Eliminando permanentemente tenant: {}", tenantId);
+                    // ON DELETE CASCADE se encarga de eliminar:
+                    // - usuarios
+                    // - productos
+                    // - proveedores
+                    // - ventas
+                    // - suscripciones
+                    // - movimientos_inventario
+
                     tenantRepository.delete(tenant);
+                    log.warn("🗑️ Tenant eliminado permanentemente: {}", tenantId);
                 });
     }
 
-    /**
-     * Generar tenantId único
-     * Formato: "farmacia-nombrefarmacia-xxxx"
-     */
+    @Override
+    public DatosEliminacionDTO obtenerDatosEliminacion(String tenantId) {
+        log.info("📊 Obteniendo datos de eliminación para tenant: {}", tenantId);
+
+        Tenant tenant = tenantRepository.findByTenantId(tenantId)
+                .orElseThrow(() -> new RuntimeException("Tenant no encontrado"));
+
+        long usuarios = usuarioRepository.countByTenantId(tenantId);
+        long productos = productoRepository.countByTenantId(tenantId);
+        long ventas = ventaRepository.countByTenantId(tenantId);
+        long proveedores = proveedorRepository.countByTenantId(tenantId);
+        long suscripciones = suscripcionRepository.countByTenantId(tenantId);
+
+        return DatosEliminacionDTO.builder()
+                .usuarios(usuarios)
+                .productos(productos)
+                .ventas(ventas)
+                .proveedores(proveedores)
+                .suscripciones(suscripciones)
+                .tenantId(tenantId)
+                .nombreFarmacia(tenant.getNombre())
+                .build();
+    }
+
     private String generarTenantId(String nombreFarmacia) {
         String nombre = nombreFarmacia
                 .toLowerCase()

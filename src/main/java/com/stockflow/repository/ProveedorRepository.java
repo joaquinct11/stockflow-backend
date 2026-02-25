@@ -17,4 +17,6 @@ public interface ProveedorRepository extends JpaRepository<Proveedor, Long> {
     List<Proveedor> findByTenantId(String tenantId);
 
     List<Proveedor> findByActivoTrue();
+
+    long countByTenantId(String tenantId);
 }

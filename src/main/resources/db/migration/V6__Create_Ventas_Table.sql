@@ -1,6 +1,6 @@
 CREATE TABLE ventas (
                         id BIGSERIAL PRIMARY KEY,
-                        vendedor_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+                        vendedor_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                         total NUMERIC(10, 2) NOT NULL,
                         metodo_pago VARCHAR(50),
                         estado VARCHAR(50) DEFAULT 'COMPLETADA',

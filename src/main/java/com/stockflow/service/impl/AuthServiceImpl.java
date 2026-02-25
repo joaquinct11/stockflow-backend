@@ -133,6 +133,7 @@ public class AuthServiceImpl implements AuthService {
                 .estado("ACTIVA")
                 .metodoPago("PENDIENTE")
                 .tenantId(tenant.getTenantId())
+                .fechaInicio(LocalDateTime.now())
                 .build();
 
         Suscripcion suscripcionCreada = suscripcionService.crearSuscripcion(suscripcion);

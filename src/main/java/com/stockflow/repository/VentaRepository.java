@@ -13,7 +13,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     List<Venta> findByVendedorId(Long vendedorId);
     List<Venta> findByTenantId(String tenantId);
     List<Venta> findByCreatedAtBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
-
+    long countByTenantId(String tenantId);
     @Query("SELECT v FROM Venta v WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin")
     List<Venta> findVentasPorPeriodo(
             @Param("tenantId") String tenantId,

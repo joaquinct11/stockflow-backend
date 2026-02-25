@@ -1,6 +1,6 @@
 CREATE TABLE suscripciones (
                                id BIGSERIAL PRIMARY KEY,
-                               usuario_principal_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+                               usuario_principal_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                                plan_id VARCHAR(50) NOT NULL,
                                precio_mensual NUMERIC(10, 2) NOT NULL,
                                preapproval_id VARCHAR(255),
