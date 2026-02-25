@@ -85,6 +85,8 @@ public class AuthServiceImpl implements AuthService {
                 .rol(rol)
                 .activo(true)
                 .tenantId(usuarioDTO.getTenantId())
+                .fechaCreacion(LocalDateTime.now())
+                .ultimoLogin(LocalDateTime.now())
                 .build();
 
         Usuario usuarioGuardado = usuarioRepository.save(usuario);
