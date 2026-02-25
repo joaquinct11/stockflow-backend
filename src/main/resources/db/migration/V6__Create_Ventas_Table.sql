@@ -1,10 +1,10 @@
 CREATE TABLE ventas (
                         id BIGSERIAL PRIMARY KEY,
-                        vendedor_id BIGINT NOT NULL REFERENCES usuarios(id),
+                        vendedor_id BIGINT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
                         total NUMERIC(10, 2) NOT NULL,
                         metodo_pago VARCHAR(50),
                         estado VARCHAR(50) DEFAULT 'COMPLETADA',
-                        tenant_id VARCHAR(100),
+                        tenant_id VARCHAR(100) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

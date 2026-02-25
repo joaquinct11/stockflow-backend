@@ -53,4 +53,7 @@ public class Suscripcion {
 
     @Column(name = "ultimos_4_digitos", length = 4)
     private String ultimos4Digitos;
+
+    @Column(name = "tenant_id")
+    private String tenantId;
 }

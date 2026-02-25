@@ -38,4 +38,6 @@ public class SuscripcionDTO {
     private String metodoPago;
 
     private String ultimos4Digitos;
+
+    private String tenantId;
 }

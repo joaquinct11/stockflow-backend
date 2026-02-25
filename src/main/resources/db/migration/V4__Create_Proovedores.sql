@@ -7,7 +7,8 @@ CREATE TABLE proveedores (
                              email VARCHAR(255),
                              direccion TEXT,
                              activo BOOLEAN DEFAULT true,
-                             tenant_id VARCHAR(100),
+                             deleted_at TIMESTAMP DEFAULT NULL,
+                             tenant_id VARCHAR(100) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
                              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -15,3 +16,4 @@ CREATE INDEX idx_proveedores_ruc ON proveedores(ruc);
 CREATE INDEX idx_proveedores_nombre ON proveedores(nombre);
 CREATE INDEX idx_proveedores_tenant_id ON proveedores(tenant_id);
 CREATE INDEX idx_proveedores_activo ON proveedores(activo);
+CREATE INDEX idx_proveedores_deleted_at ON proveedores(deleted_at);
