@@ -21,4 +21,6 @@ public interface MovimientoInventarioService {
     List<MovimientoInventario> obtenerMovimientosPorTenant(String tenantId);
 
     void eliminarMovimiento(Long id);
+
+    List<MovimientoInventario> obtenerMovimientosPorTipoYTenant(String tipo, String tenantId);
 }

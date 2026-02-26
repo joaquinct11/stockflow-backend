@@ -20,5 +20,12 @@ public interface SuscripcionService {
 
     Suscripcion activarSuscripcion(Long id);
 
+    Suscripcion cancelarSuscripcion(Long id);  // ✅ NUEVO
+
     void eliminarSuscripcion(Long id);
+
+    // ✅ NUEVOS: Métodos para filtrar por tenant
+    List<Suscripcion> obtenerSuscripcionesPorTenant(String tenantId);
+
+    List<Suscripcion> obtenerSuscripcionesPorEstadoYTenant(String estado, String tenantId);
 }

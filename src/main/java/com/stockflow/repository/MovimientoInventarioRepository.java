@@ -25,4 +25,6 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin
     );
+
+    List<MovimientoInventario> findByTipoAndTenantId(String tipo, String tenantId);
 }

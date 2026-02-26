@@ -1,6 +1,7 @@
 package com.stockflow.util;
 
 import com.stockflow.config.properties.JwtProperties;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.UUID;
+import java.util.function.Function;
 
 @Slf4j
 @Component
@@ -23,7 +25,10 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes());
     }
 
-    public String generateToken(Long usuarioId, String email, String nombre, String rol) {
+    /**
+     * Generar token JWT con tenantId
+     */
+    public String generateToken(Long usuarioId, String email, String nombre, String rol, String tenantId) {
         String nonce = UUID.randomUUID().toString();
         log.debug("Generando token con nonce: {}", nonce);
 
@@ -32,6 +37,7 @@ public class JwtUtil {
                 .claim("usuarioId", usuarioId)
                 .claim("nombre", nombre)
                 .claim("rol", rol)
+                .claim("tenantId", tenantId)  // ✅ AGREGADO
                 .claim("nonce", nonce)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
@@ -39,6 +45,9 @@ public class JwtUtil {
                 .compact();
     }
 
+    /**
+     * Generar refresh token
+     */
     public String generateRefreshToken(Long usuarioId, String email) {
         return Jwts.builder()
                 .setSubject(email)
@@ -50,6 +59,9 @@ public class JwtUtil {
                 .compact();
     }
 
+    /**
+     * Extraer email del token
+     */
     public String getEmailFromToken(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -59,6 +71,9 @@ public class JwtUtil {
                 .getSubject();
     }
 
+    /**
+     * Extraer usuarioId del token
+     */
     public Long getUserIdFromToken(String token) {
         Object usuarioId = Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -73,6 +88,9 @@ public class JwtUtil {
         return (Long) usuarioId;
     }
 
+    /**
+     * Extraer rol del token
+     */
     public String getRolFromToken(String token) {
         return (String) Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
@@ -82,6 +100,47 @@ public class JwtUtil {
                 .get("rol");
     }
 
+    /**
+     * ✅ NUEVO: Extraer tenantId del token
+     */
+    public String getTenantIdFromToken(String token) {
+        return (String) Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("tenantId");
+    }
+
+    /**
+     * ✅ NUEVO: Método genérico para extraer claims
+     */
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    /**
+     * ✅ NUEVO: Extraer todos los claims
+     */
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    /**
+     * ✅ NUEVO: Extraer tenantId usando extractClaim (alternativa)
+     */
+    public String extractTenantId(String token) {
+        return extractClaim(token, claims -> claims.get("tenantId", String.class));
+    }
+
+    /**
+     * Validar token
+     */
     public boolean validateToken(String token) {
         try {
             Jwts.parserBuilder()
@@ -95,6 +154,9 @@ public class JwtUtil {
         }
     }
 
+    /**
+     * Verificar si el token expiró
+     */
     public boolean isTokenExpired(String token) {
         try {
             Date expiration = Jwts.parserBuilder()

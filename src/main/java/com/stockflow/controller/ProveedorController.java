@@ -4,13 +4,16 @@ import com.stockflow.dto.ProveedorDTO;
 import com.stockflow.entity.Proveedor;
 import com.stockflow.mapper.ProveedorMapper;
 import com.stockflow.service.ProveedorService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/proveedores")
 @RequiredArgsConstructor
@@ -19,17 +22,26 @@ public class ProveedorController {
     private final ProveedorService proveedorService;
     private final ProveedorMapper proveedorMapper;
 
+    /**
+     * ✅ ACTUALIZADO: Obtiene proveedores del tenant actual
+     */
     @GetMapping
     public ResponseEntity<List<ProveedorDTO>> obtenerTodos() {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("🏢 Obteniendo proveedores para tenant: {}", tenantId);
+
         return ResponseEntity.ok(
-                proveedorMapper.toDTOList(proveedorService.obtenerTodosProveedores())
+                proveedorMapper.toDTOList(proveedorService.obtenerProveedoresPorTenant(tenantId))
         );
     }
 
     @GetMapping("/activos")
     public ResponseEntity<List<ProveedorDTO>> obtenerActivos() {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("✅ Obteniendo proveedores activos para tenant: {}", tenantId);
+
         return ResponseEntity.ok(
-                proveedorMapper.toDTOList(proveedorService.obtenerProveedoresActivos())
+                proveedorMapper.toDTOList(proveedorService.obtenerProveedoresActivosPorTenant(tenantId))
         );
     }
 
@@ -56,10 +68,19 @@ public class ProveedorController {
         );
     }
 
+    /**
+     * ✅ ACTUALIZADO: Setea tenantId automáticamente
+     */
     @PostMapping
     public ResponseEntity<ProveedorDTO> crear(@Valid @RequestBody ProveedorDTO proveedorDTO) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("➕ Creando proveedor para tenant: {}", tenantId);
+
+        proveedorDTO.setTenantId(tenantId);
+
         Proveedor proveedor = proveedorMapper.toEntity(proveedorDTO);
         Proveedor proveedorCreado = proveedorService.crearProveedor(proveedor);
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(proveedorMapper.toDTO(proveedorCreado));
     }
@@ -68,6 +89,8 @@ public class ProveedorController {
     public ResponseEntity<ProveedorDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProveedorDTO proveedorDTO) {
+        log.info("✏️ Actualizando proveedor ID: {}", id);
+
         return proveedorService.obtenerProveedorPorId(id)
                 .map(proveedorExistente -> {
                     proveedorMapper.updateEntityFromDTO(proveedorDTO, proveedorExistente);
@@ -79,6 +102,7 @@ public class ProveedorController {
 
     @PatchMapping("/{id}/activar")
     public ResponseEntity<ProveedorDTO> activar(@PathVariable Long id) {
+        log.info("✅ Activando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)
                 .map(proveedor -> {
                     Proveedor proveedorActivado = proveedorService.activarProveedor(id);
@@ -89,6 +113,7 @@ public class ProveedorController {
 
     @PatchMapping("/{id}/desactivar")
     public ResponseEntity<ProveedorDTO> desactivar(@PathVariable Long id) {
+        log.info("🔒 Desactivando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)
                 .map(proveedor -> {
                     Proveedor proveedorDesactivado = proveedorService.desactivarProveedor(id);
@@ -99,6 +124,7 @@ public class ProveedorController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        log.info("🗑️ Eliminando proveedor ID: {}", id);
         proveedorService.eliminarProveedor(id);
         return ResponseEntity.noContent().build();
     }

@@ -4,13 +4,16 @@ import com.stockflow.dto.ProductoDTO;
 import com.stockflow.entity.Producto;
 import com.stockflow.mapper.ProductoMapper;
 import com.stockflow.service.ProductoService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/productos")
 @RequiredArgsConstructor
@@ -19,10 +22,16 @@ public class ProductoController {
     private final ProductoService productoService;
     private final ProductoMapper productoMapper;
 
+    /**
+     * ✅ ACTUALIZADO: Obtiene productos del tenant actual automáticamente
+     */
     @GetMapping
     public ResponseEntity<List<ProductoDTO>> obtenerTodos() {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📦 Obteniendo productos para tenant: {}", tenantId);
+
         return ResponseEntity.ok(
-                productoMapper.toDTOList(productoService.obtenerProductosActivos())
+                productoMapper.toDTOList(productoService.obtenerProductosPorTenant(tenantId))
         );
     }
 
@@ -49,24 +58,33 @@ public class ProductoController {
         );
     }
 
-    @GetMapping("/tenant/{tenantId}")
-    public ResponseEntity<List<ProductoDTO>> obtenerPorTenant(@PathVariable String tenantId) {
-        return ResponseEntity.ok(
-                productoMapper.toDTOList(productoService.obtenerProductosPorTenant(tenantId))
-        );
-    }
+    /**
+     * ✅ ACTUALIZADO: Usa tenantId automáticamente
+     */
+    @GetMapping("/bajo-stock")
+    public ResponseEntity<List<ProductoDTO>> obtenerProductosBajoStock() {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("⚠️ Obteniendo productos con bajo stock para tenant: {}", tenantId);
 
-    @GetMapping("/tenant/{tenantId}/bajo-stock")
-    public ResponseEntity<List<ProductoDTO>> obtenerProductosBajoStock(@PathVariable String tenantId) {
         return ResponseEntity.ok(
                 productoMapper.toDTOList(productoService.obtenerProductosBajoStock(tenantId))
         );
     }
 
+    /**
+     * ✅ ACTUALIZADO: Setea tenantId automáticamente al crear
+     */
     @PostMapping
     public ResponseEntity<ProductoDTO> crear(@Valid @RequestBody ProductoDTO productoDTO) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("➕ Creando producto para tenant: {}", tenantId);
+
+        // Setear tenantId del contexto
+        productoDTO.setTenantId(tenantId);
+
         Producto producto = productoMapper.toEntity(productoDTO);
         Producto productoCreado = productoService.crearProducto(producto);
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(productoMapper.toDTO(productoCreado));
     }
@@ -75,6 +93,8 @@ public class ProductoController {
     public ResponseEntity<ProductoDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProductoDTO productoDTO) {
+        log.info("✏️ Actualizando producto ID: {}", id);
+
         return productoService.obtenerProductoPorId(id)
                 .map(productoExistente -> {
                     productoMapper.updateEntityFromDTO(productoDTO, productoExistente);
@@ -86,6 +106,7 @@ public class ProductoController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        log.info("🗑️ Eliminando producto ID: {}", id);
         productoService.eliminarProducto(id);
         return ResponseEntity.noContent().build();
     }

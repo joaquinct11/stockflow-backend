@@ -56,4 +56,7 @@ public class Suscripcion {
 
     @Column(name = "tenant_id")
     private String tenantId;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

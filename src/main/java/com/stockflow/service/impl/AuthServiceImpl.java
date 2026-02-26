@@ -68,7 +68,8 @@ public class AuthServiceImpl implements AuthService {
                 usuario.getId(),
                 usuario.getEmail(),
                 usuario.getNombre(),
-                usuario.getRol().getNombre()
+                usuario.getRol().getNombre(),
+                usuario.getTenantId()
         );
 
         // Obtener suscripción del usuario
@@ -145,7 +146,8 @@ public class AuthServiceImpl implements AuthService {
                 usuarioCreado.getId(),
                 usuarioCreado.getEmail(),
                 usuarioCreado.getNombre(),
-                usuarioCreado.getRol().getNombre()
+                usuarioCreado.getRol().getNombre(),
+                usuario.getTenantId()
         );
 
         String refreshToken = jwtUtil.generateRefreshToken(
@@ -198,7 +200,8 @@ public class AuthServiceImpl implements AuthService {
                 usuarioGuardado.getId(),
                 usuarioGuardado.getEmail(),
                 usuarioGuardado.getNombre(),
-                usuarioGuardado.getRol().getNombre()
+                usuarioGuardado.getRol().getNombre(),
+                usuario.getTenantId()
         );
 
         return JwtResponseDTO.builder()

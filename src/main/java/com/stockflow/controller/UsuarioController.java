@@ -8,6 +8,7 @@ import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.UsuarioMapper;
 import com.stockflow.repository.RolRepository;
 import com.stockflow.service.UsuarioService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -26,10 +27,16 @@ public class UsuarioController {
     private final UsuarioMapper usuarioMapper;
     private final RolRepository rolRepository;
 
+    /**
+     * ✅ ACTUALIZADO: Obtiene usuarios del tenant actual
+     */
     @GetMapping
     public ResponseEntity<List<UsuarioDTO>> obtenerTodos() {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("👥 Obteniendo usuarios para tenant: {}", tenantId);
+
         return ResponseEntity.ok(
-                usuarioMapper.toDTOList(usuarioService.obtenerTodos())
+                usuarioMapper.toDTOList(usuarioService.obtenerUsuariosPorTenant(tenantId))
         );
     }
 
@@ -49,17 +56,14 @@ public class UsuarioController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/tenant/{tenantId}")
-    public ResponseEntity<List<UsuarioDTO>> obtenerPorTenant(@PathVariable String tenantId) {
-        return ResponseEntity.ok(
-                usuarioMapper.toDTOList(usuarioService.obtenerUsuariosPorTenant(tenantId))
-        );
-    }
-
+    /**
+     * ✅ ACTUALIZADO: Setea tenantId automáticamente
+     */
     @PostMapping
     public ResponseEntity<UsuarioDTO> crear(@Valid @RequestBody UsuarioDTO usuarioDTO) {
         try {
-            log.info("📝 Creando nuevo usuario: {}", usuarioDTO.getEmail());
+            String tenantId = TenantContext.getCurrentTenant();
+            log.info("📝 Creando nuevo usuario: {} para tenant: {}", usuarioDTO.getEmail(), tenantId);
 
             // Buscar el rol
             Rol rol = rolRepository.findByNombre(usuarioDTO.getRolNombre())
@@ -68,7 +72,8 @@ public class UsuarioController {
             // Convertir DTO a Entity
             Usuario usuario = usuarioMapper.toEntity(usuarioDTO);
             usuario.setRol(rol);
-            usuario.setContraseña(usuarioDTO.getContraseña()); // Se encriptará en el service
+            usuario.setContraseña(usuarioDTO.getContraseña());
+            usuario.setTenantId(tenantId);  // ✅ Setear tenantId automáticamente
 
             // Guardar en BD
             Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
@@ -89,17 +94,11 @@ public class UsuarioController {
             @Valid @RequestBody UsuarioUpdateDTO updateDTO) {
         try {
             log.info("📝 Actualizando usuario ID: {}", id);
-            log.info("📦 Datos: nombre={}, rol={}, activo={}, tenant={}",
-                    updateDTO.getNombre(),
-                    updateDTO.getRolNombre(),
-                    updateDTO.getActivo(),
-                    updateDTO.getTenantId());
 
             return usuarioService.obtenerUsuarioPorId(id)
                     .map(usuario -> {
                         // Actualizar campos básicos
                         usuario.setNombre(updateDTO.getNombre());
-                        usuario.setTenantId(updateDTO.getTenantId());
                         usuario.setActivo(updateDTO.getActivo());
 
                         // Actualizar rol
@@ -125,6 +124,7 @@ public class UsuarioController {
 
     @PatchMapping("/{id}/desactivar")
     public ResponseEntity<Void> desactivar(@PathVariable Long id) {
+        log.info("🔒 Desactivando usuario ID: {}", id);
         usuarioService.desactivarUsuario(id);
         return ResponseEntity.noContent().build();
     }
@@ -136,17 +136,18 @@ public class UsuarioController {
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        usuarioService.eliminarUsuario(id);
-        return ResponseEntity.noContent().build();
-    }
-
     @GetMapping("/{id}/validar-eliminacion")
     public ResponseEntity<DeleteAccountValidationDTO> validarEliminacion(@PathVariable Long id) {
         log.info("🔍 Validando eliminación de usuario ID: {}", id);
         DeleteAccountValidationDTO validacion = usuarioService.validarEliminacion(id);
         return ResponseEntity.ok(validacion);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        log.info("🗑️ Soft delete de usuario ID: {}", id);
+        usuarioService.eliminarUsuario(id);
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}/cuenta-completa")

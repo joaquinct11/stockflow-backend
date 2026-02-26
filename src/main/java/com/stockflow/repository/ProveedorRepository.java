@@ -3,7 +3,6 @@ package com.stockflow.repository;
 import com.stockflow.entity.Proveedor;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
 import java.util.List;
 import java.util.Optional;
 
@@ -14,9 +13,12 @@ public interface ProveedorRepository extends JpaRepository<Proveedor, Long> {
 
     List<Proveedor> findByNombreContainingIgnoreCase(String nombre);
 
+    List<Proveedor> findByActivoTrue();
+
+    // ✅ NUEVOS: Filtrar por tenant
     List<Proveedor> findByTenantId(String tenantId);
 
-    List<Proveedor> findByActivoTrue();
+    List<Proveedor> findByTenantIdAndActivoTrue(String tenantId);  // ✅ ESTE ES EL QUE FALTA
 
     long countByTenantId(String tenantId);
 }

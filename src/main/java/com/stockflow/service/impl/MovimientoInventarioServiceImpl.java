@@ -1,6 +1,7 @@
 package com.stockflow.service.impl;
 
 import com.stockflow.entity.MovimientoInventario;
+import com.stockflow.entity.Suscripcion;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import lombok.RequiredArgsConstructor;
@@ -52,5 +53,10 @@ public class MovimientoInventarioServiceImpl implements MovimientoInventarioServ
     @Override
     public void eliminarMovimiento(Long id) {
         movimientoRepository.deleteById(id);
+    }
+
+    @Override
+    public List<MovimientoInventario> obtenerMovimientosPorTipoYTenant(String tipo, String tenantId) {
+        return movimientoRepository.findByTipoAndTenantId(tipo, tenantId);
     }
 }
