@@ -119,6 +119,7 @@ public class MovimientoInventarioController {
                 .cantidad(movimientoDTO.getCantidad())
                 .descripcion(movimientoDTO.getDescripcion())
                 .tenantId(tenantId)
+                .createdAt(LocalDateTime.now())
                 .build();
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);

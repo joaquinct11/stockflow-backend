@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Random;
 
 @Slf4j
 @Service
@@ -127,14 +129,19 @@ public class AuthServiceImpl implements AuthService {
         // 4. Crear SUSCRIPCIÓN
         BigDecimal precioMensual = obtenerPrecioPlan(request.getPlanId());
 
+        // Generar preapprovalId automáticamente
+        String preapprovalId = generarPreapprovalId();
+
         Suscripcion suscripcion = Suscripcion.builder()
                 .usuarioPrincipal(usuarioCreado)
+                .preapprovalId(preapprovalId)
                 .planId(request.getPlanId())
                 .precioMensual(precioMensual)
                 .estado("ACTIVA")
                 .metodoPago("PENDIENTE")
                 .tenantId(tenant.getTenantId())
                 .fechaInicio(LocalDateTime.now())
+                .fechaProximoCobro(LocalDateTime.now().plusMonths(1))
                 .build();
 
         Suscripcion suscripcionCreada = suscripcionService.crearSuscripcion(suscripcion);
@@ -168,6 +175,18 @@ public class AuthServiceImpl implements AuthService {
                 .tenantId(tenant.getTenantId())
                 .suscripcion(mapToSuscripcionDTO(suscripcionCreada))
                 .build();
+    }
+
+    private String generarPreapprovalId() {
+        // Formato: PRE-YYYYMMDD-XXXXXX
+        LocalDateTime ahora = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+        String fecha = ahora.format(formatter);
+
+        Random random = new Random();
+        int numero = random.nextInt(999999);
+
+        return String.format("PRE-%s-%06d", fecha, numero);
     }
 
     @Override

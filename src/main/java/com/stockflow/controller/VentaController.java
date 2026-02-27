@@ -143,10 +143,15 @@ public class VentaController {
                 .estado(ventaDTO.getEstado())
                 .tenantId(tenantId)
                 .detalles(detalles)
+                .createdAt(LocalDateTime.now())
                 .build();
 
         // Asociar venta a cada detalle
-        detalles.forEach(detalle -> detalle.setVenta(venta));
+        detalles.forEach(detalle -> {
+            Producto producto = detalle.getProducto();
+            producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
+            productoService.actualizarProducto(producto.getId(), producto);
+        });
 
         Venta ventaCreada = ventaService.crearVenta(venta);
         log.info("✅ Venta creada exitosamente: ID {}", ventaCreada.getId());
