@@ -190,51 +190,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public JwtResponseDTO registroUsuario(UsuarioDTO usuarioDTO) {
-        // Validar que el email no exista
-        if (usuarioRepository.findByEmail(usuarioDTO.getEmail()).isPresent()) {
-            throw new ConflictException("El email ya está registrado");
-        }
-
-        // Buscar el rol
-        Rol rol = rolRepository.findByNombre(usuarioDTO.getRolNombre())
-                .orElseThrow(() -> new BadRequestException("El rol especificado no existe"));
-
-        // Crear nuevo usuario
-        Usuario usuario = Usuario.builder()
-                .email(usuarioDTO.getEmail())
-                .contraseña(passwordEncoder.encode(usuarioDTO.getContraseña()))
-                .nombre(usuarioDTO.getNombre())
-                .rol(rol)
-                .activo(true)
-                .tenantId(usuarioDTO.getTenantId())
-                .fechaCreacion(LocalDateTime.now())
-                .ultimoLogin(LocalDateTime.now())
-                .build();
-
-        Usuario usuarioGuardado = usuarioRepository.save(usuario);
-
-        // Generar JWT
-        String token = jwtUtil.generateToken(
-                usuarioGuardado.getId(),
-                usuarioGuardado.getEmail(),
-                usuarioGuardado.getNombre(),
-                usuarioGuardado.getRol().getNombre(),
-                usuario.getTenantId()
-        );
-
-        return JwtResponseDTO.builder()
-                .token(token)
-                .tipo("Bearer")
-                .usuarioId(usuarioGuardado.getId())
-                .email(usuarioGuardado.getEmail())
-                .nombre(usuarioGuardado.getNombre())
-                .rol(usuarioGuardado.getRol().getNombre())
-                .tenantId(usuarioGuardado.getTenantId())
-                .build();
-    }
-
-    @Override
     public void logout(String token) {
         tokenBlacklist.addTokenToBlacklist(token);
         log.info("✅ Token agregado a blacklist (logout)");

@@ -31,14 +31,6 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/registro")
-    @Operation(summary = "Registro", description = "Registra un nuevo usuario en el sistema")
-    public ResponseEntity<JwtResponseDTO> registro(@Valid @RequestBody UsuarioDTO usuarioDTO) {
-        log.info("📝 Registro de usuario: {}", usuarioDTO.getEmail());
-        JwtResponseDTO response = authService.registroUsuario(usuarioDTO);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
     @PostMapping("/register")
     @Operation(summary = "Registro completo",
             description = "Registra una nueva farmacia (tenant) con su usuario admin y suscripción")

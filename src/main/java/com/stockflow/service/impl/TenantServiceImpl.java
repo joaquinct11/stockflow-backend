@@ -129,6 +129,6 @@ public class TenantServiceImpl implements TenantService {
 
         String codigo = UUID.randomUUID().toString().substring(0, 4);
 
-        return "farmacia-" + nombre + "-" + codigo;
+        return nombre + "-" + codigo;
     }
 }

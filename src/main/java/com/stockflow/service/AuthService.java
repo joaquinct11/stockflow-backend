@@ -9,8 +9,6 @@ public interface AuthService {
 
     JwtResponseDTO login(LoginDTO loginDTO);
 
-    JwtResponseDTO registroUsuario(UsuarioDTO usuarioDTO);
-
     JwtResponseDTO registrar(RegistrationRequestDTO request);
 
     void logout(String token);
