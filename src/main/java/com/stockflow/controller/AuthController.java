@@ -2,8 +2,8 @@ package com.stockflow.controller;
 
 import com.stockflow.dto.JwtResponseDTO;
 import com.stockflow.dto.LoginDTO;
-import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.dto.RegistrationRequestDTO;
+import com.stockflow.dto.RefreshTokenRequestDTO;
 import com.stockflow.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -24,7 +26,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    @Operation(summary = "Login", description = "Autentica un usuario y devuelve un JWT")
+    @Operation(summary = "Login", description = "Autentica un usuario y devuelve access token y refresh token")
     public ResponseEntity<JwtResponseDTO> login(@Valid @RequestBody LoginDTO loginDTO) {
         log.info("🔐 Login: {}", loginDTO.getEmail());
         JwtResponseDTO response = authService.login(loginDTO);
@@ -40,11 +42,19 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/refresh")
+    @Operation(summary = "Renovar tokens", description = "Genera nuevos access y refresh tokens usando un refresh token válido")
+    public ResponseEntity<JwtResponseDTO> refresh(@Valid @RequestBody RefreshTokenRequestDTO request) {
+        log.info("🔄 Renovando tokens");
+        JwtResponseDTO response = authService.refresh(request.getRefreshToken());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/logout")
-    @Operation(summary = "Logout", description = "Cierra la sesión del usuario")
-    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String token) {
+    @Operation(summary = "Logout", description = "Revoca el refresh token del usuario")
+    public ResponseEntity<Map<String, String>> logout(@Valid @RequestBody RefreshTokenRequestDTO request) {
         log.info("👋 Logout del usuario");
-        authService.logout(token.replace("Bearer ", ""));
-        return ResponseEntity.noContent().build();
+        authService.logout(request.getRefreshToken());
+        return ResponseEntity.ok(Map.of("mensaje", "Sesión cerrada exitosamente"));
     }
 }
