@@ -11,5 +11,7 @@ public interface AuthService {
 
     JwtResponseDTO registrar(RegistrationRequestDTO request);
 
-    void logout(String token);
+    JwtResponseDTO refresh(String refreshToken);
+
+    void logout(String refreshToken);
 }

@@ -1,5 +1,5 @@
 # ========================================
-# CONFIGURACIÓN BASE - STOCKFLOW
+# CONFIGURACIÃ“N BASE - STOCKFLOW
 # ========================================
 
 spring:
@@ -33,9 +33,9 @@ server:
 # JWT
 jwt:
   secret: mySecretKeyForJwtTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm
-  expiration: 3600000        # 1 hora
+  expiration: 900000           # 15 minutos
   refresh:
-    expiration: 604800000    # 7 días
+    expiration: 604800000    # 7 dÃ­as
 
 # ? AGREGAR ESTO - CORS por defecto
 cors:

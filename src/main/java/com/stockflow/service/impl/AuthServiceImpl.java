@@ -2,29 +2,29 @@ package com.stockflow.service.impl;
 
 import com.stockflow.dto.JwtResponseDTO;
 import com.stockflow.dto.LoginDTO;
-import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.dto.RegistrationRequestDTO;
 import com.stockflow.dto.SuscripcionDTO;
+import com.stockflow.entity.RefreshToken;
 import com.stockflow.entity.Rol;
-import com.stockflow.entity.Usuario;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Tenant;
+import com.stockflow.entity.Usuario;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.UnauthorizedException;
 import com.stockflow.repository.RolRepository;
 import com.stockflow.repository.UsuarioRepository;
-import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.service.AuthService;
-import com.stockflow.service.TenantService;
+import com.stockflow.service.RefreshTokenService;
 import com.stockflow.service.SuscripcionService;
+import com.stockflow.service.TenantService;
 import com.stockflow.util.JwtUtil;
-import com.stockflow.util.TokenBlacklist;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -39,11 +39,12 @@ public class AuthServiceImpl implements AuthService {
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final TokenBlacklist tokenBlacklist;
+    private final RefreshTokenService refreshTokenService;
     private final TenantService tenantService;
     private final SuscripcionService suscripcionService;
 
     @Override
+    @Transactional
     public JwtResponseDTO login(LoginDTO loginDTO) {
         log.info("🔐 Login: {}", loginDTO.getEmail());
 
@@ -65,14 +66,17 @@ public class AuthServiceImpl implements AuthService {
         usuario.setUltimoLogin(LocalDateTime.now());
         usuarioRepository.save(usuario);
 
-        // Generar JWT
-        String token = jwtUtil.generateToken(
+        // Generar Access Token (15 min)
+        String accessToken = jwtUtil.generateToken(
                 usuario.getId(),
                 usuario.getEmail(),
                 usuario.getNombre(),
                 usuario.getRol().getNombre(),
                 usuario.getTenantId()
         );
+
+        // Generar y guardar Refresh Token (7 días)
+        RefreshToken refreshToken = refreshTokenService.crearRefreshToken(usuario);
 
         // Obtener suscripción del usuario
         Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorUsuario(usuario.getId())
@@ -81,13 +85,15 @@ public class AuthServiceImpl implements AuthService {
         SuscripcionDTO suscripcionDTO = suscripcion != null ? mapToSuscripcionDTO(suscripcion) : null;
 
         return JwtResponseDTO.builder()
-                .token(token)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
                 .tipo("Bearer")
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
                 .nombre(usuario.getNombre())
                 .rol(usuario.getRol().getNombre())
                 .tenantId(usuario.getTenantId())
+                .expiresIn(900)
                 .suscripcion(suscripcionDTO)
                 .build();
     }
@@ -149,36 +155,71 @@ public class AuthServiceImpl implements AuthService {
                 suscripcionCreada.getPlanId(), usuarioCreado.getEmail());
 
         // 5. Generar tokens JWT
-        String token = jwtUtil.generateToken(
+        String accessToken = jwtUtil.generateToken(
                 usuarioCreado.getId(),
                 usuarioCreado.getEmail(),
                 usuarioCreado.getNombre(),
                 usuarioCreado.getRol().getNombre(),
-                usuario.getTenantId()
+                tenant.getTenantId()
         );
 
-        String refreshToken = jwtUtil.generateRefreshToken(
-                usuarioCreado.getId(),
-                usuarioCreado.getEmail()
-        );
+        RefreshToken refreshToken = refreshTokenService.crearRefreshToken(usuarioCreado);
 
         log.info("✅ Registro completado exitosamente para: {}", request.getEmail());
 
         // 6. Retornar respuesta
         return JwtResponseDTO.builder()
-                .token(token)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
                 .tipo("Bearer")
                 .usuarioId(usuarioCreado.getId())
                 .email(usuarioCreado.getEmail())
                 .nombre(usuarioCreado.getNombre())
                 .rol(usuarioCreado.getRol().getNombre())
                 .tenantId(tenant.getTenantId())
+                .expiresIn(900)
                 .suscripcion(mapToSuscripcionDTO(suscripcionCreada))
                 .build();
     }
 
+    @Override
+    @Transactional
+    public JwtResponseDTO refresh(String refreshTokenString) {
+        // Validar refresh token
+        RefreshToken refreshToken = refreshTokenService.validarRefreshToken(refreshTokenString);
+        Usuario usuario = refreshToken.getUsuario();
+
+        // Generar nuevo Access Token
+        String newAccessToken = jwtUtil.generateToken(
+                usuario.getId(),
+                usuario.getEmail(),
+                usuario.getNombre(),
+                usuario.getRol().getNombre(),
+                usuario.getTenantId()
+        );
+
+        // Rotación: revocar el refresh token usado y crear uno nuevo
+        refreshTokenService.revocarRefreshToken(refreshTokenString);
+        RefreshToken newRefreshToken = refreshTokenService.crearRefreshToken(usuario);
+
+        log.info("✅ Tokens renovados para usuario: {}", usuario.getEmail());
+
+        return JwtResponseDTO.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken.getToken())
+                .tipo("Bearer")
+                .expiresIn(900)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void logout(String refreshTokenString) {
+        refreshTokenService.revocarRefreshToken(refreshTokenString);
+        log.info("✅ Refresh token revocado (logout)");
+    }
+
     private String generarPreapprovalId() {
-        // Formato: PRE-YYYYMMDD-XXXXXX
         LocalDateTime ahora = LocalDateTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
         String fecha = ahora.format(formatter);
@@ -189,15 +230,6 @@ public class AuthServiceImpl implements AuthService {
         return String.format("PRE-%s-%06d", fecha, numero);
     }
 
-    @Override
-    public void logout(String token) {
-        tokenBlacklist.addTokenToBlacklist(token);
-        log.info("✅ Token agregado a blacklist (logout)");
-    }
-
-    /**
-     * Obtener precio del plan
-     */
     private BigDecimal obtenerPrecioPlan(String planId) {
         return switch (planId) {
             case "FREE" -> BigDecimal.ZERO;
@@ -207,9 +239,6 @@ public class AuthServiceImpl implements AuthService {
         };
     }
 
-    /**
-     * Mapear Suscripcion a DTO
-     */
     private SuscripcionDTO mapToSuscripcionDTO(Suscripcion suscripcion) {
         return SuscripcionDTO.builder()
                 .id(suscripcion.getId())
