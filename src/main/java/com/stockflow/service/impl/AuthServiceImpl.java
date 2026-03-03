@@ -160,7 +160,7 @@ public class AuthServiceImpl implements AuthService {
                 usuarioCreado.getEmail(),
                 usuarioCreado.getNombre(),
                 usuarioCreado.getRol().getNombre(),
-                usuarioCreado.getTenantId()
+                tenant.getTenantId()
         );
 
         RefreshToken refreshToken = refreshTokenService.crearRefreshToken(usuarioCreado);
