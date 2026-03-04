@@ -204,11 +204,23 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("✅ Tokens renovados para usuario: {}", usuario.getEmail());
 
+        // Obtener suscripción del usuario
+        Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorUsuario(usuario.getId())
+                .orElse(null);
+
+        SuscripcionDTO suscripcionDTO = suscripcion != null ? mapToSuscripcionDTO(suscripcion) : null;
+
         return JwtResponseDTO.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken.getToken())
                 .tipo("Bearer")
                 .expiresIn(900)
+                .usuarioId(usuario.getId())
+                .email(usuario.getEmail())
+                .nombre(usuario.getNombre())
+                .rol(usuario.getRol().getNombre())
+                .tenantId(usuario.getTenantId())
+                .suscripcion(suscripcionDTO)
                 .build();
     }
 

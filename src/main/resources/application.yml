@@ -33,7 +33,7 @@ server:
 # JWT
 jwt:
   secret: mySecretKeyForJwtTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm
-  expiration: 900000           # 15 minutos
+  expiration: 900000           # 15 minutos (900000)
   refresh:
     expiration: 604800000    # 7 días
 
