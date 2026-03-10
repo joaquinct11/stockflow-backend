@@ -43,4 +43,22 @@ public class TenantContext {
     public static boolean hasTenant() {
         return currentTenant.get() != null;
     }
+
+    private static final ThreadLocal<Long> userIdContext = new ThreadLocal<>();
+
+    public static void setCurrentUserId(Long usuarioId) {
+        userIdContext.set(usuarioId);
+    }
+
+    public static Long getCurrentUserId() {
+        Long usuarioId = userIdContext.get();
+        if (usuarioId == null) {
+            throw new IllegalStateException("Usuario no establecido en el contexto");
+        }
+        return usuarioId;
+    }
+
+    public static void clearUserId() {
+        userIdContext.remove();
+    }
 }

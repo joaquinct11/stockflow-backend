@@ -24,11 +24,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.stockflow.dto.CambiarPasswordDTO;
+import com.stockflow.dto.ForgotPasswordDTO;
+import com.stockflow.dto.ResetPasswordDTO;
+import com.stockflow.dto.UsuarioProfileDTO;
+import com.stockflow.exception.BadRequestException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Random;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -260,5 +266,118 @@ public class AuthServiceImpl implements AuthService {
                 .estado(suscripcion.getEstado())
                 .tenantId(suscripcion.getTenantId())
                 .build();
+    }
+
+    @Override
+    public UsuarioProfileDTO obtenerPerfil(Long usuarioId) {
+        log.info("📋 Obteniendo perfil del usuario: {}", usuarioId);
+
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new UnauthorizedException("Usuario no encontrado"));
+
+        // Obtener nombre de la farmacia desde el tenant
+        Tenant tenant = tenantService.obtenerTenant(usuario.getTenantId())
+                .orElse(null);
+
+        return UsuarioProfileDTO.builder()
+                .usuarioId(usuario.getId())
+                .email(usuario.getEmail())
+                .nombre(usuario.getNombre())
+                .rol(usuario.getRol().getNombre())
+                .tenantId(usuario.getTenantId())
+                .ultimoLogin(usuario.getUltimoLogin())
+                .activo(usuario.getActivo())
+                .nombreFarmacia(tenant != null ? tenant.getNombre() : "N/A")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void cambiarContraseña(Long usuarioId, CambiarPasswordDTO dto) {
+        log.info("🔐 Cambiando contraseña del usuario: {}", usuarioId);
+
+        // Validar que las contraseñas nuevas coincidan
+        if (!dto.getNuevaContraseña().equals(dto.getConfirmarContraseña())) {
+            throw new BadRequestException("Las contraseñas no coinciden");
+        }
+
+        // Validar que no sea la misma contraseña
+        if (dto.getContraseñaActual().equals(dto.getNuevaContraseña())) {
+            throw new BadRequestException("La nueva contraseña debe ser diferente a la actual");
+        }
+
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new UnauthorizedException("Usuario no encontrado"));
+
+        // Validar contraseña actual
+        if (!passwordEncoder.matches(dto.getContraseñaActual(), usuario.getContraseña())) {
+            throw new BadRequestException("La contraseña actual es incorrecta");
+        }
+
+        // Cambiar contraseña
+        usuario.setContraseña(passwordEncoder.encode(dto.getNuevaContraseña()));
+        usuarioRepository.save(usuario);
+
+        // Revocar todos los refresh tokens
+        refreshTokenService.revocarTodosLosTokensDelUsuario(usuarioId);
+
+        log.info("✅ Contraseña cambiada exitosamente");
+    }
+
+    @Override
+    public void solicitarRecuperacionContraseña(ForgotPasswordDTO dto) {
+        log.info("📧 Solicitud de recuperación de contraseña: {}", dto.getEmail());
+
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail())
+                .orElseThrow(() -> new BadRequestException("Email no registrado"));
+
+        // TODO: Implementar envío de email con token de recuperación
+        // Por ahora, guardamos el token en la BD
+        String token = generarTokenRecuperacion();
+        LocalDateTime expiracion = LocalDateTime.now().plusHours(1);
+
+        usuario.setTokenRecuperacion(token);
+        usuario.setTokenRecuperacionExpira(expiracion);
+        usuarioRepository.save(usuario);
+
+        // TODO: Enviar email con enlace: /reset-password?token={token}
+        log.info("✅ Email de recuperación enviado (simulado)");
+    }
+
+    @Override
+    @Transactional
+    public void resetearContraseña(ResetPasswordDTO dto) {
+        log.info("🔐 Reseteando contraseña con token");
+
+        // Validar que las contraseñas coincidan
+        if (!dto.getNuevaContraseña().equals(dto.getConfirmarContraseña())) {
+            throw new BadRequestException("Las contraseñas no coinciden");
+        }
+
+        // Buscar usuario con token válido
+        Usuario usuario = usuarioRepository.findByTokenRecuperacion(dto.getToken())
+                .orElseThrow(() -> new BadRequestException("Token inválido"));
+
+        // Validar que el token no haya expirado
+        if (usuario.getTokenRecuperacionExpira() == null ||
+                usuario.getTokenRecuperacionExpira().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Token expirado");
+        }
+
+        // Cambiar contraseña
+        usuario.setContraseña(passwordEncoder.encode(dto.getNuevaContraseña()));
+        usuario.setTokenRecuperacion(null);
+        usuario.setTokenRecuperacionExpira(null);
+        usuarioRepository.save(usuario);
+
+        // Revocar todos los refresh tokens
+        refreshTokenService.revocarTodosLosTokensDelUsuario(usuario.getId());
+
+        log.info("✅ Contraseña reseteada exitosamente");
+    }
+
+    // Método helper para generar token
+    private String generarTokenRecuperacion() {
+        return UUID.randomUUID().toString();
     }
 }

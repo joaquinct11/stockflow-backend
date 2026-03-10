@@ -7,9 +7,10 @@ import java.util.Optional;
 public interface TenantService {
     Tenant crearTenant(String nombreFarmacia);
     Optional<Tenant> obtenerPorTenantId(String tenantId);
+    Optional<Tenant> obtenerTenant(String tenantId);
     boolean existeTenant(String tenantId);
     void desactivarTenant(String tenantId);
     void reactivarTenant(String tenantId);
     void eliminarPermanentemente(String tenantId);
-    DatosEliminacionDTO obtenerDatosEliminacion(String tenantId);  // ✅ NUEVO
+    DatosEliminacionDTO obtenerDatosEliminacion(String tenantId);
 }

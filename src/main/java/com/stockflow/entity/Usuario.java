@@ -49,4 +49,10 @@ public class Usuario {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "token_recuperacion", unique = true)
+    private String tokenRecuperacion;
+
+    @Column(name = "token_recuperacion_expira")
+    private LocalDateTime tokenRecuperacionExpira;
 }

@@ -13,6 +13,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.stockflow.dto.CambiarPasswordDTO;
+import com.stockflow.dto.ForgotPasswordDTO;
+import com.stockflow.dto.ResetPasswordDTO;
+import com.stockflow.dto.UsuarioProfileDTO;
+import com.stockflow.util.TenantContext;
 
 import java.util.Map;
 
@@ -56,5 +61,38 @@ public class AuthController {
         log.info("👋 Logout del usuario");
         authService.logout(request.getRefreshToken());
         return ResponseEntity.ok(Map.of("mensaje", "Sesión cerrada exitosamente"));
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Obtener perfil del usuario actual", description = "Retorna los datos del usuario autenticado")
+    public ResponseEntity<UsuarioProfileDTO> obtenerPerfil() {
+        Long usuarioId = TenantContext.getCurrentUserId();
+        UsuarioProfileDTO profile = authService.obtenerPerfil(usuarioId);
+        return ResponseEntity.ok(profile);
+    }
+
+    @PostMapping("/cambiar-contraseña")
+    @Operation(summary = "Cambiar contraseña", description = "Cambia la contraseña del usuario actual")
+    public ResponseEntity<Map<String, String>> cambiarContraseña(
+            @Valid @RequestBody CambiarPasswordDTO dto) {
+        Long usuarioId = TenantContext.getCurrentUserId();
+        authService.cambiarContraseña(usuarioId, dto);
+        return ResponseEntity.ok(Map.of("mensaje", "Contraseña cambiada exitosamente"));
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Solicitar recuperación de contraseña", description = "Envía email con link para recuperar contraseña")
+    public ResponseEntity<Map<String, String>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordDTO dto) {
+        authService.solicitarRecuperacionContraseña(dto);
+        return ResponseEntity.ok(Map.of("mensaje", "Email de recuperación enviado. Revisa tu bandeja de entrada"));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Resetear contraseña", description = "Cambia la contraseña usando el token de recuperación")
+    public ResponseEntity<Map<String, String>> resetPassword(
+            @Valid @RequestBody ResetPasswordDTO dto) {
+        authService.resetearContraseña(dto);
+        return ResponseEntity.ok(Map.of("mensaje", "Contraseña reseteada exitosamente"));
     }
 }

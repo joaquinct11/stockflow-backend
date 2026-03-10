@@ -131,4 +131,9 @@ public class TenantServiceImpl implements TenantService {
 
         return nombre + "-" + codigo;
     }
+    @Override
+    public Optional<Tenant> obtenerTenant(String tenantId) {
+        log.debug("Buscando tenant: {}", tenantId);
+        return tenantRepository.findByTenantId(tenantId);
+    }
 }

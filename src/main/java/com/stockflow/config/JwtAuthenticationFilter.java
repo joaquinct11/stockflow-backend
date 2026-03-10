@@ -50,6 +50,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Long usuarioId = jwtUtil.getUserIdFromToken(token);
 
                     // Establecer TenantContext
+                    TenantContext.setCurrentUserId(usuarioId); // ✅ AGREGAR ESTO
                     TenantContext.setCurrentTenant(tenantId);
 
                     UsernamePasswordAuthenticationToken authentication =
