@@ -14,10 +14,7 @@ import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.UnauthorizedException;
 import com.stockflow.repository.RolRepository;
 import com.stockflow.repository.UsuarioRepository;
-import com.stockflow.service.AuthService;
-import com.stockflow.service.RefreshTokenService;
-import com.stockflow.service.SuscripcionService;
-import com.stockflow.service.TenantService;
+import com.stockflow.service.*;
 import com.stockflow.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final TenantService tenantService;
     private final SuscripcionService suscripcionService;
+    private final EmailService emailService;
 
     @Override
     @Transactional
@@ -331,8 +329,7 @@ public class AuthServiceImpl implements AuthService {
         Usuario usuario = usuarioRepository.findByEmail(dto.getEmail())
                 .orElseThrow(() -> new BadRequestException("Email no registrado"));
 
-        // TODO: Implementar envío de email con token de recuperación
-        // Por ahora, guardamos el token en la BD
+        // Generar token
         String token = generarTokenRecuperacion();
         LocalDateTime expiracion = LocalDateTime.now().plusHours(1);
 
@@ -340,8 +337,20 @@ public class AuthServiceImpl implements AuthService {
         usuario.setTokenRecuperacionExpira(expiracion);
         usuarioRepository.save(usuario);
 
-        // TODO: Enviar email con enlace: /reset-password?token={token}
-        log.info("✅ Email de recuperación enviado (simulado)");
+        log.info("🔑 Token generado: {}", token);
+        log.info("📧 Enviando email a: {}", usuario.getEmail());
+
+        // ✅ ENVIAR EMAIL
+        try {
+            emailService.enviarEmailRecuperacionContraseña(
+                    usuario.getEmail(),
+                    usuario.getNombre(),
+                    token
+            );
+            log.info("✅ Email enviado exitosamente");
+        } catch (Exception e) {
+            log.error("❌ Error enviando email: {}", e.getMessage(), e);
+        }
     }
 
     @Override
