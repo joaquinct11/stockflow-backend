@@ -52,3 +52,8 @@ logging:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+
+sendgrid:
+  api-key: TU_API_KEY_DE_SENDGRID
+  from-email: joaquincastillotello2001@gmail.com
+  from-name: StockFlow

@@ -17,7 +17,7 @@ public class UsuarioProfileDTO {
     private String nombre;
     private String rol;
     private String tenantId;
-    private LocalDateTime creadoEn;
+    private LocalDateTime createdAt;
     private LocalDateTime ultimoLogin;
     private Boolean activo;
     private String nombreFarmacia;

@@ -284,6 +284,7 @@ public class AuthServiceImpl implements AuthService {
                 .rol(usuario.getRol().getNombre())
                 .tenantId(usuario.getTenantId())
                 .ultimoLogin(usuario.getUltimoLogin())
+                .createdAt(usuario.getCreatedAt())
                 .activo(usuario.getActivo())
                 .nombreFarmacia(tenant != null ? tenant.getNombre() : "N/A")
                 .build();
