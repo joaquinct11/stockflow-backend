@@ -58,10 +58,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         return usuarioRepository.findById(id)
                 .map(usuario -> {
                     usuario.setNombre(usuarioActualizado.getNombre());
-                    usuario.setEmail(usuarioActualizado.getEmail());
-                    if (usuarioActualizado.getContraseña() != null) {
-                        usuario.setContraseña(passwordEncoder.encode(usuarioActualizado.getContraseña()));
-                    }
                     usuario.setRol(usuarioActualizado.getRol());
                     usuario.setActivo(usuarioActualizado.getActivo());
                     return usuarioRepository.save(usuario);
