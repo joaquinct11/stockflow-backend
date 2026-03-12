@@ -20,7 +20,6 @@ public class UsuarioUpdateDTO {
     @NotBlank(message = "El rol es requerido")
     private String rolNombre;
 
-    @NotBlank(message = "El tenant es requerido")
     private String tenantId;
 
     private Boolean activo;

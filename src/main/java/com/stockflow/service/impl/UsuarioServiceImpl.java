@@ -57,9 +57,15 @@ public class UsuarioServiceImpl implements UsuarioService {
     public Usuario actualizarUsuario(Long id, Usuario usuarioActualizado) {
         return usuarioRepository.findById(id)
                 .map(usuario -> {
-                    usuario.setNombre(usuarioActualizado.getNombre());
-                    usuario.setRol(usuarioActualizado.getRol());
-                    usuario.setActivo(usuarioActualizado.getActivo());
+                    if (usuarioActualizado.getNombre() != null) {
+                        usuario.setNombre(usuarioActualizado.getNombre());
+                    }
+                    if (usuarioActualizado.getRol() != null) {
+                        usuario.setRol(usuarioActualizado.getRol());
+                    }
+                    if (usuarioActualizado.getActivo() != null) {
+                        usuario.setActivo(usuarioActualizado.getActivo());
+                    }
                     return usuarioRepository.save(usuario);
                 })
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));

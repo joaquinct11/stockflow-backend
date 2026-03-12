@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -31,6 +32,7 @@ public class UsuarioController {
      * ✅ ACTUALIZADO: Obtiene usuarios del tenant actual
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<List<UsuarioDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👥 Obteniendo usuarios para tenant: {}", tenantId);
@@ -41,6 +43,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<UsuarioDTO> obtenerPorId(@PathVariable Long id) {
         return usuarioService.obtenerUsuarioPorId(id)
                 .map(usuarioMapper::toDTO)
@@ -49,6 +52,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/email/{email}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<UsuarioDTO> obtenerPorEmail(@PathVariable String email) {
         return usuarioService.obtenerUsuarioPorEmail(email)
                 .map(usuarioMapper::toDTO)
@@ -60,6 +64,7 @@ public class UsuarioController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<UsuarioDTO> crear(@Valid @RequestBody UsuarioDTO usuarioDTO) {
         try {
             String tenantId = TenantContext.getCurrentTenant();
@@ -89,6 +94,7 @@ public class UsuarioController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<UsuarioDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody UsuarioUpdateDTO updateDTO) {
@@ -123,6 +129,7 @@ public class UsuarioController {
     }
 
     @PatchMapping("/{id}/desactivar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<Void> desactivar(@PathVariable Long id) {
         log.info("🔒 Desactivando usuario ID: {}", id);
         usuarioService.desactivarUsuario(id);
@@ -130,6 +137,7 @@ public class UsuarioController {
     }
 
     @PatchMapping("/{id}/activar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<Void> activar(@PathVariable Long id) {
         log.info("✅ Activando usuario ID: {}", id);
         usuarioService.activarUsuario(id);
@@ -137,6 +145,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}/validar-eliminacion")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DeleteAccountValidationDTO> validarEliminacion(@PathVariable Long id) {
         log.info("🔍 Validando eliminación de usuario ID: {}", id);
         DeleteAccountValidationDTO validacion = usuarioService.validarEliminacion(id);
@@ -144,6 +153,7 @@ public class UsuarioController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Soft delete de usuario ID: {}", id);
         usuarioService.eliminarUsuario(id);
@@ -151,6 +161,7 @@ public class UsuarioController {
     }
 
     @DeleteMapping("/{id}/cuenta-completa")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminarCuentaCompleta(@PathVariable Long id) {
         log.warn("⚠️ ELIMINACIÓN PERMANENTE de cuenta completa ID: {}", id);
         usuarioService.eliminarCuentaCompleta(id);

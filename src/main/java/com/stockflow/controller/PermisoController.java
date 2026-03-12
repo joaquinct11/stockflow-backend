@@ -9,6 +9,7 @@ import com.stockflow.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -32,6 +33,7 @@ public class PermisoController {
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<PermisoDTO>> obtenerTodos() {
         List<Permiso> permisos = permisoService.obtenerTodosPermisos();
         List<PermisoDTO> permisosDTO = permisos.stream()
@@ -41,6 +43,7 @@ public class PermisoController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PermisoDTO> obtenerPorId(@PathVariable Long id) {
         return permisoService.obtenerPermisoPorId(id)
                 .map(this::convertToDTO)
@@ -49,6 +52,7 @@ public class PermisoController {
     }
 
     @GetMapping("/rol/{rolId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<PermisoDTO>> obtenerPorRol(@PathVariable Long rolId) {
         List<Permiso> permisos = permisoService.obtenerPermisosPorRol(rolId);
         List<PermisoDTO> permisosDTO = permisos.stream()
@@ -58,6 +62,7 @@ public class PermisoController {
     }
 
     @GetMapping("/nombre/{nombre}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PermisoDTO> obtenerPorNombre(@PathVariable String nombre) {
         return permisoService.obtenerPermisoPorNombre(nombre)
                 .map(this::convertToDTO)
@@ -66,6 +71,7 @@ public class PermisoController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PermisoDTO> crear(@Valid @RequestBody PermisoDTO permisoDTO) {
         Rol rol = null;
 
@@ -85,6 +91,7 @@ public class PermisoController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PermisoDTO> actualizar(@PathVariable Long id, @Valid @RequestBody PermisoDTO permisoDTO) {
         try {
             Permiso permiso = permisoService.obtenerPermisoPorId(id)
@@ -107,6 +114,7 @@ public class PermisoController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         permisoService.eliminarPermiso(id);
         return ResponseEntity.noContent().build();

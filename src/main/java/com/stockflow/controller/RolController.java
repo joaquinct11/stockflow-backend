@@ -7,6 +7,7 @@ import com.stockflow.service.RolService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -20,6 +21,7 @@ public class RolController {
     private final RolMapper rolMapper;
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<RolDTO>> obtenerTodos() {
         return ResponseEntity.ok(
                 rolMapper.toDTOList(rolService.obtenerTodosRoles())
@@ -27,6 +29,7 @@ public class RolController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RolDTO> obtenerPorId(@PathVariable Long id) {
         return rolService.obtenerRolPorId(id)
                 .map(rolMapper::toDTO)
@@ -35,6 +38,7 @@ public class RolController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RolDTO> crear(@Valid @RequestBody RolDTO rolDTO) {
         Rol rol = rolMapper.toEntity(rolDTO);
         Rol rolCreado = rolService.crearRol(rol);
@@ -43,6 +47,7 @@ public class RolController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<RolDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody RolDTO rolDTO) {
@@ -56,6 +61,7 @@ public class RolController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         rolService.eliminarRol(id);
         return ResponseEntity.noContent().build();
