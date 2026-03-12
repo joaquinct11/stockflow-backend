@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -26,6 +27,7 @@ public class ProveedorController {
      * ✅ ACTUALIZADO: Obtiene proveedores del tenant actual
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<ProveedorDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🏢 Obteniendo proveedores para tenant: {}", tenantId);
@@ -36,6 +38,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/activos")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<ProveedorDTO>> obtenerActivos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("✅ Obteniendo proveedores activos para tenant: {}", tenantId);
@@ -46,6 +49,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProveedorDTO> obtenerPorId(@PathVariable Long id) {
         return proveedorService.obtenerProveedorPorId(id)
                 .map(proveedorMapper::toDTO)
@@ -54,6 +58,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/ruc/{ruc}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProveedorDTO> obtenerPorRuc(@PathVariable String ruc) {
         return proveedorService.obtenerProveedorPorRuc(ruc)
                 .map(proveedorMapper::toDTO)
@@ -62,6 +67,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/buscar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<ProveedorDTO>> buscarPorNombre(@RequestParam String nombre) {
         return ResponseEntity.ok(
                 proveedorMapper.toDTOList(proveedorService.buscarProveedoresPorNombre(nombre))
@@ -72,6 +78,7 @@ public class ProveedorController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProveedorDTO> crear(@Valid @RequestBody ProveedorDTO proveedorDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando proveedor para tenant: {}", tenantId);
@@ -86,6 +93,7 @@ public class ProveedorController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProveedorDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProveedorDTO proveedorDTO) {
@@ -101,6 +109,7 @@ public class ProveedorController {
     }
 
     @PatchMapping("/{id}/activar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProveedorDTO> activar(@PathVariable Long id) {
         log.info("✅ Activando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)
@@ -112,6 +121,7 @@ public class ProveedorController {
     }
 
     @PatchMapping("/{id}/desactivar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProveedorDTO> desactivar(@PathVariable Long id) {
         log.info("🔒 Desactivando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)
@@ -123,6 +133,7 @@ public class ProveedorController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando proveedor ID: {}", id);
         proveedorService.eliminarProveedor(id);

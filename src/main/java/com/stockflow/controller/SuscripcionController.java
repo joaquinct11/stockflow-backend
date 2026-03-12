@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ public class SuscripcionController {
      * ✅ ACTUALIZADO: Obtiene suscripciones del tenant actual
      */
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<SuscripcionDTO>> obtenerTodas() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("💳 Obteniendo suscripciones para tenant: {}", tenantId);
@@ -44,6 +46,7 @@ public class SuscripcionController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SuscripcionDTO> obtenerPorId(@PathVariable Long id) {
         return suscripcionService.obtenerSuscripcionPorId(id)
                 .map(suscripcionMapper::toDTO)
@@ -52,6 +55,7 @@ public class SuscripcionController {
     }
 
     @GetMapping("/usuario/{usuarioId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SuscripcionDTO> obtenerPorUsuario(@PathVariable Long usuarioId) {
         log.info("👤 Obteniendo suscripción del usuario: {}", usuarioId);
         return suscripcionService.obtenerSuscripcionPorUsuario(usuarioId)
@@ -61,6 +65,7 @@ public class SuscripcionController {
     }
 
     @GetMapping("/estado/{estado}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<SuscripcionDTO>> obtenerPorEstado(@PathVariable String estado) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔍 Obteniendo suscripciones con estado: {} para tenant: {}", estado, tenantId);
@@ -74,6 +79,7 @@ public class SuscripcionController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SuscripcionDTO> crear(@Valid @RequestBody SuscripcionDTO suscripcionDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando suscripción para tenant: {}", tenantId);
@@ -114,6 +120,7 @@ public class SuscripcionController {
     }
 
     @PatchMapping("/{id}/cancelar")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SuscripcionDTO> cancelar(@PathVariable Long id) {
         log.info("🗑️ Cancelando suscripción ID: {}", id);
         return suscripcionService.obtenerSuscripcionPorId(id)
@@ -126,6 +133,7 @@ public class SuscripcionController {
     }
 
     @PatchMapping("/{id}/activar")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SuscripcionDTO> activar(@PathVariable Long id) {
         log.info("🗑️ Activando suscripción ID: {}", id);
         Suscripcion suscripcionActivada = suscripcionService.activarSuscripcion(id);
@@ -133,6 +141,7 @@ public class SuscripcionController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando suscripción ID: {}", id);
         suscripcionService.eliminarSuscripcion(id);

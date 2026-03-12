@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -26,6 +27,7 @@ public class ProductoController {
      * ✅ ACTUALIZADO: Obtiene productos del tenant actual automáticamente
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<ProductoDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Obteniendo productos para tenant: {}", tenantId);
@@ -36,6 +38,7 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProductoDTO> obtenerPorId(@PathVariable Long id) {
         return productoService.obtenerProductoPorId(id)
                 .map(productoMapper::toDTO)
@@ -44,6 +47,7 @@ public class ProductoController {
     }
 
     @GetMapping("/codigo/{codigoBarras}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProductoDTO> obtenerPorCodigoBarras(@PathVariable String codigoBarras) {
         return productoService.obtenerProductoPorCodigoBarras(codigoBarras)
                 .map(productoMapper::toDTO)
@@ -52,6 +56,7 @@ public class ProductoController {
     }
 
     @GetMapping("/buscar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<ProductoDTO>> buscarPorNombre(@RequestParam String nombre) {
         return ResponseEntity.ok(
                 productoMapper.toDTOList(productoService.buscarProductosPorNombre(nombre))
@@ -62,6 +67,7 @@ public class ProductoController {
      * ✅ ACTUALIZADO: Usa tenantId automáticamente
      */
     @GetMapping("/bajo-stock")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<ProductoDTO>> obtenerProductosBajoStock() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("⚠️ Obteniendo productos con bajo stock para tenant: {}", tenantId);
@@ -75,6 +81,7 @@ public class ProductoController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente al crear
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProductoDTO> crear(@Valid @RequestBody ProductoDTO productoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando producto para tenant: {}", tenantId);
@@ -90,6 +97,7 @@ public class ProductoController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProductoDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProductoDTO productoDTO) {
@@ -105,6 +113,7 @@ public class ProductoController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando producto ID: {}", id);
         productoService.eliminarProducto(id);

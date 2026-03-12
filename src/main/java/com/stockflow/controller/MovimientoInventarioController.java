@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.time.LocalDateTime;
@@ -35,6 +36,7 @@ public class MovimientoInventarioController {
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Obteniendo movimientos de inventario para tenant: {}", tenantId);
@@ -45,6 +47,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<MovimientoInventarioDTO> obtenerPorId(@PathVariable Long id) {
         return movimientoService.obtenerMovimientoPorId(id)
                 .map(movimientoMapper::toDTO)
@@ -53,6 +56,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/producto/{productoId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorProducto(@PathVariable Long productoId) {
         log.info("📦 Obteniendo movimientos del producto: {}", productoId);
         return ResponseEntity.ok(
@@ -61,6 +65,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/usuario/{usuarioId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorUsuario(@PathVariable Long usuarioId) {
         log.info("👤 Obteniendo movimientos del usuario: {}", usuarioId);
         return ResponseEntity.ok(
@@ -69,6 +74,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/tipo/{tipo}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorTipo(@PathVariable String tipo) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔍 Obteniendo movimientos tipo: {} para tenant: {}", tipo, tenantId);
@@ -82,6 +88,7 @@ public class MovimientoInventarioController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<MovimientoInventarioDTO> crear(@Valid @RequestBody MovimientoInventarioDTO movimientoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando movimiento de inventario para tenant: {}", tenantId);
@@ -149,6 +156,7 @@ public class MovimientoInventarioController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando movimiento ID: {}", id);
         movimientoService.eliminarMovimiento(id);

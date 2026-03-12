@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -41,6 +42,7 @@ public class VentaController {
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<List<VentaDTO>> obtenerTodas() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("💰 Obteniendo ventas para tenant: {}", tenantId);
@@ -51,6 +53,7 @@ public class VentaController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
     public ResponseEntity<VentaDTO> obtenerPorId(@PathVariable Long id) {
         return ventaService.obtenerVentaPorId(id)
                 .map(ventaMapper::toDTO)
@@ -59,6 +62,7 @@ public class VentaController {
     }
 
     @GetMapping("/vendedor/{vendedorId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
     public ResponseEntity<List<VentaDTO>> obtenerPorVendedor(@PathVariable Long vendedorId) {
         log.info("👤 Obteniendo ventas del vendedor: {}", vendedorId);
         return ResponseEntity.ok(
@@ -70,6 +74,7 @@ public class VentaController {
      * ✅ ACTUALIZADO: Usa tenantId automáticamente
      */
     @GetMapping("/periodo")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<List<VentaDTO>> obtenerPorPeriodo(
             @RequestParam String inicio,
             @RequestParam String fin) {
@@ -88,6 +93,7 @@ public class VentaController {
     }
 
     @GetMapping("/{ventaId}/detalles")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
     public ResponseEntity<List<DetalleVentaDTO>> obtenerDetalles(@PathVariable Long ventaId) {
         log.info("📋 Obteniendo detalles de venta: {}", ventaId);
         return ResponseEntity.ok(
@@ -99,6 +105,7 @@ public class VentaController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
     public ResponseEntity<VentaDTO> crear(@Valid @RequestBody VentaDTO ventaDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando venta para tenant: {}", tenantId);
@@ -161,6 +168,7 @@ public class VentaController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando venta ID: {}", id);
         ventaService.eliminarVenta(id);
