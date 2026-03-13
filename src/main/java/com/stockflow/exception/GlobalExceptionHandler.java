@@ -2,14 +2,10 @@ package com.stockflow.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authorization.AuthorizationDeniedException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
-
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -116,40 +112,6 @@ public class GlobalExceptionHandler {
         body.put("mensajes", errores);
 
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
-    }
-
-    // ✅ IMPORTANTE: cuando Spring Security bloquea por rol/permisos (@PreAuthorize)
-    @ExceptionHandler({AuthorizationDeniedException.class, AccessDeniedException.class})
-    public ResponseEntity<ErrorResponse> handleAccessDenied(
-            Exception ex,
-            WebRequest request) {
-
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.FORBIDDEN.value())
-                .error("Forbidden")
-                .mensaje("Access Denied")
-                .path(request.getDescription(false).replace("uri=", ""))
-                .build();
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
-    }
-
-    // ✅ cuando falta autenticación o el token no es válido (depende de tu config)
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponse> handleAuthentication(
-            AuthenticationException ex,
-            WebRequest request) {
-
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(HttpStatus.UNAUTHORIZED.value())
-                .error("Unauthorized")
-                .mensaje("Unauthorized")
-                .path(request.getDescription(false).replace("uri=", ""))
-                .build();
-
-        return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(Exception.class)
