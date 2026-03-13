@@ -16,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -79,6 +81,7 @@ public class UsuarioController {
             usuario.setRol(rol);
             usuario.setContraseña(usuarioDTO.getContraseña());
             usuario.setTenantId(tenantId);  // ✅ Setear tenantId automáticamente
+            usuario.setCreatedAt(LocalDateTime.now());
 
             // Guardar en BD
             Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
