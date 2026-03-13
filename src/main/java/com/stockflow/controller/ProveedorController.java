@@ -27,7 +27,7 @@ public class ProveedorController {
      * ✅ ACTUALIZADO: Obtiene proveedores del tenant actual
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO', 'VENDEDOR')")
     public ResponseEntity<List<ProveedorDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🏢 Obteniendo proveedores para tenant: {}", tenantId);
@@ -38,7 +38,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/activos")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO', 'VENDEDOR')")
     public ResponseEntity<List<ProveedorDTO>> obtenerActivos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("✅ Obteniendo proveedores activos para tenant: {}", tenantId);
