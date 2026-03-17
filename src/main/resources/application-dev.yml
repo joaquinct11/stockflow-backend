@@ -4,9 +4,9 @@
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/stockflows
-    username: stockflow_user
-    password: stockflow_password
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/stockflows}
+    username: ${DB_USER:stockflow_user}
+    password: ${DB_PASSWORD:stockflow_password}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -24,7 +24,7 @@ spring:
 
 # JWT (dev - menos seguro pero fácil de recordar)
 jwt:
-  secret: mySecretKeyForJwtTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm
+  secret: ${JWT_SECRET}
 
 # CORS permisivo
 cors:
@@ -54,6 +54,6 @@ app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
 
 sendgrid:
-  api-key: TU_API_KEY_DE_SENDGRID
+  api-key: ${SENDGRID_API_KEY}
   from-email: joaquincastillotello2001@gmail.com
   from-name: StockFlow

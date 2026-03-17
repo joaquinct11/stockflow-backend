@@ -5,6 +5,8 @@
 spring:
   application:
     name: StockFlow
+  profiles:
+    active: dev
 
   jpa:
     show-sql: false
@@ -32,7 +34,7 @@ server:
 
 # JWT
 jwt:
-  secret: mySecretKeyForJwtTokenGenerationThatIsAtLeast256BitsLongForHS256Algorithm
+  secret: ${JWT_SECRET}
   expiration: 900000           # 15 minutos (900000)
   refresh:
     expiration: 604800000    # 7 días
