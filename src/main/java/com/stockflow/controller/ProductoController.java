@@ -74,9 +74,6 @@ public class ProductoController {
         );
     }
 
-    /**
-     * ✅ ACTUALIZADO: Setea tenantId automáticamente al crear
-     */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
     public ResponseEntity<ProductoDTO> crear(@Valid @RequestBody ProductoDTO productoDTO) {
