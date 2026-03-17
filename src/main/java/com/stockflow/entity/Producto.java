@@ -51,6 +51,10 @@ public class Producto {
     @Column(length = 50)
     private String lote;
 
+    @ManyToOne
+    @JoinColumn(name = "unidad_medida_id", nullable = false)
+    private UnidadMedida unidadMedida;
+
     @Column(name = "proveedor_id")
     private Long proveedorId;
 

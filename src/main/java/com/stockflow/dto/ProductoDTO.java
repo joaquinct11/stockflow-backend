@@ -1,5 +1,6 @@
 package com.stockflow.dto;
 
+import com.stockflow.entity.UnidadMedida;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -46,6 +47,8 @@ public class ProductoDTO {
     private LocalDate fechaVencimiento;
 
     private String lote;
+
+    private Long unidadMedidaId;
 
     private Long proveedorId;
 

@@ -10,6 +10,7 @@ CREATE TABLE productos (
                            precio_venta NUMERIC(10, 2) NOT NULL,
                            fecha_vencimiento DATE,
                            lote VARCHAR(50),
+                           unidad_medida_id BIGINT NOT NULL REFERENCES unidad_medida(id),
                            proveedor_id BIGINT NOT NULL REFERENCES proveedores(id) ON DELETE CASCADE,
                            activo BOOLEAN DEFAULT true,
                            deleted_at TIMESTAMP DEFAULT NULL,
