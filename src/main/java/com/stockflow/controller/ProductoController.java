@@ -63,9 +63,6 @@ public class ProductoController {
         );
     }
 
-    /**
-     * ✅ ACTUALIZADO: Usa tenantId automáticamente
-     */
     @GetMapping("/bajo-stock")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
     public ResponseEntity<List<ProductoDTO>> obtenerProductosBajoStock() {
