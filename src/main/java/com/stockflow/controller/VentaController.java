@@ -2,18 +2,17 @@ package com.stockflow.controller;
 
 import com.stockflow.dto.VentaDTO;
 import com.stockflow.dto.DetalleVentaDTO;
-import com.stockflow.entity.Venta;
-import com.stockflow.entity.DetalleVenta;
-import com.stockflow.entity.Producto;
-import com.stockflow.entity.Usuario;
+import com.stockflow.entity.*;
 import com.stockflow.mapper.VentaMapper;
 import com.stockflow.mapper.DetalleVentaMapper;
+import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,6 +36,7 @@ public class VentaController {
     private final UsuarioService usuarioService;
     private final VentaMapper ventaMapper;
     private final DetalleVentaMapper detalleVentaMapper;
+    private final MovimientoInventarioService movimientoService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual
@@ -106,29 +106,26 @@ public class VentaController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
+    @Transactional
     public ResponseEntity<VentaDTO> crear(@Valid @RequestBody VentaDTO ventaDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando venta para tenant: {}", tenantId);
 
-        // Validar que el vendedor existe
         Usuario vendedor = usuarioService.obtenerUsuarioPorId(ventaDTO.getVendedorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Vendedor no encontrado"));
 
-        // Validar que hay detalles
         if (ventaDTO.getDetalles() == null || ventaDTO.getDetalles().isEmpty()) {
             throw new BadRequestException("La venta debe tener al menos un detalle");
         }
 
-        // Setear tenantId
         ventaDTO.setTenantId(tenantId);
 
-        // Crear detalles y validar stock
+        // 1) Validar stock y armar detalles (sin persistir aún)
         List<DetalleVenta> detalles = ventaDTO.getDetalles().stream()
                 .map(detalleDTO -> {
                     Producto producto = productoService.obtenerProductoPorId(detalleDTO.getProductoId())
                             .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + detalleDTO.getProductoId()));
 
-                    // Validar stock
                     if (producto.getStockActual() < detalleDTO.getCantidad()) {
                         throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
                     }
@@ -142,7 +139,7 @@ public class VentaController {
                 })
                 .collect(Collectors.toList());
 
-        // Crear venta
+        // 2) Crear venta (entidad)
         Venta venta = Venta.builder()
                 .vendedor(vendedor)
                 .total(ventaDTO.getTotal())
@@ -153,15 +150,31 @@ public class VentaController {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        // Asociar venta a cada detalle
-        detalles.forEach(detalle -> {
-            Producto producto = detalle.getProducto();
-            producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
-            productoService.actualizarProducto(producto.getId(), producto);
-        });
-
+        // 3) Persistir venta primero (para tener ID y usarlo como referencia)
         Venta ventaCreada = ventaService.crearVenta(venta);
         log.info("✅ Venta creada exitosamente: ID {}", ventaCreada.getId());
+
+        // 4) Por cada detalle: descontar stock + crear movimiento SALIDA
+        for (DetalleVenta detalle : detalles) {
+            Producto producto = detalle.getProducto();
+
+            // Descontar stock
+            producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
+            productoService.actualizarProducto(producto.getId(), producto);
+
+            // Crear movimiento por producto
+            MovimientoInventario movimiento = MovimientoInventario.builder()
+                    .producto(producto)
+                    .usuario(vendedor)
+                    .tipo("SALIDA")
+                    .cantidad(detalle.getCantidad())
+                    .descripcion("Venta #" + ventaCreada.getId())
+                    .tenantId(tenantId)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            movimientoService.crearMovimiento(movimiento);
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ventaMapper.toDTO(ventaCreada));
