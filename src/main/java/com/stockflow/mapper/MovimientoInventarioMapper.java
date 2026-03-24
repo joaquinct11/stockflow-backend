@@ -16,7 +16,7 @@ public interface MovimientoInventarioMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "producto", ignore = true)
     @Mapping(target = "usuario", ignore = true)
-    @Mapping(target = "createdAt", expression = "java(java.time.LocalDateTime.now())")
+    @Mapping(target = "createdAt", ignore = true)
     MovimientoInventario toEntity(MovimientoInventarioDTO dto);
 
     List<MovimientoInventarioDTO> toDTOList(List<MovimientoInventario> movimientos);

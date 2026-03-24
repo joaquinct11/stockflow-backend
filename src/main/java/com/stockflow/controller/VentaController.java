@@ -169,8 +169,8 @@ public class VentaController {
                     .tipo("SALIDA")
                     .cantidad(detalle.getCantidad())
                     .descripcion("Venta #" + ventaCreada.getId())
+                    .referencia("Venta #" + ventaCreada.getId())
                     .tenantId(tenantId)
-                    .createdAt(LocalDateTime.now())
                     .build();
 
             movimientoService.crearMovimiento(movimiento);

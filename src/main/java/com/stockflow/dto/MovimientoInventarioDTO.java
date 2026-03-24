@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -38,5 +40,15 @@ public class MovimientoInventarioDTO {
     private String tenantId;
 
     private LocalDateTime createdAt;
+
+    private String referencia;
+
+    private Long proveedorId;
+
+    private BigDecimal costoUnitario;
+
+    private String lote;
+
+    private LocalDate fechaVencimiento;
 
 }
