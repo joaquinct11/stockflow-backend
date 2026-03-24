@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -45,18 +44,9 @@ public class Producto {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal precioVenta;
 
-    @Column(name = "fecha_vencimiento")
-    private LocalDate fechaVencimiento;
-
-    @Column(length = 50)
-    private String lote;
-
     @ManyToOne
     @JoinColumn(name = "unidad_medida_id", nullable = false)
     private UnidadMedida unidadMedida;
-
-    @Column(name = "proveedor_id")
-    private Long proveedorId;
 
     @Column(nullable = false)
     private Boolean activo = true;
