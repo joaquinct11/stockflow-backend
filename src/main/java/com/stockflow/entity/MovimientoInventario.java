@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -41,4 +43,26 @@ public class MovimientoInventario {
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(length = 100)
+    private String referencia;
+
+    @Column(name = "proveedor_id")
+    private Long proveedorId;
+
+    @Column(name = "costo_unitario", precision = 10, scale = 2)
+    private BigDecimal costoUnitario;
+
+    @Column(length = 100)
+    private String lote;
+
+    @Column(name = "fecha_vencimiento")
+    private LocalDate fechaVencimiento;
+
+    @PrePersist
+    protected void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
 }

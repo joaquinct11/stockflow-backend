@@ -18,7 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Slf4j
@@ -119,14 +119,27 @@ public class MovimientoInventarioController {
         }
 
         // Crear movimiento
+        boolean esEntrada = "ENTRADA".equals(movimientoDTO.getTipo());
+        boolean esDevolucion = "DEVOLUCION".equals(movimientoDTO.getTipo());
+
+        // Solo ENTRADA y DEVOLUCION pueden llevar datos de lote/proveedor/costo
+        Long proveedorId = (esEntrada || esDevolucion) ? movimientoDTO.getProveedorId() : null;
+        BigDecimal costoUnitario = (esEntrada || esDevolucion) ? movimientoDTO.getCostoUnitario() : null;
+        String lote = (esEntrada || esDevolucion) ? movimientoDTO.getLote() : null;
+        java.time.LocalDate fechaVencimiento = (esEntrada || esDevolucion) ? movimientoDTO.getFechaVencimiento() : null;
+
         MovimientoInventario movimiento = MovimientoInventario.builder()
                 .producto(producto)
                 .usuario(usuario)
                 .tipo(movimientoDTO.getTipo())
                 .cantidad(movimientoDTO.getCantidad())
                 .descripcion(movimientoDTO.getDescripcion())
+                .referencia(movimientoDTO.getReferencia())
                 .tenantId(tenantId)
-                .createdAt(LocalDateTime.now())
+                .proveedorId(proveedorId)
+                .costoUnitario(costoUnitario)
+                .lote(lote)
+                .fechaVencimiento(fechaVencimiento)
                 .build();
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);
@@ -147,6 +160,12 @@ public class MovimientoInventarioController {
         }
 
         producto.setStockActual(nuevoStock);
+
+        // Si es ENTRADA y costoUnitario fue provisto y > 0, actualizar el último costo del producto
+        if (esEntrada && costoUnitario != null && costoUnitario.compareTo(BigDecimal.ZERO) > 0) {
+            producto.setCostoUnitario(costoUnitario);
+        }
+
         productoService.actualizarProducto(producto.getId(), producto);
 
         log.info("✅ Movimiento creado: {} - Nuevo stock: {}", movimientoDTO.getTipo(), nuevoStock);
