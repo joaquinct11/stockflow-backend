@@ -1,6 +1,5 @@
 package com.stockflow.dto;
 
-import com.stockflow.entity.UnidadMedida;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -10,7 +9,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
@@ -44,13 +42,7 @@ public class ProductoDTO {
     @DecimalMin(value = "0.01", message = "El precio debe ser mayor a 0")
     private BigDecimal precioVenta;
 
-    private LocalDate fechaVencimiento;
-
-    private String lote;
-
     private Long unidadMedidaId;
-
-    private Long proveedorId;
 
     private Boolean activo;
 
