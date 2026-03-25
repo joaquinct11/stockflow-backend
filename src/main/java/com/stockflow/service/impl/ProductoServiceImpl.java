@@ -58,10 +58,10 @@ public class ProductoServiceImpl implements ProductoService {
                     producto.setCategoria(productoActualizado.getCategoria());
                     producto.setCostoUnitario(productoActualizado.getCostoUnitario());
                     producto.setPrecioVenta(productoActualizado.getPrecioVenta());
-                    producto.setFechaVencimiento(productoActualizado.getFechaVencimiento());
-                    producto.setLote(productoActualizado.getLote());
+//                    producto.setFechaVencimiento(productoActualizado.getFechaVencimiento());
+//                    producto.setLote(productoActualizado.getLote());
                     producto.setUnidadMedida(productoActualizado.getUnidadMedida());
-                    producto.setProveedorId(productoActualizado.getProveedorId());
+//                    producto.setProveedorId(productoActualizado.getProveedorId());
                     producto.setActivo(productoActualizado.getActivo());
                     producto.setStockActual(productoActualizado.getStockActual());
                     producto.setStockMinimo(productoActualizado.getStockMinimo());
