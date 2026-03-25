@@ -10,4 +10,5 @@ import java.util.List;
 public interface PermisoRepository extends JpaRepository<Permiso, Long> {
     Optional<Permiso> findByNombre(String nombre);
     List<Permiso> findByRolId(Long rolId);
+    List<Permiso> findByNombreIn(List<String> nombres);
 }

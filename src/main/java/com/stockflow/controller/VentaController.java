@@ -105,7 +105,7 @@ public class VentaController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
     @Transactional
     public ResponseEntity<VentaDTO> crear(@Valid @RequestBody VentaDTO ventaDTO) {
         String tenantId = TenantContext.getCurrentTenant();
@@ -181,7 +181,7 @@ public class VentaController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_ELIMINAR_VENTA')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando venta ID: {}", id);
         ventaService.eliminarVenta(id);
