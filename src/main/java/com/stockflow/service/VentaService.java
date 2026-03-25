@@ -14,6 +14,8 @@ public interface VentaService {
 
     List<Venta> obtenerVentasPorVendedor(Long vendedorId);
 
+    List<Venta> obtenerVentasPorVendedorYTenant(Long vendedorId, String tenantId);
+
     List<Venta> obtenerVentasPorTenant(String tenantId);
 
     List<Venta> obtenerVentasPorPeriodo(String tenantId, LocalDateTime inicio, LocalDateTime fin);
