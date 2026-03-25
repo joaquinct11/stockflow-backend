@@ -78,7 +78,7 @@ public class ProveedorController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> crear(@Valid @RequestBody ProveedorDTO proveedorDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando proveedor para tenant: {}", tenantId);
@@ -93,7 +93,7 @@ public class ProveedorController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_EDITAR_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProveedorDTO proveedorDTO) {
@@ -133,7 +133,7 @@ public class ProveedorController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_PROVEEDOR')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando proveedor ID: {}", id);
         proveedorService.eliminarProveedor(id);

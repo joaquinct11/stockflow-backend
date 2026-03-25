@@ -75,7 +75,7 @@ public class ProductoController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_PRODUCTO')")
     public ResponseEntity<ProductoDTO> crear(@Valid @RequestBody ProductoDTO productoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando producto para tenant: {}", tenantId);
@@ -91,7 +91,7 @@ public class ProductoController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_EDITAR_PRODUCTO')")
     public ResponseEntity<ProductoDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProductoDTO productoDTO) {
@@ -107,7 +107,7 @@ public class ProductoController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_PRODUCTO')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando producto ID: {}", id);
         productoService.eliminarProducto(id);

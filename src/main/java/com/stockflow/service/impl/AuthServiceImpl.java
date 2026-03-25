@@ -46,6 +46,7 @@ public class AuthServiceImpl implements AuthService {
     private final TenantService tenantService;
     private final SuscripcionService suscripcionService;
     private final EmailService emailService;
+    private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
 
     @Override
     @Transactional
@@ -287,6 +288,7 @@ public class AuthServiceImpl implements AuthService {
                 .createdAt(usuario.getCreatedAt())
                 .activo(usuario.getActivo())
                 .nombreFarmacia(tenant != null ? tenant.getNombre() : "N/A")
+                .permisos(usuarioPermisoService.obtenerPermisosCodigos(usuario.getId(), usuario.getTenantId()))
                 .build();
     }
 

@@ -48,6 +48,8 @@ public class SecurityConfig {
                                 "/actuator/**",
                                 "/info/**"
                         ).permitAll()
+                        // Endpoints de administración solo para ADMIN
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
