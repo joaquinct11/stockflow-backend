@@ -11,6 +11,7 @@ import java.util.List;
 @Repository
 public interface VentaRepository extends JpaRepository<Venta, Long> {
     List<Venta> findByVendedorId(Long vendedorId);
+    List<Venta> findByTenantIdAndVendedorId(String tenantId, Long vendedorId);
     List<Venta> findByTenantId(String tenantId);
     List<Venta> findByCreatedAtBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
     long countByTenantId(String tenantId);

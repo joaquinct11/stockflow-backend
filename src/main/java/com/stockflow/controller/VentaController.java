@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
@@ -39,10 +41,11 @@ public class VentaController {
     private final MovimientoInventarioService movimientoService;
 
     /**
-     * ✅ ACTUALIZADO: Obtiene ventas del tenant actual
+     * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
+     * Permitido para ADMIN/GERENTE o usuarios con permiso PERM_VER_VENTAS.
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_VENTAS')")
     public ResponseEntity<List<VentaDTO>> obtenerTodas() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("💰 Obteniendo ventas para tenant: {}", tenantId);
@@ -62,11 +65,31 @@ public class VentaController {
     }
 
     @GetMapping("/vendedor/{vendedorId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
-    public ResponseEntity<List<VentaDTO>> obtenerPorVendedor(@PathVariable Long vendedorId) {
-        log.info("👤 Obteniendo ventas del vendedor: {}", vendedorId);
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_MIS_VENTAS') or hasAuthority('PERM_VER_VENTAS')")
+    public ResponseEntity<List<VentaDTO>> obtenerPorVendedor(
+            @PathVariable Long vendedorId,
+            Authentication authentication) {
+
+        String tenantId = TenantContext.getCurrentTenant();
+        Long currentUserId = TenantContext.getCurrentUserId();
+
+        boolean isAdminOrGerente = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(a -> a.equals("ROLE_ADMIN") || a.equals("ROLE_GERENTE"));
+
+        // Si el usuario es VENDEDOR, forzar su propio ID para evitar acceso cruzado
+        Long efectiveVendedorId;
+        if (isAdminOrGerente) {
+            efectiveVendedorId = vendedorId;
+        } else {
+            efectiveVendedorId = currentUserId;
+        }
+
+        log.info("👤 Obteniendo ventas del vendedor: {} (solicitado: {}) para tenant: {}",
+                efectiveVendedorId, vendedorId, tenantId);
+
         return ResponseEntity.ok(
-                ventaMapper.toDTOList(ventaService.obtenerVentasPorVendedor(vendedorId))
+                ventaMapper.toDTOList(ventaService.obtenerVentasPorVendedorYTenant(efectiveVendedorId, tenantId))
         );
     }
 
