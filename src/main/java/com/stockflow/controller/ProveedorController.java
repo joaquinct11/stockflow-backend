@@ -78,7 +78,7 @@ public class ProveedorController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_PROVEEDOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> crear(@Valid @RequestBody ProveedorDTO proveedorDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando proveedor para tenant: {}", tenantId);
@@ -93,7 +93,7 @@ public class ProveedorController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_EDITAR_PROVEEDOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GESTOR_INVENTARIO') or hasAuthority('PERM_EDITAR_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProveedorDTO proveedorDTO) {
@@ -109,7 +109,7 @@ public class ProveedorController {
     }
 
     @PatchMapping("/{id}/activar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> activar(@PathVariable Long id) {
         log.info("✅ Activando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)
@@ -121,7 +121,7 @@ public class ProveedorController {
     }
 
     @PatchMapping("/{id}/desactivar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> desactivar(@PathVariable Long id) {
         log.info("🔒 Desactivando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)

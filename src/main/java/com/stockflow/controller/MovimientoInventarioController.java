@@ -88,7 +88,7 @@ public class MovimientoInventarioController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_INVENTARIO')")
     public ResponseEntity<MovimientoInventarioDTO> crear(@Valid @RequestBody MovimientoInventarioDTO movimientoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando movimiento de inventario para tenant: {}", tenantId);
@@ -175,7 +175,7 @@ public class MovimientoInventarioController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_ELIMINAR_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_INVENTARIO')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando movimiento ID: {}", id);
         movimientoService.eliminarMovimiento(id);
