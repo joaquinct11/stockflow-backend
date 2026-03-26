@@ -56,7 +56,7 @@ public class VentaController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<VentaDTO> obtenerPorId(@PathVariable Long id) {
         return ventaService.obtenerVentaPorId(id)
                 .map(ventaMapper::toDTO)
@@ -97,7 +97,7 @@ public class VentaController {
      * ✅ ACTUALIZADO: Usa tenantId automáticamente
      */
     @GetMapping("/periodo")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_VENTAS')")
     public ResponseEntity<List<VentaDTO>> obtenerPorPeriodo(
             @RequestParam String inicio,
             @RequestParam String fin) {
@@ -116,7 +116,7 @@ public class VentaController {
     }
 
     @GetMapping("/{ventaId}/detalles")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<List<DetalleVentaDTO>> obtenerDetalles(@PathVariable Long ventaId) {
         log.info("📋 Obteniendo detalles de venta: {}", ventaId);
         return ResponseEntity.ok(

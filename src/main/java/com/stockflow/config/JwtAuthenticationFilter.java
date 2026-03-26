@@ -1,6 +1,5 @@
 package com.stockflow.config;
 
-import com.stockflow.repository.PermisoRepository;
 import com.stockflow.repository.UsuarioPermisoRepository;
 import com.stockflow.util.JwtUtil;
 import com.stockflow.util.TenantContext;
@@ -33,7 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UsuarioPermisoRepository usuarioPermisoRepository;
-    private final PermisoRepository permisoRepository;
+    private final RolePermissionDefaults rolePermissionDefaults;
 
     @Override
     protected void doFilterInternal(
@@ -64,10 +63,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Set<SimpleGrantedAuthority> authoritySet = new LinkedHashSet<>();
                     authoritySet.add(new SimpleGrantedAuthority("ROLE_" + rol));
 
-                    // Cargar permisos base del rol (definidos en tabla permisos con rol_id)
+                    // Cargar permisos base del rol desde la definición canónica
                     try {
-                        List<String> basePermisoCodigos = permisoRepository.findNombresByRolNombre(rol);
-                        for (String codigo : basePermisoCodigos) {
+                        Set<String> basePerms = rolePermissionDefaults.getBasePermissions(rol);
+                        for (String codigo : basePerms) {
                             authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
                         }
                     } catch (Exception e) {

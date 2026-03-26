@@ -33,7 +33,7 @@ public class PermisoController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PERMISOS')")
     public ResponseEntity<List<PermisoDTO>> obtenerTodos() {
         List<Permiso> permisos = permisoService.obtenerTodosPermisos();
         List<PermisoDTO> permisosDTO = permisos.stream()
@@ -43,7 +43,7 @@ public class PermisoController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PERMISOS')")
     public ResponseEntity<PermisoDTO> obtenerPorId(@PathVariable Long id) {
         return permisoService.obtenerPermisoPorId(id)
                 .map(this::convertToDTO)
@@ -52,7 +52,7 @@ public class PermisoController {
     }
 
     @GetMapping("/rol/{rolId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PERMISOS')")
     public ResponseEntity<List<PermisoDTO>> obtenerPorRol(@PathVariable Long rolId) {
         List<Permiso> permisos = permisoService.obtenerPermisosPorRol(rolId);
         List<PermisoDTO> permisosDTO = permisos.stream()
@@ -62,7 +62,7 @@ public class PermisoController {
     }
 
     @GetMapping("/nombre/{nombre}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PERMISOS')")
     public ResponseEntity<PermisoDTO> obtenerPorNombre(@PathVariable String nombre) {
         return permisoService.obtenerPermisoPorNombre(nombre)
                 .map(this::convertToDTO)
