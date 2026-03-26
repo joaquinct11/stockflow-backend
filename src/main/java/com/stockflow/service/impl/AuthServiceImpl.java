@@ -296,12 +296,58 @@ public class AuthServiceImpl implements AuthService {
 
     private Set<String> permisosBasePorRol(String rol) {
         return switch (rol) {
-            case "ADMIN" -> Set.of(); // admin override lo manejas aparte si quieres
-            case "VENDEDOR" -> Set.of("CREAR_VENTA", "VER_MIS_VENTAS");
+            case "ADMIN" -> Set.of(
+                    // Proveedores
+                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "ACTIVAR_PROVEEDOR", "ELIMINAR_PROVEEDOR",
+                    // Productos
+                    "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO", "ELIMINAR_PRODUCTO",
+                    // Ventas
+                    "VER_VENTAS", "VER_MIS_VENTAS", "CREAR_VENTA", "VER_DETALLE_VENTA", "ELIMINAR_VENTA",
+                    // Inventario
+                    "VER_INVENTARIO", "CREAR_INVENTARIO", "VER_DETALLE_INVENTARIO", "EDITAR_INVENTARIO", "ELIMINAR_INVENTARIO",
+                    // Usuarios
+                    "VER_USUARIOS", "CREAR_USUARIO", "EDITAR_USUARIO", "ACTIVAR_USUARIO", "ELIMINAR_USUARIO",
+                    // Suscripciones
+                    "VER_SUSCRIPCIONES", "CREAR_SUSCRIPCION", "EDITAR_SUSCRIPCION", "ACTIVAR_SUSCRIPCION", "ELIMINAR_SUSCRIPCION",
+                    // Reportes
+                    "VER_REPORTES",
+                    // Gestión de permisos
+                    "VER_PERMISOS", "GESTIONAR_PERMISOS", "GESTIONAR_USUARIOS",
+                    // Dashboard
+                    "VER_DASHBOARD"
+            );
+            case "GERENTE" -> Set.of(
+                    // Proveedores
+                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "ACTIVAR_PROVEEDOR", "ELIMINAR_PROVEEDOR",
+                    // Productos
+                    "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO", "ELIMINAR_PRODUCTO",
+                    // Ventas
+                    "VER_VENTAS", "CREAR_VENTA", "VER_DETALLE_VENTA", "ELIMINAR_VENTA",
+                    // Inventario
+                    "VER_INVENTARIO", "CREAR_INVENTARIO", "VER_DETALLE_INVENTARIO", "EDITAR_INVENTARIO", "ELIMINAR_INVENTARIO",
+                    // Usuarios
+                    "VER_USUARIOS", "CREAR_USUARIO", "EDITAR_USUARIO", "ACTIVAR_USUARIO", "ELIMINAR_USUARIO",
+                    // Suscripciones (solo vista)
+                    "VER_SUSCRIPCIONES",
+                    // Reportes
+                    "VER_REPORTES",
+                    // Dashboard
+                    "VER_DASHBOARD"
+            );
+            case "VENDEDOR" -> Set.of(
+                    "VER_PRODUCTOS", "VER_PROVEEDORES",
+                    "CREAR_VENTA", "VER_MIS_VENTAS", "VER_DETALLE_VENTA",
+                    "VER_DASHBOARD_PROPIO"
+            );
             case "GESTOR_INVENTARIO" -> Set.of(
+                    // Productos
                     "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO",
-                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR",
-                    "VER_INVENTARIO", "CREAR_INVENTARIO", "EDITAR_INVENTARIO"
+                    // Proveedores
+                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "ACTIVAR_PROVEEDOR",
+                    // Inventario
+                    "VER_INVENTARIO", "CREAR_INVENTARIO", "VER_DETALLE_INVENTARIO", "EDITAR_INVENTARIO",
+                    // Dashboard
+                    "VER_DASHBOARD_PROPIO"
             );
             default -> Set.of();
         };

@@ -36,7 +36,7 @@ public class MovimientoInventarioController {
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Obteniendo movimientos de inventario para tenant: {}", tenantId);
@@ -47,7 +47,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_DETALLE_INVENTARIO')")
     public ResponseEntity<MovimientoInventarioDTO> obtenerPorId(@PathVariable Long id) {
         return movimientoService.obtenerMovimientoPorId(id)
                 .map(movimientoMapper::toDTO)
@@ -56,7 +56,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/producto/{productoId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorProducto(@PathVariable Long productoId) {
         log.info("📦 Obteniendo movimientos del producto: {}", productoId);
         return ResponseEntity.ok(
@@ -65,7 +65,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/usuario/{usuarioId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorUsuario(@PathVariable Long usuarioId) {
         log.info("👤 Obteniendo movimientos del usuario: {}", usuarioId);
         return ResponseEntity.ok(
@@ -74,7 +74,7 @@ public class MovimientoInventarioController {
     }
 
     @GetMapping("/tipo/{tipo}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorTipo(@PathVariable String tipo) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔍 Obteniendo movimientos tipo: {} para tenant: {}", tipo, tenantId);

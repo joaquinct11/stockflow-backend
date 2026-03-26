@@ -27,7 +27,7 @@ public class ProductoController {
      * ✅ ACTUALIZADO: Obtiene productos del tenant actual automáticamente
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<List<ProductoDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Obteniendo productos para tenant: {}", tenantId);
@@ -38,7 +38,7 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<ProductoDTO> obtenerPorId(@PathVariable Long id) {
         return productoService.obtenerProductoPorId(id)
                 .map(productoMapper::toDTO)
@@ -47,7 +47,7 @@ public class ProductoController {
     }
 
     @GetMapping("/codigo/{codigoBarras}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<ProductoDTO> obtenerPorCodigoBarras(@PathVariable String codigoBarras) {
         return productoService.obtenerProductoPorCodigoBarras(codigoBarras)
                 .map(productoMapper::toDTO)
@@ -56,7 +56,7 @@ public class ProductoController {
     }
 
     @GetMapping("/buscar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<List<ProductoDTO>> buscarPorNombre(@RequestParam String nombre) {
         return ResponseEntity.ok(
                 productoMapper.toDTOList(productoService.buscarProductosPorNombre(nombre))
@@ -64,7 +64,7 @@ public class ProductoController {
     }
 
     @GetMapping("/bajo-stock")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<List<ProductoDTO>> obtenerProductosBajoStock() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("⚠️ Obteniendo productos con bajo stock para tenant: {}", tenantId);

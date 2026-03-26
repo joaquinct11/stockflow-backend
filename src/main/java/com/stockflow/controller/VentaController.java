@@ -56,7 +56,7 @@ public class VentaController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<VentaDTO> obtenerPorId(@PathVariable Long id) {
         return ventaService.obtenerVentaPorId(id)
                 .map(ventaMapper::toDTO)
@@ -116,7 +116,7 @@ public class VentaController {
     }
 
     @GetMapping("/{ventaId}/detalles")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<List<DetalleVentaDTO>> obtenerDetalles(@PathVariable Long ventaId) {
         log.info("📋 Obteniendo detalles de venta: {}", ventaId);
         return ResponseEntity.ok(
