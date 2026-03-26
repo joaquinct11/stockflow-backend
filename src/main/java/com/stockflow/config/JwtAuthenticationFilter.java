@@ -1,5 +1,6 @@
 package com.stockflow.config;
 
+import com.stockflow.repository.PermisoRepository;
 import com.stockflow.repository.UsuarioPermisoRepository;
 import com.stockflow.util.JwtUtil;
 import com.stockflow.util.TenantContext;
@@ -21,7 +22,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -30,6 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UsuarioPermisoRepository usuarioPermisoRepository;
+    private final PermisoRepository permisoRepository;
 
     @Override
     protected void doFilterInternal(
@@ -56,20 +60,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     TenantContext.setCurrentUserId(usuarioId);
                     TenantContext.setCurrentTenant(tenantId);
 
-                    // Construir authorities: rol + permisos directos del usuario
-                    List<SimpleGrantedAuthority> authorities = new ArrayList<>();
-                    authorities.add(new SimpleGrantedAuthority("ROLE_" + rol));
+                    // Construir authorities: rol + permisos base del rol + permisos directos del usuario
+                    Set<SimpleGrantedAuthority> authoritySet = new LinkedHashSet<>();
+                    authoritySet.add(new SimpleGrantedAuthority("ROLE_" + rol));
+
+                    // Cargar permisos base del rol (definidos en tabla permisos con rol_id)
+                    try {
+                        List<String> basePermisoCodigos = permisoRepository.findNombresByRolNombre(rol);
+                        for (String codigo : basePermisoCodigos) {
+                            authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
+                        }
+                    } catch (Exception e) {
+                        log.error("❌ Error cargando permisos base del rol {}: {}. El acceso se basará solo en el rol.",
+                                rol, e.getMessage());
+                    }
 
                     // Cargar permisos directos asignados al usuario en este tenant
                     try {
                         List<String> permisoCodigos = usuarioPermisoRepository.findPermisoCodigos(usuarioId, tenantId);
                         for (String codigo : permisoCodigos) {
-                            authorities.add(new SimpleGrantedAuthority("PERM_" + codigo));
+                            authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
                         }
                     } catch (Exception e) {
                         log.error("❌ Error cargando permisos del usuario {} en tenant {}: {}. El acceso se basará solo en el rol.",
                                 usuarioId, tenantId, e.getMessage());
                     }
+
+                    List<SimpleGrantedAuthority> authorities = new ArrayList<>(authoritySet);
 
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(

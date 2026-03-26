@@ -35,7 +35,7 @@ public class SuscripcionController {
      * ✅ ACTUALIZADO: Obtiene suscripciones del tenant actual
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_SUSCRIPCIONES')")
     public ResponseEntity<List<SuscripcionDTO>> obtenerTodas() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("💳 Obteniendo suscripciones para tenant: {}", tenantId);
@@ -46,7 +46,7 @@ public class SuscripcionController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_SUSCRIPCIONES')")
     public ResponseEntity<SuscripcionDTO> obtenerPorId(@PathVariable Long id) {
         return suscripcionService.obtenerSuscripcionPorId(id)
                 .map(suscripcionMapper::toDTO)
@@ -55,7 +55,7 @@ public class SuscripcionController {
     }
 
     @GetMapping("/usuario/{usuarioId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_SUSCRIPCIONES')")
     public ResponseEntity<SuscripcionDTO> obtenerPorUsuario(@PathVariable Long usuarioId) {
         log.info("👤 Obteniendo suscripción del usuario: {}", usuarioId);
         return suscripcionService.obtenerSuscripcionPorUsuario(usuarioId)
@@ -65,7 +65,7 @@ public class SuscripcionController {
     }
 
     @GetMapping("/estado/{estado}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_SUSCRIPCIONES')")
     public ResponseEntity<List<SuscripcionDTO>> obtenerPorEstado(@PathVariable String estado) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔍 Obteniendo suscripciones con estado: {} para tenant: {}", estado, tenantId);
