@@ -30,8 +30,7 @@ import com.stockflow.exception.BadRequestException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -278,6 +277,9 @@ public class AuthServiceImpl implements AuthService {
         Tenant tenant = tenantService.obtenerTenant(usuario.getTenantId())
                 .orElse(null);
 
+        Set<String> permisos = new HashSet<>(permisosBasePorRol(usuario.getRol().getNombre()));
+        permisos.addAll(usuarioPermisoService.obtenerPermisosCodigos(usuario.getId(), usuario.getTenantId()));
+
         return UsuarioProfileDTO.builder()
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
@@ -288,8 +290,21 @@ public class AuthServiceImpl implements AuthService {
                 .createdAt(usuario.getCreatedAt())
                 .activo(usuario.getActivo())
                 .nombreFarmacia(tenant != null ? tenant.getNombre() : "N/A")
-                .permisos(usuarioPermisoService.obtenerPermisosCodigos(usuario.getId(), usuario.getTenantId()))
+                .permisos(new ArrayList<>(permisos)) // o Set si tu DTO lo soporta
                 .build();
+    }
+
+    private Set<String> permisosBasePorRol(String rol) {
+        return switch (rol) {
+            case "ADMIN" -> Set.of(); // admin override lo manejas aparte si quieres
+            case "VENDEDOR" -> Set.of("CREAR_VENTA", "VER_MIS_VENTAS");
+            case "GESTOR_INVENTARIO" -> Set.of(
+                    "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO",
+                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR",
+                    "VER_INVENTARIO", "CREAR_INVENTARIO", "EDITAR_INVENTARIO"
+            );
+            default -> Set.of();
+        };
     }
 
     @Override
