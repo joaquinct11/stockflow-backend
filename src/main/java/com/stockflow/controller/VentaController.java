@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.math.RoundingMode;
 
 @Slf4j
 @RestController
@@ -162,10 +163,20 @@ public class VentaController {
                 })
                 .collect(Collectors.toList());
 
-        // 2) Crear venta (entidad)
+        final BigDecimal IGV_RATE = new BigDecimal("0.18");
+
+        BigDecimal subtotalVenta = detalles.stream()
+                .map(DetalleVenta::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal igvVenta = subtotalVenta.multiply(IGV_RATE).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalVenta = subtotalVenta.add(igvVenta).setScale(2, RoundingMode.HALF_UP);
+
+        log.info("📊 Subtotal: {}, IGV: {}, Total: {}", subtotalVenta, igvVenta, totalVenta);
+
         Venta venta = Venta.builder()
                 .vendedor(vendedor)
-                .total(ventaDTO.getTotal())
+                .total(totalVenta) // ✅ total con IGV
                 .metodoPago(ventaDTO.getMetodoPago())
                 .estado(ventaDTO.getEstado())
                 .tenantId(tenantId)

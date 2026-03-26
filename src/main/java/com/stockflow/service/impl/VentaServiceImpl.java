@@ -27,15 +27,15 @@ public class VentaServiceImpl implements VentaService {
     @Override
     @Transactional
     public Venta crearVenta(Venta venta) {
-        BigDecimal total = BigDecimal.ZERO;
+//        BigDecimal total = BigDecimal.ZERO;
 
         for (DetalleVenta detalle : venta.getDetalles()) {
             detalle.setVenta(venta);
             detalle.calcularSubtotal();
-            total = total.add(detalle.getSubtotal());
+//            total = total.add(detalle.getSubtotal());
         }
 
-        venta.setTotal(total);
+//        venta.setTotal(total);
         return ventaRepository.save(venta);
     }
 
