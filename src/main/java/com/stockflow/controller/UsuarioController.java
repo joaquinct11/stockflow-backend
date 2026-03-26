@@ -66,7 +66,7 @@ public class UsuarioController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_GESTIONAR_USUARIOS')")
     public ResponseEntity<UsuarioDTO> crear(@Valid @RequestBody UsuarioDTO usuarioDTO) {
         try {
             String tenantId = TenantContext.getCurrentTenant();
@@ -97,7 +97,7 @@ public class UsuarioController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_GESTIONAR_USUARIOS')")
     public ResponseEntity<UsuarioDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody UsuarioUpdateDTO updateDTO) {
@@ -132,7 +132,7 @@ public class UsuarioController {
     }
 
     @PatchMapping("/{id}/desactivar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_USUARIO')")
     public ResponseEntity<Void> desactivar(@PathVariable Long id) {
         log.info("🔒 Desactivando usuario ID: {}", id);
         usuarioService.desactivarUsuario(id);
@@ -140,7 +140,7 @@ public class UsuarioController {
     }
 
     @PatchMapping("/{id}/activar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_USUARIO')")
     public ResponseEntity<Void> activar(@PathVariable Long id) {
         log.info("✅ Activando usuario ID: {}", id);
         usuarioService.activarUsuario(id);
