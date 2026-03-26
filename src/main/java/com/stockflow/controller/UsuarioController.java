@@ -34,7 +34,7 @@ public class UsuarioController {
      * ✅ ACTUALIZADO: Obtiene usuarios del tenant actual
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_USUARIOS')")
     public ResponseEntity<List<UsuarioDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👥 Obteniendo usuarios para tenant: {}", tenantId);
@@ -45,7 +45,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_USUARIOS')")
     public ResponseEntity<UsuarioDTO> obtenerPorId(@PathVariable Long id) {
         return usuarioService.obtenerUsuarioPorId(id)
                 .map(usuarioMapper::toDTO)
@@ -54,7 +54,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/email/{email}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_USUARIOS')")
     public ResponseEntity<UsuarioDTO> obtenerPorEmail(@PathVariable String email) {
         return usuarioService.obtenerUsuarioPorEmail(email)
                 .map(usuarioMapper::toDTO)
@@ -66,7 +66,7 @@ public class UsuarioController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_GESTIONAR_USUARIOS')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_USUARIO')")
     public ResponseEntity<UsuarioDTO> crear(@Valid @RequestBody UsuarioDTO usuarioDTO) {
         try {
             String tenantId = TenantContext.getCurrentTenant();
@@ -97,7 +97,7 @@ public class UsuarioController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_GESTIONAR_USUARIOS')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_USUARIO')")
     public ResponseEntity<UsuarioDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody UsuarioUpdateDTO updateDTO) {

@@ -79,7 +79,7 @@ public class SuscripcionController {
      * ✅ ACTUALIZADO: Setea tenantId automáticamente
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_SUSCRIPCION')")
     public ResponseEntity<SuscripcionDTO> crear(@Valid @RequestBody SuscripcionDTO suscripcionDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando suscripción para tenant: {}", tenantId);
@@ -120,7 +120,7 @@ public class SuscripcionController {
     }
 
     @PatchMapping("/{id}/cancelar")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
     public ResponseEntity<SuscripcionDTO> cancelar(@PathVariable Long id) {
         log.info("🗑️ Cancelando suscripción ID: {}", id);
         return suscripcionService.obtenerSuscripcionPorId(id)
@@ -133,7 +133,7 @@ public class SuscripcionController {
     }
 
     @PatchMapping("/{id}/activar")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
     public ResponseEntity<SuscripcionDTO> activar(@PathVariable Long id) {
         log.info("🗑️ Activando suscripción ID: {}", id);
         Suscripcion suscripcionActivada = suscripcionService.activarSuscripcion(id);
@@ -141,7 +141,7 @@ public class SuscripcionController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_SUSCRIPCION')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         log.info("🗑️ Eliminando suscripción ID: {}", id);
         suscripcionService.eliminarSuscripcion(id);

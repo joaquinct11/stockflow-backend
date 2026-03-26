@@ -1,5 +1,6 @@
 package com.stockflow.service.impl;
 
+import com.stockflow.config.RolePermissionDefaults;
 import com.stockflow.dto.JwtResponseDTO;
 import com.stockflow.dto.LoginDTO;
 import com.stockflow.dto.RegistrationRequestDTO;
@@ -46,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
     private final SuscripcionService suscripcionService;
     private final EmailService emailService;
     private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
+    private final RolePermissionDefaults rolePermissionDefaults;
 
     @Override
     @Transactional
@@ -277,7 +279,7 @@ public class AuthServiceImpl implements AuthService {
         Tenant tenant = tenantService.obtenerTenant(usuario.getTenantId())
                 .orElse(null);
 
-        Set<String> permisos = new HashSet<>(permisosBasePorRol(usuario.getRol().getNombre()));
+        Set<String> permisos = new TreeSet<>(rolePermissionDefaults.getBasePermissions(usuario.getRol().getNombre()));
         permisos.addAll(usuarioPermisoService.obtenerPermisosCodigos(usuario.getId(), usuario.getTenantId()));
 
         return UsuarioProfileDTO.builder()
@@ -290,21 +292,8 @@ public class AuthServiceImpl implements AuthService {
                 .createdAt(usuario.getCreatedAt())
                 .activo(usuario.getActivo())
                 .nombreFarmacia(tenant != null ? tenant.getNombre() : "N/A")
-                .permisos(new ArrayList<>(permisos)) // o Set si tu DTO lo soporta
+                .permisos(new ArrayList<>(permisos)) // sorted by TreeSet, unique
                 .build();
-    }
-
-    private Set<String> permisosBasePorRol(String rol) {
-        return switch (rol) {
-            case "ADMIN" -> Set.of(); // admin override lo manejas aparte si quieres
-            case "VENDEDOR" -> Set.of("CREAR_VENTA", "VER_MIS_VENTAS");
-            case "GESTOR_INVENTARIO" -> Set.of(
-                    "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO",
-                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR",
-                    "VER_INVENTARIO", "CREAR_INVENTARIO", "EDITAR_INVENTARIO"
-            );
-            default -> Set.of();
-        };
     }
 
     @Override

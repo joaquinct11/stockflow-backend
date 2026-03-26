@@ -27,7 +27,7 @@ public class ProveedorController {
      * ✅ ACTUALIZADO: Obtiene proveedores del tenant actual
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO', 'VENDEDOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<List<ProveedorDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🏢 Obteniendo proveedores para tenant: {}", tenantId);
@@ -38,7 +38,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/activos")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO', 'VENDEDOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<List<ProveedorDTO>> obtenerActivos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("✅ Obteniendo proveedores activos para tenant: {}", tenantId);
@@ -49,7 +49,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<ProveedorDTO> obtenerPorId(@PathVariable Long id) {
         return proveedorService.obtenerProveedorPorId(id)
                 .map(proveedorMapper::toDTO)
@@ -58,7 +58,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/ruc/{ruc}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<ProveedorDTO> obtenerPorRuc(@PathVariable String ruc) {
         return proveedorService.obtenerProveedorPorRuc(ruc)
                 .map(proveedorMapper::toDTO)
@@ -67,7 +67,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/buscar")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'GESTOR_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<List<ProveedorDTO>> buscarPorNombre(@RequestParam String nombre) {
         return ResponseEntity.ok(
                 proveedorMapper.toDTOList(proveedorService.buscarProveedoresPorNombre(nombre))
