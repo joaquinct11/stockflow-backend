@@ -1,10 +1,12 @@
 package com.stockflow.controller;
 
+import com.stockflow.dto.ComprobanteDTO;
 import com.stockflow.dto.VentaDTO;
 import com.stockflow.dto.DetalleVentaDTO;
 import com.stockflow.entity.*;
 import com.stockflow.mapper.VentaMapper;
 import com.stockflow.mapper.DetalleVentaMapper;
+import com.stockflow.service.ComprobanteService;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
@@ -40,6 +42,7 @@ public class VentaController {
     private final VentaMapper ventaMapper;
     private final DetalleVentaMapper detalleVentaMapper;
     private final MovimientoInventarioService movimientoService;
+    private final ComprobanteService comprobanteService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
@@ -220,5 +223,17 @@ public class VentaController {
         log.info("🗑️ Eliminando venta ID: {}", id);
         ventaService.eliminarVenta(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Convenience endpoint: get the comprobante associated with a venta.
+     */
+    @GetMapping("/{ventaId}/comprobante")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_COMPROBANTE')")
+    public ResponseEntity<ComprobanteDTO> obtenerComprobante(@PathVariable Long ventaId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        return comprobanteService.obtenerPorVenta(ventaId, tenantId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }
