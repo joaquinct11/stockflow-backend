@@ -38,7 +38,9 @@ public class RolePermissionDefaults {
             // Reportes
             "VER_REPORTES",
             // Gestión de permisos (admin only)
-            "VER_PERMISOS"
+            "VER_PERMISOS",
+            // Facturación (comprobantes SUNAT)
+            "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE"
     );
 
     /**
@@ -67,12 +69,14 @@ public class RolePermissionDefaults {
                     "VER_INVENTARIO", "VER_DETALLE_INVENTARIO",
                     "VER_USUARIOS",
                     "VER_SUSCRIPCIONES",
-                    "VER_REPORTES"
+                    "VER_REPORTES",
+                    "VER_FACTURACION", "VER_COMPROBANTE"
             );
             case "VENDEDOR" -> Set.of(
                     "VER_DASHBOARD",
                     "VER_PRODUCTOS",
-                    "CREAR_VENTA", "VER_MIS_VENTAS", "VER_DETALLE_VENTA"
+                    "CREAR_VENTA", "VER_MIS_VENTAS", "VER_DETALLE_VENTA",
+                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE"
             );
             case "GESTOR_INVENTARIO" -> Set.of(
                     "VER_DASHBOARD",
