@@ -19,15 +19,23 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
 
     boolean existsByVentaIdAndTenantIdAndEstadoNot(Long ventaId, String tenantId, String estado);
 
-    @Query("SELECT c FROM Comprobante c WHERE c.tenantId = :tenantId " +
-           "AND (:tipo IS NULL OR c.tipo = :tipo) " +
-           "AND (:estado IS NULL OR c.estado = :estado) " +
-           "AND (:from IS NULL OR c.fechaEmision >= :from) " +
-           "AND (:to IS NULL OR c.fechaEmision <= :to) " +
-           "AND (:ventaId IS NULL OR c.venta.id = :ventaId) " +
-           "AND (:search IS NULL OR LOWER(c.numero) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "     OR LOWER(c.receptorNombre) LIKE LOWER(CONCAT('%', :search, '%')) " +
-           "     OR LOWER(c.receptorDocNumero) LIKE LOWER(CONCAT('%', :search, '%')))")
+    @Query(value = """
+      SELECT *
+      FROM comprobantes c
+      WHERE c.tenant_id = :tenantId
+        AND (:tipo IS NULL OR c.tipo = :tipo)
+        AND (:estado IS NULL OR c.estado = :estado)
+        AND (CAST(:from AS timestamp) IS NULL OR c.fecha_emision >= :from)
+        AND (CAST(:to AS timestamp) IS NULL OR c.fecha_emision <= :to)
+        AND (:ventaId IS NULL OR c.venta_id = :ventaId)
+        AND (
+          CAST(:search AS text) = '' OR
+          COALESCE(c.numero,'') ILIKE CONCAT('%', CAST(:search AS text), '%') OR
+          COALESCE(c.receptor_nombre,'') ILIKE CONCAT('%', CAST(:search AS text), '%') OR
+          COALESCE(c.receptor_doc_numero,'') ILIKE CONCAT('%', CAST(:search AS text), '%')
+        )
+      ORDER BY c.fecha_emision DESC
+    """, nativeQuery = true)
     List<Comprobante> findFiltered(
             @Param("tenantId") String tenantId,
             @Param("tipo") String tipo,

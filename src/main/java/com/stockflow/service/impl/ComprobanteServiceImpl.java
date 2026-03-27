@@ -135,9 +135,12 @@ public class ComprobanteServiceImpl implements ComprobanteService {
     public List<ComprobanteDTO> listar(String tenantId, String tipo, String estado,
                                        LocalDateTime from, LocalDateTime to,
                                        Long ventaId, String search) {
+        search = (search == null) ? "" : search.trim();
+        tipo = (tipo == null || tipo.isBlank()) ? null : tipo.trim();
+        estado = (estado == null || estado.isBlank()) ? null : estado.trim();
+
         return comprobanteRepository
-                .findFiltered(tenantId, tipo, estado, from, to, ventaId,
-                        (search != null && search.isBlank()) ? null : search)
+                .findFiltered(tenantId, tipo, estado, from, to, ventaId, search)
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());

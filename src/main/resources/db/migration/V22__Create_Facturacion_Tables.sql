@@ -4,7 +4,7 @@
 -- and permissions idempotently.
 
 -- ── 1. comprobante_series ─────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS comprobante_series (
+CREATE TABLE comprobante_series (
     id                  BIGSERIAL PRIMARY KEY,
     tenant_id           VARCHAR(100) NOT NULL,
     tipo                VARCHAR(20)  NOT NULL,   -- BOLETA | FACTURA
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS comprobante_series (
 );
 
 -- ── 2. comprobantes ───────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS comprobantes (
+CREATE TABLE comprobantes (
     id                   BIGSERIAL PRIMARY KEY,
     tenant_id            VARCHAR(100)   NOT NULL,
     venta_id             BIGINT         NOT NULL REFERENCES ventas(id),
