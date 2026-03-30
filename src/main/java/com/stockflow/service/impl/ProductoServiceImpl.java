@@ -1,22 +1,50 @@
 package com.stockflow.service.impl;
 
+import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
+import com.stockflow.entity.Usuario;
+import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.service.ProductoService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductoServiceImpl implements ProductoService {
 
     private final ProductoRepository productoRepository;
+    private final MovimientoInventarioRepository movimientoInventarioRepository;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     public Producto crearProducto(Producto producto) {
-        return productoRepository.save(producto);
+        Producto productoCreado = productoRepository.save(producto);
+
+        Long userId = TenantContext.getCurrentUserId(); // viene del token
+        Usuario usuario = usuarioRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
+
+        MovimientoInventario mov = MovimientoInventario.builder()
+                .producto(productoCreado)
+                .usuario(usuario) // ✅ esto evita el NOT NULL
+                .tipo("SALDO_INICIAL")
+                .cantidad(0) // o productoCreado.getStockActual()
+                .descripcion("Saldo inicial al crear producto")
+                .referencia("CREACION_PRODUCTO")
+                .tenantId(productoCreado.getTenantId())
+                .costoUnitario(productoCreado.getCostoUnitario())
+                .build();
+
+        movimientoInventarioRepository.save(mov);
+
+        return productoCreado;
     }
 
     @Override
