@@ -33,7 +33,7 @@ jwt:
 cors:
   allowed-origins:
     - https://uat.stockflow.pe
-    - http://localhost:5173
+    - https://stockflow-frontend-uat.vercel.app/
 
 # Servidor
 server:
