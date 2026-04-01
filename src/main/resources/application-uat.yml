@@ -33,6 +33,7 @@ jwt:
 cors:
   allowed-origins:
     - https://uat.stockflow.pe
+    - http://localhost:5173
 
 # Servidor
 server:
