@@ -1,5 +1,5 @@
 # ========================================
-# PRODUCCIÓN
+# UAT (User Acceptance Testing)
 # ========================================
 
 spring:
@@ -10,30 +10,29 @@ spring:
     driver-class-name: org.postgresql.Driver
 
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 10
+      maximum-pool-size: 10
+      minimum-idle: 5
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
 
   jpa:
     hibernate:
-      ddl-auto: validate  # ✅ NUNCA update en prod
+      ddl-auto: validate  # ✅ NUNCA update en entornos desplegados
     show-sql: false
 
   flyway:
     enabled: true
-    clean-disabled: true  # ❌ CRÍTICO: No permitir limpiar
+    clean-disabled: true  # ❌ No permitir limpiar en UAT
 
-# JWT CRÍTICO
+# JWT
 jwt:
   secret: ${JWT_SECRET}
 
-# CORS estricto
+# CORS - solo dominio UAT
 cors:
   allowed-origins:
-    - https://www.stockflow.pe
-    - https://stockflow.pe
+    - https://uat.stockflow.pe
 
 # Servidor
 server:
@@ -45,23 +44,32 @@ server:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/plain
 
-# Logging mínimo
+# Logging más detallado que prod, menos que dev
 logging:
   level:
-    root: WARN
-    com.stockflow: INFO
-    org.springframework.web: WARN
+    root: INFO
+    com.stockflow: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
   file:
-    name: logs/stockflow-prod.log
+    name: logs/stockflow-uat.log
     max-size: 50MB
-    max-history: 30
+    max-history: 14
 
-# Actuator seguro
+# Actuator
 management:
   endpoints:
     web:
       exposure:
-        include: health,metrics
+        include: health,info,metrics
   endpoint:
     health:
       show-details: when-authorized
+
+app:
+  frontend-url: ${FRONTEND_URL:https://uat.stockflow.pe}
+
+sendgrid:
+  api-key: ${SENDGRID_API_KEY}
+  from-email: joaquincastillotello2001@gmail.com
+  from-name: StockFlow UAT
