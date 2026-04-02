@@ -125,17 +125,11 @@ public class RecepcionServiceImpl implements RecepcionService {
                     .orElseThrow(() -> new BadRequestException(
                             "El producto " + request.getProductoId() + " no está en la Orden de Compra"));
 
-            // Total previously received (confirmed) by OTHER recepciones for this OC+producto
-            int yaRecibidoOtras = ocDetalleRepository.totalRecibidoPorOcYProducto(ocId, request.getProductoId());
-
-            // Subtract what this recepcion already has for the same producto (will be replaced)
-            int enEstaRecepcion = detalleRepository
-                    .findByRecepcionIdAndProductoId(recepcionId, request.getProductoId())
-                    .map(RecepcionDetalle::getCantidadRecibida).orElse(0);
-
-            // Only confirmed recepciones count toward the limit; re-add this draft's current value
-            // because the query counts CONFIRMED only, so it doesn't include this draft.
-            int pendiente = ocDetalle.getCantidadSolicitada() - yaRecibidoOtras;
+            // Total already received across all CONFIRMED recepciones for this OC+producto.
+            // Draft (BORRADOR) recepciones are excluded by the query, so this recepcion's
+            // existing quantity (if any) does NOT count toward the limit.
+            int yaRecibidoConfirmado = ocDetalleRepository.totalRecibidoPorOcYProducto(ocId, request.getProductoId());
+            int pendiente = ocDetalle.getCantidadSolicitada() - yaRecibidoConfirmado;
             if (request.getCantidadRecibida() > pendiente) {
                 throw new BadRequestException(
                         "Cantidad excede lo pendiente (" + pendiente + ") para este producto en la OC");
