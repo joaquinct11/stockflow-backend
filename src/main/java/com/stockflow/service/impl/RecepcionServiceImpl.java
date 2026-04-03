@@ -84,6 +84,21 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .build();
 
         Recepcion saved = recepcionRepository.save(recepcion);
+        // ✅ Si viene de una OC, pre-cargar detalles en recepcion_detalle
+        if (oc != null) {
+            List<OrdenCompraDetalle> ocDetalles = ocDetalleRepository.findByOrdenCompraId(oc.getId());
+
+            List<RecepcionDetalle> detalles = ocDetalles.stream()
+                    .map(ocDet -> RecepcionDetalle.builder()
+                            .recepcion(saved)
+                            .producto(ocDet.getProducto())
+                            .cantidadRecibida(ocDet.getCantidadSolicitada()) // inicia en 0; luego el usuario actualiza en Recepciones
+                            .build())
+                    .toList();
+
+            detalleRepository.saveAll(detalles);
+        }
+
         log.info("✅ Recepción creada id={} tenant={}", saved.getId(), tenantId);
         return toResponseDTO(saved);
     }
@@ -91,7 +106,7 @@ public class RecepcionServiceImpl implements RecepcionService {
     @Override
     @Transactional(readOnly = true)
     public Optional<RecepcionResponseDTO> obtenerPorId(Long id) {
-        return recepcionRepository.findById(id).map(this::toResponseDTO);
+        return recepcionRepository.findWithDetallesById(id).map(this::toResponseDTO);
     }
 
     @Override
@@ -262,7 +277,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .observaciones(r.getObservaciones())
                 .createdAt(r.getCreatedAt())
                 .fechaConfirmacion(r.getFechaConfirmacion())
-                .detalles(detallesDTO)
+                .items(detallesDTO)
                 .build();
     }
 

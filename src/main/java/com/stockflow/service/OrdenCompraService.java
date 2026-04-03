@@ -17,4 +17,7 @@ public interface OrdenCompraService {
 
     /** Returns the pending items (with received/pending quantities) for a given OC. */
     List<OrdenCompraItemDTO> obtenerItemsConPendientes(Long ocId);
+
+    OrdenCompraResponseDTO enviar(Long id, String tenantId);
+    OrdenCompraResponseDTO cancelar(Long id, String tenantId);
 }

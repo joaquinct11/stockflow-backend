@@ -42,7 +42,7 @@ public class RecepcionController {
      * GET /api/recepciones — List recepciones for current tenant.
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_RECEPCIONES')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_RECEPCIONES') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<List<RecepcionResponseDTO>> listar() {
         String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(recepcionService.listar(tenantId));
@@ -52,7 +52,7 @@ public class RecepcionController {
      * GET /api/recepciones/{id} — Detail of a recepcion.
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_RECEPCIONES')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_RECEPCIONES') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<RecepcionResponseDTO> obtenerPorId(@PathVariable Long id) {
         return recepcionService.obtenerPorId(id)
                 .map(ResponseEntity::ok)

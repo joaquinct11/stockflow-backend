@@ -29,5 +29,5 @@ public class RecepcionResponseDTO {
     private String observaciones;
     private LocalDateTime createdAt;
     private LocalDateTime fechaConfirmacion;
-    private List<RecepcionDetalleResponseDTO> detalles;
+    private List<RecepcionDetalleResponseDTO> items;
 }

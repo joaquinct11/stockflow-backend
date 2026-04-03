@@ -1,10 +1,12 @@
 package com.stockflow.repository;
 
 import com.stockflow.entity.Recepcion;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RecepcionRepository extends JpaRepository<Recepcion, Long> {
@@ -14,4 +16,7 @@ public interface RecepcionRepository extends JpaRepository<Recepcion, Long> {
     List<Recepcion> findByTenantIdAndEstado(String tenantId, String estado);
 
     List<Recepcion> findByOrdenCompraId(Long ocId);
+
+    @EntityGraph(attributePaths = "detalles")
+    Optional<Recepcion> findWithDetallesById(Long id);
 }

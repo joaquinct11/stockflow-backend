@@ -67,4 +67,27 @@ public class OrdenCompraController {
     public ResponseEntity<List<OrdenCompraItemDTO>> obtenerItems(@PathVariable Long id) {
         return ResponseEntity.ok(ordenCompraService.obtenerItemsConPendientes(id));
     }
+
+
+    /**
+     * PATCH /api/oc/{id}/enviar — Cambia estado a ENVIADA
+     */
+    @PatchMapping("/{id}/enviar")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_OC')")
+    public ResponseEntity<OrdenCompraResponseDTO> enviar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📤 Enviando OC id={} tenant={}", id, tenantId);
+        return ResponseEntity.ok(ordenCompraService.enviar(id, tenantId));
+    }
+
+    /**
+     * PATCH /api/oc/{id}/cancelar — Cambia estado a CANCELADA
+     */
+    @PatchMapping("/{id}/cancelar")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_OC')")
+    public ResponseEntity<OrdenCompraResponseDTO> cancelar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("❌ Cancelando OC id={} tenant={}", id, tenantId);
+        return ResponseEntity.ok(ordenCompraService.cancelar(id, tenantId));
+    }
 }

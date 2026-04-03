@@ -144,4 +144,43 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
                 .items(items)
                 .build();
     }
+
+    @Override
+    @Transactional
+    public OrdenCompraResponseDTO enviar(Long id, String tenantId) {
+        OrdenCompra oc = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("OC no encontrada"));
+
+        if (!oc.getTenantId().equals(tenantId)) {
+            throw new BadRequestException("OC no pertenece al tenant actual");
+        }
+
+        if (!"BORRADOR".equals(oc.getEstado())) {
+            throw new BadRequestException("Solo se puede enviar una OC en estado BORRADOR");
+        }
+
+        oc.setEstado("ENVIADA");
+        OrdenCompra saved = ordenCompraRepository.save(oc);
+        return toResponseDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public OrdenCompraResponseDTO cancelar(Long id, String tenantId) {
+        OrdenCompra oc = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("OC no encontrada"));
+
+        if (!oc.getTenantId().equals(tenantId)) {
+            throw new BadRequestException("OC no pertenece al tenant actual");
+        }
+
+        // regla simple: cancelar si está en BORRADOR o ENVIADA
+        if (!"BORRADOR".equals(oc.getEstado()) && !"ENVIADA".equals(oc.getEstado())) {
+            throw new BadRequestException("Solo se puede cancelar una OC en estado BORRADOR o ENVIADA");
+        }
+
+        oc.setEstado("CANCELADA");
+        OrdenCompra saved = ordenCompraRepository.save(oc);
+        return toResponseDTO(saved);
+    }
 }
