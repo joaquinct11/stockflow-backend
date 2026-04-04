@@ -446,10 +446,5 @@ public class ReportesServiceImpl implements ReportesService {
         if (value instanceof Number n) return new BigDecimal(n.toString());
         return BigDecimal.ZERO;
     }
-
-    /** Extrae ingresos de una fila de tendencia nativa, convirtiendo null → ZERO. */
-    private BigDecimal ingresos(Object[] row) {
-        return toBigDecimal(row[2]);
-    }
 }
 

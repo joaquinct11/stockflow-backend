@@ -27,6 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
+// Lenient mode is required because @BeforeEach sets up stubs shared by the original
+// obtenerResumen tests; new tests for individual methods don't invoke obtenerResumen
+// and therefore don't consume all those shared stubs.
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ReportesServiceImplTest {
