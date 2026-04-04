@@ -3,8 +3,11 @@ package com.stockflow.repository;
 import com.stockflow.entity.Recepcion;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,4 +22,35 @@ public interface RecepcionRepository extends JpaRepository<Recepcion, Long> {
 
     @EntityGraph(attributePaths = "detalles")
     Optional<Recepcion> findWithDetallesById(Long id);
+
+    @Query("SELECT COUNT(r) FROM Recepcion r " +
+           "WHERE r.tenantId = :tenantId AND r.estado = 'CONFIRMADA' " +
+           "AND r.fechaConfirmacion BETWEEN :inicio AND :fin")
+    long countConfirmadasByTenantIdAndPeriodo(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
+
+    @Query("SELECT COALESCE(SUM(rd.cantidadRecibida), 0) " +
+           "FROM RecepcionDetalle rd " +
+           "JOIN rd.recepcion r " +
+           "WHERE r.tenantId = :tenantId AND r.estado = 'CONFIRMADA' " +
+           "AND r.fechaConfirmacion BETWEEN :inicio AND :fin")
+    long sumUnidadesRecibidasByTenantIdAndPeriodo(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
+
+    @Query("SELECT COALESCE(SUM(rd.cantidadRecibida * rd.producto.costoUnitario), null) " +
+           "FROM RecepcionDetalle rd " +
+           "JOIN rd.recepcion r " +
+           "WHERE r.tenantId = :tenantId AND r.estado = 'CONFIRMADA' " +
+           "AND r.fechaConfirmacion BETWEEN :inicio AND :fin")
+    java.math.BigDecimal sumMontoComprasByTenantIdAndPeriodo(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }

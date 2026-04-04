@@ -27,4 +27,26 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     );
 
     List<MovimientoInventario> findByTipoAndTenantId(String tipo, String tenantId);
+
+    @Query("SELECT COALESCE(SUM(m.cantidad), 0) FROM MovimientoInventario m " +
+           "WHERE m.tenantId = :tenantId AND m.tipo = :tipo " +
+           "AND m.createdAt BETWEEN :inicio AND :fin")
+    long sumCantidadByTenantIdAndTipoAndPeriodo(
+            @Param("tenantId") String tenantId,
+            @Param("tipo") String tipo,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
+
+    @Query("SELECT m.producto.id, m.producto.nombre, m.tipo, SUM(m.cantidad) AS total " +
+           "FROM MovimientoInventario m " +
+           "WHERE m.tenantId = :tenantId AND m.tipo IN ('ENTRADA','SALIDA') " +
+           "AND m.createdAt BETWEEN :inicio AND :fin " +
+           "GROUP BY m.producto.id, m.producto.nombre, m.tipo " +
+           "ORDER BY total DESC")
+    List<Object[]> findTopMovimientosProductos(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }
