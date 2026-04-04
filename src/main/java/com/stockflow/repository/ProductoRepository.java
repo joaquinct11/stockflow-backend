@@ -22,4 +22,16 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     @Query("SELECT COALESCE(SUM(p.stockActual * p.costoUnitario), null) FROM Producto p " +
            "WHERE p.tenantId = :tenantId AND p.activo = true")
     BigDecimal calcularValorizacionStock(@Param("tenantId") String tenantId);
+
+    // ── Slow movers: activos con stock > 0 sin salidas desde una fecha ──
+
+    @Query("SELECT p FROM Producto p WHERE p.tenantId = :tenantId AND p.activo = true AND p.stockActual > 0 " +
+           "AND p.id NOT IN (" +
+               "SELECT m.producto.id FROM MovimientoInventario m " +
+               "WHERE m.tenantId = :tenantId AND m.tipo = 'SALIDA' AND m.createdAt >= :desde" +
+           ")")
+    List<Producto> findSlowMovers(
+            @Param("tenantId") String tenantId,
+            @Param("desde") java.time.LocalDateTime desde
+    );
 }
