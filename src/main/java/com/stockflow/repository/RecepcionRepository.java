@@ -53,4 +53,21 @@ public interface RecepcionRepository extends JpaRepository<Recepcion, Long> {
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin
     );
+
+    // ── Compras agrupadas por proveedor ──
+
+    @Query("SELECT r.proveedor.id, r.proveedor.nombre, COUNT(DISTINCT r.id), " +
+           "COALESCE(SUM(rd.cantidadRecibida), 0), " +
+           "SUM(rd.cantidadRecibida * rd.producto.costoUnitario) " +
+           "FROM Recepcion r " +
+           "LEFT JOIN r.detalles rd " +
+           "WHERE r.tenantId = :tenantId AND r.estado = 'CONFIRMADA' " +
+           "AND r.fechaConfirmacion BETWEEN :inicio AND :fin " +
+           "GROUP BY r.proveedor.id, r.proveedor.nombre " +
+           "ORDER BY COALESCE(SUM(rd.cantidadRecibida * rd.producto.costoUnitario), 0) DESC")
+    List<Object[]> findComprasPorProveedor(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }

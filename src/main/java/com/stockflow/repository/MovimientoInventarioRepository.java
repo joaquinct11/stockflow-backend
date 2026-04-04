@@ -49,4 +49,17 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin
     );
+
+    // ── Salidas por producto en rango (para cálculo de cobertura) ──
+
+    @Query("SELECT m.producto.id, m.producto.nombre, m.producto.stockActual, SUM(m.cantidad) " +
+           "FROM MovimientoInventario m " +
+           "WHERE m.tenantId = :tenantId AND m.tipo = 'SALIDA' AND m.createdAt BETWEEN :inicio AND :fin " +
+           "GROUP BY m.producto.id, m.producto.nombre, m.producto.stockActual " +
+           "ORDER BY SUM(m.cantidad) DESC")
+    List<Object[]> findSalidasPorProductoEnRango(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }
