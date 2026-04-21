@@ -57,3 +57,12 @@ sendgrid:
   api-key: ${SENDGRID_API_KEY}
   from-email: joaquincastillotello2001@gmail.com
   from-name: StockFlow
+  
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    display-request-duration: true
