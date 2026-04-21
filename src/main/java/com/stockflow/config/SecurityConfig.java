@@ -46,7 +46,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/auth/**",         // ✅ Cualquier endpoint /api/auth/*
                                 "/actuator/**",
-                                "/info/**"
+                                "/info/**",
+                                "/api-docs/**"
                         ).permitAll()
                         // Endpoints de administración solo para ADMIN
                         .requestMatchers("/admin/**").hasRole("ADMIN")

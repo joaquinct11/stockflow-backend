@@ -45,7 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final TenantService tenantService;
     private final SuscripcionService suscripcionService;
-    private final EmailService emailService;
+//    private final EmailService emailService;
     private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
     private final RolePermissionDefaults rolePermissionDefaults;
 
@@ -348,16 +348,16 @@ public class AuthServiceImpl implements AuthService {
         log.info("📧 Enviando email a: {}", usuario.getEmail());
 
         // ✅ ENVIAR EMAIL
-        try {
-            emailService.enviarEmailRecuperacionContraseña(
-                    usuario.getEmail(),
-                    usuario.getNombre(),
-                    token
-            );
-            log.info("✅ Email enviado exitosamente");
-        } catch (Exception e) {
-            log.error("❌ Error enviando email: {}", e.getMessage(), e);
-        }
+//        try {
+//            emailService.enviarEmailRecuperacionContraseña(
+//                    usuario.getEmail(),
+//                    usuario.getNombre(),
+//                    token
+//            );
+//            log.info("✅ Email enviado exitosamente");
+//        } catch (Exception e) {
+//            log.error("❌ Error enviando email: {}", e.getMessage(), e);
+//        }
     }
 
     @Override
