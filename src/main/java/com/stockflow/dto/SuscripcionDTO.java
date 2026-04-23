@@ -9,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -38,6 +39,14 @@ public class SuscripcionDTO {
     private String metodoPago;
 
     private String ultimos4Digitos;
+
+    private String mpPreferenceId;
+
+    private String mpPaymentId;
+
+    private LocalDateTime currentPeriodStart;
+
+    private LocalDateTime currentPeriodEnd;
 
     private String tenantId;
 }

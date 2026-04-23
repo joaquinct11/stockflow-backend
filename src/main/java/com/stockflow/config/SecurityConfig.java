@@ -47,7 +47,8 @@ public class SecurityConfig {
                                 "/auth/**",         // ✅ Cualquier endpoint /api/auth/*
                                 "/actuator/**",
                                 "/info/**",
-                                "/api-docs/**"
+                                "/api-docs/**",
+                                "/webhooks/mercadopago"
                         ).permitAll()
                         // Endpoints de administración solo para ADMIN
                         .requestMatchers("/admin/**").hasRole("ADMIN")
