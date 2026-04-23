@@ -54,9 +54,41 @@ public class Suscripcion {
     @Column(name = "ultimos_4_digitos", length = 4)
     private String ultimos4Digitos;
 
+    @Column(name = "mp_preference_id", length = 255)
+    private String mpPreferenceId;
+
+    @Column(name = "mp_payment_id", length = 255)
+    private String mpPaymentId;
+
+    @Column(name = "current_period_start")
+    private LocalDateTime currentPeriodStart;
+
+    @Column(name = "current_period_end")
+    private LocalDateTime currentPeriodEnd;
+
     @Column(name = "tenant_id")
     private String tenantId;
 
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }
