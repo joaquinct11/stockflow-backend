@@ -57,6 +57,10 @@ public class SuscripcionServiceImpl implements SuscripcionService {
                     suscripcionExistente.setEstado(suscripcion.getEstado());
                     suscripcionExistente.setMetodoPago(suscripcion.getMetodoPago());
                     suscripcionExistente.setUltimos4Digitos(suscripcion.getUltimos4Digitos());
+                    suscripcionExistente.setMpPreferenceId(suscripcion.getMpPreferenceId());
+                    suscripcionExistente.setMpPaymentId(suscripcion.getMpPaymentId());
+                    suscripcionExistente.setCurrentPeriodStart(suscripcion.getCurrentPeriodStart());
+                    suscripcionExistente.setCurrentPeriodEnd(suscripcion.getCurrentPeriodEnd());
                     return suscripcionRepository.save(suscripcionExistente);
                 })
                 .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));

@@ -18,5 +18,9 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
 
     List<Suscripcion> findByEstadoAndTenantId(String estado, String tenantId);
 
+    Optional<Suscripcion> findByTenantIdAndUsuarioPrincipalId(String tenantId, Long usuarioPrincipalId);
+
+    Optional<Suscripcion> findFirstByMpPreferenceIdOrderByIdDesc(String mpPreferenceId);
+
     long countByTenantId(String tenantId);
 }

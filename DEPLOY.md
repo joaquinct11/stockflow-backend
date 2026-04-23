@@ -28,6 +28,9 @@ El perfil **no está hardcodeado** en `application.yml`. Se controla vía la var
 | `SPRING_DATASOURCE_PASSWORD` | Contraseña de base de datos | `<tu-password>` |
 | `JWT_SECRET` | Clave secreta para firmar JWT (mín. 32 chars) | `<generado-aleatoriamente>` |
 | `SENDGRID_API_KEY` | API key de SendGrid para emails | `SG.xxx...` |
+| `MERCADOPAGO_ACCESS_TOKEN` | Access token backend de Mercado Pago | `APP_USR-...` |
+| `MERCADOPAGO_WEBHOOK_SECRET` | Secreto para validar webhook (`X-Webhook-Token` o `?token=`) | `<secreto-random>` |
+| `MERCADOPAGO_NOTIFICATION_URL` | URL pública del webhook backend | `https://api.stockflow.pe/api/webhooks/mercadopago` |
 
 > **Alternativa de nombres legacy**: Si ya tienes configuradas las variables `DATABASE_URL`, `DB_USERNAME` y `DB_PASSWORD`, el backend también las acepta. Se recomienda migrar al formato `SPRING_DATASOURCE_*`.
 
@@ -61,6 +64,9 @@ SPRING_DATASOURCE_USERNAME=postgres
 SPRING_DATASOURCE_PASSWORD=<password>
 JWT_SECRET=<secret-de-minimo-32-caracteres>
 SENDGRID_API_KEY=SG.xxx...
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
+MERCADOPAGO_WEBHOOK_SECRET=<secreto-random>
+MERCADOPAGO_NOTIFICATION_URL=https://api.stockflow.pe/api/webhooks/mercadopago
 ```
 
 ### 3. Variables de entorno en Render (UAT)
@@ -72,6 +78,9 @@ SPRING_DATASOURCE_USERNAME=postgres
 SPRING_DATASOURCE_PASSWORD=<password-uat>
 JWT_SECRET=<secret-uat>
 SENDGRID_API_KEY=SG.xxx...
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
+MERCADOPAGO_WEBHOOK_SECRET=<secreto-random>
+MERCADOPAGO_NOTIFICATION_URL=https://api-uat.stockflow.pe/api/webhooks/mercadopago
 ```
 
 ### 4. Dominios recomendados en Render

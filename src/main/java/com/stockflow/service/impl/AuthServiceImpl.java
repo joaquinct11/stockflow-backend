@@ -140,6 +140,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 4. Crear SUSCRIPCIÓN
         BigDecimal precioMensual = obtenerPrecioPlan(request.getPlanId());
+        boolean planPago = !"FREE".equals(request.getPlanId());
 
         // Generar preapprovalId automáticamente
         String preapprovalId = generarPreapprovalId();
@@ -149,8 +150,8 @@ public class AuthServiceImpl implements AuthService {
                 .preapprovalId(preapprovalId)
                 .planId(request.getPlanId())
                 .precioMensual(precioMensual)
-                .estado("ACTIVA")
-                .metodoPago("PENDIENTE")
+                .estado(planPago ? "PENDIENTE" : "ACTIVA")
+                .metodoPago(planPago ? "MERCADOPAGO" : "FREE")
                 .tenantId(tenant.getTenantId())
                 .fechaInicio(LocalDateTime.now())
                 .fechaProximoCobro(LocalDateTime.now().plusMonths(1))
