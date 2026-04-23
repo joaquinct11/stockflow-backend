@@ -60,3 +60,13 @@ management:
   endpoint:
     health:
       show-details: always
+
+mercadopago:
+  access-token: ${MERCADOPAGO_ACCESS_TOKEN:}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:}
+  currency-id: ${MERCADOPAGO_CURRENCY_ID:PEN}
+  checkout-base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
+  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
+  success-url: ${MERCADOPAGO_SUCCESS_URL:}
+  failure-url: ${MERCADOPAGO_FAILURE_URL:}
+  pending-url: ${MERCADOPAGO_PENDING_URL:}

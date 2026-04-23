@@ -1,9 +1,12 @@
 package com.stockflow.controller;
 
 import com.stockflow.dto.SuscripcionDTO;
+import com.stockflow.dto.SuscripcionCheckoutRequestDTO;
+import com.stockflow.dto.SuscripcionCheckoutResponseDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.SuscripcionMapper;
+import com.stockflow.service.SuscripcionCheckoutService;
 import com.stockflow.service.SuscripcionService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
@@ -30,6 +33,7 @@ public class SuscripcionController {
     private final SuscripcionService suscripcionService;
     private final UsuarioService usuarioService;
     private final SuscripcionMapper suscripcionMapper;
+    private final SuscripcionCheckoutService suscripcionCheckoutService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene suscripciones del tenant actual
@@ -146,6 +150,20 @@ public class SuscripcionController {
         log.info("🗑️ Eliminando suscripción ID: {}", id);
         suscripcionService.eliminarSuscripcion(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/checkout")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<SuscripcionCheckoutResponseDTO> iniciarCheckout(
+            @Valid @RequestBody SuscripcionCheckoutRequestDTO request) {
+
+        String tenantId = TenantContext.getCurrentTenant();
+        Long usuarioId = TenantContext.getCurrentUserId();
+        log.info("💳 Iniciando checkout Mercado Pago para tenant {}, usuario {}", tenantId, usuarioId);
+
+        return ResponseEntity.ok(
+                suscripcionCheckoutService.iniciarCheckout(request.getPlanId(), tenantId, usuarioId)
+        );
     }
 
     private String generarPreapprovalId() {
