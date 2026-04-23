@@ -44,6 +44,7 @@ public class WebhookController {
     private boolean isWebhookTokenValid(String headerToken, String queryToken) {
         String configuredSecret = mercadoPagoProperties.getWebhookSecret();
         if (configuredSecret == null || configuredSecret.isBlank()) {
+            log.warn("⚠️ mercadopago.webhook-secret no está configurado; webhook sin validación de token.");
             return true;
         }
         return configuredSecret.equals(headerToken) || configuredSecret.equals(queryToken);

@@ -90,13 +90,14 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         if ("approved".equalsIgnoreCase(payment.getStatus())) {
+            LocalDateTime now = LocalDateTime.now();
             suscripcion.setEstado("ACTIVA");
-            suscripcion.setCurrentPeriodStart(LocalDateTime.now());
-            suscripcion.setCurrentPeriodEnd(LocalDateTime.now().plusMonths(1));
+            suscripcion.setCurrentPeriodStart(now);
+            suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
             if (suscripcion.getFechaInicio() == null) {
-                suscripcion.setFechaInicio(LocalDateTime.now());
+                suscripcion.setFechaInicio(now);
             }
-            suscripcion.setFechaProximoCobro(LocalDateTime.now().plusMonths(1));
+            suscripcion.setFechaProximoCobro(now.plusMonths(1));
             log.info("✅ Suscripción {} activada por webhook MP", suscripcion.getId());
         } else if ("rejected".equalsIgnoreCase(payment.getStatus()) || "cancelled".equalsIgnoreCase(payment.getStatus())) {
             suscripcion.setEstado("SUSPENDIDA");
@@ -121,7 +122,12 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         if (payment.getExternalReference() != null && payment.getExternalReference().contains(":")) {
             String[] parts = payment.getExternalReference().split(":", 2);
             String tenantId = parts[0];
-            Long usuarioId = Long.parseLong(parts[1]);
+            Long usuarioId;
+            try {
+                usuarioId = Long.parseLong(parts[1]);
+            } catch (NumberFormatException ex) {
+                throw new BadRequestException("External reference inválida para Mercado Pago: " + payment.getExternalReference(), ex);
+            }
             Optional<Suscripcion> byTenantUser = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
             if (byTenantUser.isPresent()) {
                 return byTenantUser;
