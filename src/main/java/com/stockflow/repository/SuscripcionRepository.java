@@ -22,5 +22,7 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
 
     Optional<Suscripcion> findFirstByMpPreferenceIdOrderByIdDesc(String mpPreferenceId);
 
+    Optional<Suscripcion> findByPreapprovalId(String preapprovalId);
+
     long countByTenantId(String tenantId);
 }

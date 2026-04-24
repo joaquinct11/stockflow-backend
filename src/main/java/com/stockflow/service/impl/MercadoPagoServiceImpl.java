@@ -6,6 +6,7 @@ import com.stockflow.config.properties.MercadoPagoProperties;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.service.MercadoPagoService;
 import com.stockflow.service.model.MercadoPagoPaymentInfo;
+import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import com.stockflow.service.model.MercadoPagoPreferenceResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,6 +74,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
+                log.error("❌ Error creando preferencia en Mercado Pago. status={}, body={}", response.statusCode(), response.body());
                 throw new BadRequestException("Error creando preferencia en Mercado Pago. status=" + response.statusCode());
             }
 
@@ -92,6 +94,96 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
     }
 
     @Override
+    public MercadoPagoPreapprovalInfo crearPreapproval(String planId, BigDecimal precioMensual, String externalReference) {
+        validarConfiguracion();
+        validarNotificationUrl();
+
+        try {
+            Map<String, Object> autoRecurring = new HashMap<>();
+            autoRecurring.put("frequency", 1);
+            autoRecurring.put("frequency_type", "months");
+            autoRecurring.put("transaction_amount", precioMensual);
+            autoRecurring.put("currency_id", mercadoPagoProperties.getCurrencyId());
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("reason", "StockFlow Plan " + planId);
+            payload.put("auto_recurring", autoRecurring);
+            payload.put("external_reference", externalReference);
+            payload.put("notification_url", mercadoPagoProperties.getNotificationUrl());
+            payload.put("status", "pending");
+
+            String backUrl = resolverBackUrl();
+            if (backUrl != null) {
+                payload.put("back_url", backUrl);
+            }
+
+            log.info("🔄 Creando preapproval MP para plan={}, externalRef={}", planId, externalReference);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/preapproval"))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                log.error("❌ Error creando preapproval en Mercado Pago. status={}, body={}", response.statusCode(), response.body());
+                throw new BadRequestException("Error creando suscripción en Mercado Pago. status=" + response.statusCode());
+            }
+
+            Map<String, Object> responseBody = objectMapper.readValue(response.body(), new TypeReference<>() {});
+
+            return MercadoPagoPreapprovalInfo.builder()
+                    .preapprovalId((String) responseBody.get("id"))
+                    .initPoint((String) responseBody.get("init_point"))
+                    .status((String) responseBody.get("status"))
+                    .externalReference((String) responseBody.get("external_reference"))
+                    .build();
+
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("❌ Error creando preapproval de Mercado Pago", ex);
+            throw new BadRequestException("No se pudo crear la suscripción en Mercado Pago", ex);
+        }
+    }
+
+    @Override
+    public MercadoPagoPreapprovalInfo obtenerPreapproval(String preapprovalId) {
+        validarConfiguracion();
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/preapproval/" + preapprovalId))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                log.error("❌ Error consultando preapproval {}. status={}, body={}", preapprovalId, response.statusCode(), response.body());
+                throw new BadRequestException("No se pudo consultar la suscripción en Mercado Pago. status=" + response.statusCode());
+            }
+
+            Map<String, Object> body = objectMapper.readValue(response.body(), new TypeReference<>() {});
+
+            return MercadoPagoPreapprovalInfo.builder()
+                    .preapprovalId((String) body.get("id"))
+                    .status((String) body.get("status"))
+                    .initPoint((String) body.get("init_point"))
+                    .externalReference(body.get("external_reference") != null ? String.valueOf(body.get("external_reference")) : null)
+                    .build();
+
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("❌ Error consultando preapproval {} en Mercado Pago", preapprovalId, ex);
+            throw new BadRequestException("No se pudo consultar la suscripción en Mercado Pago", ex);
+        }
+    }
+
+    @Override
     public MercadoPagoPaymentInfo obtenerPago(String paymentId) {
         validarConfiguracion();
 
@@ -104,6 +196,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
+                log.error("❌ Error consultando pago {}. status={}, body={}", paymentId, response.statusCode(), response.body());
                 throw new BadRequestException("No se pudo obtener pago de Mercado Pago. status=" + response.statusCode());
             }
 
@@ -140,6 +233,19 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         if (mercadoPagoProperties.getAccessToken() == null || mercadoPagoProperties.getAccessToken().isBlank()) {
             throw new BadRequestException("Configuración inválida: mercadopago.access-token es requerido");
         }
+    }
+
+    private void validarNotificationUrl() {
+        if (mercadoPagoProperties.getNotificationUrl() == null || mercadoPagoProperties.getNotificationUrl().isBlank()) {
+            throw new BadRequestException("Configuración inválida: mercadopago.notification-url es requerido para suscripciones");
+        }
+    }
+
+    private String resolverBackUrl() {
+        if (mercadoPagoProperties.getSuccessUrl() != null && !mercadoPagoProperties.getSuccessUrl().isBlank()) {
+            return mercadoPagoProperties.getSuccessUrl();
+        }
+        return null;
     }
 
     private boolean hasAnyBackUrl() {
