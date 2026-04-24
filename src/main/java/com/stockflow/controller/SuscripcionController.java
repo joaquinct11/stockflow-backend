@@ -19,10 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Random;
 
 @Slf4j
 @RestController
@@ -105,13 +102,9 @@ public class SuscripcionController {
             throw new BadRequestException("Plan no válido. Use: FREE, BASICO, PRO");
         }
 
-        // Generar preapprovalId automáticamente
-        String preapprovalId = generarPreapprovalId();
-
         // Crear suscripción usando mapper
         Suscripcion suscripcion = suscripcionMapper.toEntity(suscripcionDTO);
         suscripcion.setUsuarioPrincipal(usuario);
-        suscripcion.setPreapprovalId(preapprovalId);
         suscripcion.setEstado("ACTIVA");
         suscripcion.setTenantId(tenantId);
 
@@ -164,17 +157,5 @@ public class SuscripcionController {
         return ResponseEntity.ok(
                 suscripcionCheckoutService.iniciarCheckout(request.getPlanId(), tenantId, usuarioId)
         );
-    }
-
-    private String generarPreapprovalId() {
-        // Formato: PRE-YYYYMMDD-XXXXXX
-        LocalDateTime ahora = LocalDateTime.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-        String fecha = ahora.format(formatter);
-
-        Random random = new Random();
-        int numero = random.nextInt(999999);
-
-        return String.format("PRE-%s-%06d", fecha, numero);
     }
 }

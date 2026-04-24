@@ -98,6 +98,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
                                                        String externalReference, String payerEmail) {
         validarConfiguracion();
         validarNotificationUrl();
+        validarBackUrl();
 
         log.info("MP successUrl={}", mercadoPagoProperties.getSuccessUrl());
         log.info("MP notificationUrl={}", mercadoPagoProperties.getNotificationUrl());
@@ -116,12 +117,6 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             payload.put("external_reference", externalReference);
             payload.put("notification_url", mercadoPagoProperties.getNotificationUrl());
             payload.put("back_url", mercadoPagoProperties.getSuccessUrl());
-            payload.put("status", "pending");
-
-            String backUrl = resolverBackUrl();
-            if (backUrl != null) {
-                payload.put("back_url", backUrl);
-            }
 
             log.info("🔄 Creando preapproval MP para plan={}, externalRef={}", planId, externalReference);
 
@@ -134,8 +129,9 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
+                String mpMessage = extractMpErrorMessage(response.body());
                 log.error("❌ Error creando preapproval en Mercado Pago. status={}, body={}", response.statusCode(), response.body());
-                throw new BadRequestException("Error creando suscripción en Mercado Pago. status=" + response.statusCode());
+                throw new BadRequestException("Error creando suscripción en Mercado Pago: " + mpMessage);
             }
 
             Map<String, Object> responseBody = objectMapper.readValue(response.body(), new TypeReference<>() {});
@@ -247,11 +243,26 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         }
     }
 
-    private String resolverBackUrl() {
-        if (mercadoPagoProperties.getSuccessUrl() != null && !mercadoPagoProperties.getSuccessUrl().isBlank()) {
-            return mercadoPagoProperties.getSuccessUrl();
+    void validarBackUrl() {
+        String backUrl = mercadoPagoProperties.getSuccessUrl();
+        if (backUrl == null || backUrl.isBlank()) {
+            throw new BadRequestException("Configuración inválida: mercadopago.success-url (back_url) es requerido para suscripciones");
         }
-        return null;
+        if (!backUrl.startsWith("http://") && !backUrl.startsWith("https://")) {
+            throw new BadRequestException("Configuración inválida: mercadopago.success-url debe comenzar con http:// o https://");
+        }
+    }
+
+    private String extractMpErrorMessage(String responseBody) {
+        try {
+            Map<String, Object> body = objectMapper.readValue(responseBody, new TypeReference<>() {});
+            if (body.get("message") != null) {
+                return String.valueOf(body.get("message"));
+            }
+        } catch (Exception ignored) {
+            // ignore JSON parse errors; fall through to return raw body
+        }
+        return responseBody;
     }
 
     private boolean hasAnyBackUrl() {
