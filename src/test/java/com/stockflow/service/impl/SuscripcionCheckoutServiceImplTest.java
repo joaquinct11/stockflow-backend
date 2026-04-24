@@ -9,7 +9,7 @@ import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.service.MercadoPagoService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.service.model.MercadoPagoPaymentInfo;
-import com.stockflow.service.model.MercadoPagoPreferenceResponse;
+import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -39,15 +39,71 @@ class SuscripcionCheckoutServiceImplTest {
     @InjectMocks
     private SuscripcionCheckoutServiceImpl suscripcionCheckoutService;
 
+    // ── precio plan mapping ──────────────────────────────────────────────────
+
     @Test
-    void iniciarCheckout_basico_guardaPendienteConPreferenceId() {
+    void obtenerPrecioPlan_basico_retorna4999() {
+        assertThat(suscripcionCheckoutService.obtenerPrecioPlanPagado("BASICO"))
+                .isEqualByComparingTo(new BigDecimal("49.99"));
+    }
+
+    @Test
+    void obtenerPrecioPlan_pro_retorna9999() {
+        assertThat(suscripcionCheckoutService.obtenerPrecioPlanPagado("PRO"))
+                .isEqualByComparingTo(new BigDecimal("99.99"));
+    }
+
+    @Test
+    void obtenerPrecioPlan_free_lanzaExcepcion() {
+        assertThatThrownBy(() -> suscripcionCheckoutService.obtenerPrecioPlanPagado("FREE"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("planes pagos");
+    }
+
+    // ── status mapping preapproval ───────────────────────────────────────────
+
+    @Test
+    void mapearEstadoPreapproval_authorized_retornaActiva() {
+        assertThat(suscripcionCheckoutService.mapearEstadoPreapproval("authorized")).isEqualTo("ACTIVA");
+    }
+
+    @Test
+    void mapearEstadoPreapproval_active_retornaActiva() {
+        assertThat(suscripcionCheckoutService.mapearEstadoPreapproval("active")).isEqualTo("ACTIVA");
+    }
+
+    @Test
+    void mapearEstadoPreapproval_paused_retornaSuspendida() {
+        assertThat(suscripcionCheckoutService.mapearEstadoPreapproval("paused")).isEqualTo("SUSPENDIDA");
+    }
+
+    @Test
+    void mapearEstadoPreapproval_cancelled_retornaCancelada() {
+        assertThat(suscripcionCheckoutService.mapearEstadoPreapproval("cancelled")).isEqualTo("CANCELADA");
+    }
+
+    @Test
+    void mapearEstadoPreapproval_desconocido_retornaPendiente() {
+        assertThat(suscripcionCheckoutService.mapearEstadoPreapproval("pending")).isEqualTo("PENDIENTE");
+    }
+
+    @Test
+    void mapearEstadoPreapproval_null_retornaPendiente() {
+        assertThat(suscripcionCheckoutService.mapearEstadoPreapproval(null)).isEqualTo("PENDIENTE");
+    }
+
+    // ── iniciarCheckout ──────────────────────────────────────────────────────
+
+    @Test
+    void iniciarCheckout_basico_guardaPendienteConPreapprovalId() {
         Usuario usuario = Usuario.builder().id(10L).tenantId("tenant-a").build();
 
         when(usuarioService.obtenerUsuarioPorId(10L)).thenReturn(Optional.of(usuario));
-        when(mercadoPagoService.crearPreferencia(any(), any(), any())).thenReturn(
-                MercadoPagoPreferenceResponse.builder()
-                        .preferenceId("pref_123")
-                        .initPoint("https://mp.test/checkout")
+        when(mercadoPagoService.crearPreapproval(any(), any(), any())).thenReturn(
+                MercadoPagoPreapprovalInfo.builder()
+                        .preapprovalId("2c938084abc123")
+                        .initPoint("https://mp.test/subscriptions/authorize")
+                        .status("pending")
                         .build()
         );
         when(suscripcionRepository.findByTenantIdAndUsuarioPrincipalId("tenant-a", 10L)).thenReturn(Optional.empty());
@@ -55,8 +111,8 @@ class SuscripcionCheckoutServiceImplTest {
 
         SuscripcionCheckoutResponseDTO response = suscripcionCheckoutService.iniciarCheckout("BASICO", "tenant-a", 10L);
 
-        assertThat(response.getPreferenceId()).isEqualTo("pref_123");
-        assertThat(response.getInitPoint()).isEqualTo("https://mp.test/checkout");
+        assertThat(response.getPreapprovalId()).isEqualTo("2c938084abc123");
+        assertThat(response.getInitPoint()).isEqualTo("https://mp.test/subscriptions/authorize");
 
         ArgumentCaptor<Suscripcion> captor = ArgumentCaptor.forClass(Suscripcion.class);
         verify(suscripcionRepository).save(captor.capture());
@@ -65,7 +121,7 @@ class SuscripcionCheckoutServiceImplTest {
         assertThat(suscripcionGuardada.getPrecioMensual()).isEqualByComparingTo(new BigDecimal("49.99"));
         assertThat(suscripcionGuardada.getEstado()).isEqualTo("PENDIENTE");
         assertThat(suscripcionGuardada.getMetodoPago()).isEqualTo("MERCADOPAGO");
-        assertThat(suscripcionGuardada.getMpPreferenceId()).isEqualTo("pref_123");
+        assertThat(suscripcionGuardada.getPreapprovalId()).isEqualTo("2c938084abc123");
     }
 
     @Test
@@ -74,6 +130,100 @@ class SuscripcionCheckoutServiceImplTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("planes pagos");
     }
+
+    // ── procesarWebhook preapproval ──────────────────────────────────────────
+
+    @Test
+    void procesarWebhook_preapprovalAuthorized_activaSuscripcion() {
+        Suscripcion suscripcion = Suscripcion.builder()
+                .id(99L)
+                .estado("PENDIENTE")
+                .preapprovalId("2c938084abc123")
+                .tenantId("tenant-a")
+                .build();
+
+        when(mercadoPagoService.obtenerPreapproval("2c938084abc123")).thenReturn(
+                MercadoPagoPreapprovalInfo.builder()
+                        .preapprovalId("2c938084abc123")
+                        .status("authorized")
+                        .externalReference("tenant-a:10")
+                        .build()
+        );
+        when(suscripcionRepository.findByPreapprovalId("2c938084abc123")).thenReturn(Optional.of(suscripcion));
+        when(suscripcionRepository.save(any(Suscripcion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MercadoPagoWebhookRequestDTO webhook = new MercadoPagoWebhookRequestDTO();
+        webhook.setType("subscription_preapproval");
+        webhook.setEntity("preapproval");
+        webhook.setData(new MercadoPagoWebhookRequestDTO.DataPayload("2c938084abc123"));
+
+        suscripcionCheckoutService.procesarWebhook(webhook);
+
+        assertThat(suscripcion.getEstado()).isEqualTo("ACTIVA");
+        assertThat(suscripcion.getCurrentPeriodStart()).isNotNull();
+        assertThat(suscripcion.getCurrentPeriodEnd()).isNotNull();
+    }
+
+    @Test
+    void procesarWebhook_preapprovalCancelled_cancelaSuscripcion() {
+        Suscripcion suscripcion = Suscripcion.builder()
+                .id(99L)
+                .estado("ACTIVA")
+                .preapprovalId("2c938084abc123")
+                .tenantId("tenant-a")
+                .build();
+
+        when(mercadoPagoService.obtenerPreapproval("2c938084abc123")).thenReturn(
+                MercadoPagoPreapprovalInfo.builder()
+                        .preapprovalId("2c938084abc123")
+                        .status("cancelled")
+                        .externalReference("tenant-a:10")
+                        .build()
+        );
+        when(suscripcionRepository.findByPreapprovalId("2c938084abc123")).thenReturn(Optional.of(suscripcion));
+        when(suscripcionRepository.save(any(Suscripcion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MercadoPagoWebhookRequestDTO webhook = new MercadoPagoWebhookRequestDTO();
+        webhook.setType("subscription_preapproval");
+        webhook.setEntity("preapproval");
+        webhook.setData(new MercadoPagoWebhookRequestDTO.DataPayload("2c938084abc123"));
+
+        suscripcionCheckoutService.procesarWebhook(webhook);
+
+        assertThat(suscripcion.getEstado()).isEqualTo("CANCELADA");
+        assertThat(suscripcion.getFechaCancelacion()).isNotNull();
+    }
+
+    @Test
+    void procesarWebhook_preapprovalPaused_suspendeSuscripcion() {
+        Suscripcion suscripcion = Suscripcion.builder()
+                .id(99L)
+                .estado("ACTIVA")
+                .preapprovalId("2c938084abc123")
+                .tenantId("tenant-a")
+                .build();
+
+        when(mercadoPagoService.obtenerPreapproval("2c938084abc123")).thenReturn(
+                MercadoPagoPreapprovalInfo.builder()
+                        .preapprovalId("2c938084abc123")
+                        .status("paused")
+                        .externalReference("tenant-a:10")
+                        .build()
+        );
+        when(suscripcionRepository.findByPreapprovalId("2c938084abc123")).thenReturn(Optional.of(suscripcion));
+        when(suscripcionRepository.save(any(Suscripcion.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MercadoPagoWebhookRequestDTO webhook = new MercadoPagoWebhookRequestDTO();
+        webhook.setType("subscription_preapproval");
+        webhook.setEntity("preapproval");
+        webhook.setData(new MercadoPagoWebhookRequestDTO.DataPayload("2c938084abc123"));
+
+        suscripcionCheckoutService.procesarWebhook(webhook);
+
+        assertThat(suscripcion.getEstado()).isEqualTo("SUSPENDIDA");
+    }
+
+    // ── procesarWebhook pago (retrocompatibilidad) ───────────────────────────
 
     @Test
     void procesarWebhook_pagoAprobado_activaSuscripcion() {
@@ -108,3 +258,4 @@ class SuscripcionCheckoutServiceImplTest {
         assertThat(suscripcion.getCurrentPeriodEnd()).isNotNull();
     }
 }
+
