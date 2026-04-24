@@ -94,9 +94,13 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
     }
 
     @Override
-    public MercadoPagoPreapprovalInfo crearPreapproval(String planId, BigDecimal precioMensual, String externalReference) {
+    public MercadoPagoPreapprovalInfo crearPreapproval(String planId, BigDecimal precioMensual,
+                                                       String externalReference, String payerEmail) {
         validarConfiguracion();
         validarNotificationUrl();
+
+        log.info("MP successUrl={}", mercadoPagoProperties.getSuccessUrl());
+        log.info("MP notificationUrl={}", mercadoPagoProperties.getNotificationUrl());
 
         try {
             Map<String, Object> autoRecurring = new HashMap<>();
@@ -107,9 +111,11 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("reason", "StockFlow Plan " + planId);
+            payload.put("payer_email", payerEmail);
             payload.put("auto_recurring", autoRecurring);
             payload.put("external_reference", externalReference);
             payload.put("notification_url", mercadoPagoProperties.getNotificationUrl());
+            payload.put("back_url", mercadoPagoProperties.getSuccessUrl());
             payload.put("status", "pending");
 
             String backUrl = resolverBackUrl();

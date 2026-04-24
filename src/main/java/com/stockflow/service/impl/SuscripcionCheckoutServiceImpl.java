@@ -42,7 +42,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         String externalReference = tenantId + ":" + usuarioId;
-        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.crearPreapproval(planId, precioPlan, externalReference);
+        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.crearPreapproval(planId, precioPlan, externalReference, usuario.getEmail());
 
         Suscripcion suscripcion = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId)
                 .orElseGet(() -> Suscripcion.builder()

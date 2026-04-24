@@ -99,7 +99,7 @@ class SuscripcionCheckoutServiceImplTest {
         Usuario usuario = Usuario.builder().id(10L).tenantId("tenant-a").build();
 
         when(usuarioService.obtenerUsuarioPorId(10L)).thenReturn(Optional.of(usuario));
-        when(mercadoPagoService.crearPreapproval(any(), any(), any())).thenReturn(
+        when(mercadoPagoService.crearPreapproval(any(), any(), any(), any())).thenReturn(
                 MercadoPagoPreapprovalInfo.builder()
                         .preapprovalId("2c938084abc123")
                         .initPoint("https://mp.test/subscriptions/authorize")
