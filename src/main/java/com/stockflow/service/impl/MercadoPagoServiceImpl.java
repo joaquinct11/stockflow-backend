@@ -95,7 +95,8 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
 
     @Override
     public MercadoPagoPreapprovalInfo crearPreapproval(String planId, BigDecimal precioMensual,
-                                                       String externalReference, String payerEmail) {
+                                                       String externalReference, String payerEmail,
+                                                       String payerIdentificationType, String payerIdentificationNumber) {
         validarConfiguracion();
         validarNotificationUrl();
         validarBackUrl();
@@ -117,6 +118,36 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             payload.put("external_reference", externalReference);
             payload.put("notification_url", mercadoPagoProperties.getNotificationUrl());
             payload.put("back_url", mercadoPagoProperties.getSuccessUrl());
+            // status "pending" es requerido para crear la suscripción en estado
+            // "esperando autorización del pagador" y obtener el initPoint correcto.
+            payload.put("status", "pending");
+
+            // Incluir objeto payer con identificación si está disponible.
+            // Esto pre-rellena el formulario de MP y evita que el botón
+            // "Confirmar" quede deshabilitado por datos faltantes del pagador.
+            if (payerIdentificationType != null && !payerIdentificationType.isBlank()
+                    && payerIdentificationNumber != null && !payerIdentificationNumber.isBlank()) {
+                Map<String, Object> identification = new HashMap<>();
+                identification.put("type", payerIdentificationType);
+                identification.put("number", payerIdentificationNumber);
+
+                Map<String, Object> payer = new HashMap<>();
+                payer.put("email", payerEmail);
+                payer.put("identification", identification);
+
+                payload.put("payer", payer);
+                log.info("🪪 Enviando identificación del pagador a MP: tipo={}, numero=****{}",
+                        payerIdentificationType,
+                        payerIdentificationNumber.length() > 4
+                                ? payerIdentificationNumber.substring(payerIdentificationNumber.length() - 4)
+                                : "****");
+            } else {
+                log.warn("⚠️ No se envía identificación del pagador a MP (tipoDocumento/numeroDocumento no disponibles). "
+                        + "El botón 'Confirmar' puede quedar deshabilitado si el perfil del pagador en MP no está verificado.");
+            }
+
+            String payloadJson = objectMapper.writeValueAsString(payload);
+            log.info("📤 Payload enviado a MP /preapproval: {}", payloadJson);
 
             log.info("🔄 Creando preapproval MP para plan={}, externalRef={}", planId, externalReference);
 
@@ -124,10 +155,12 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
                     .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/preapproval"))
                     .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .POST(HttpRequest.BodyPublishers.ofString(payloadJson))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP /preapproval: status={}, body={}", response.statusCode(), response.body());
+
             if (response.statusCode() >= 400) {
                 String mpMessage = extractMpErrorMessage(response.body());
                 log.error("❌ Error creando preapproval en Mercado Pago. status={}, body={}", response.statusCode(), response.body());
@@ -163,6 +196,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP GET /preapproval/{}: status={}, body={}", preapprovalId, response.statusCode(), response.body());
             if (response.statusCode() >= 400) {
                 log.error("❌ Error consultando preapproval {}. status={}, body={}", preapprovalId, response.statusCode(), response.body());
                 throw new BadRequestException("No se pudo consultar la suscripción en Mercado Pago. status=" + response.statusCode());

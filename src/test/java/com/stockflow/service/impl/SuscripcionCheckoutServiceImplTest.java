@@ -99,7 +99,7 @@ class SuscripcionCheckoutServiceImplTest {
         Usuario usuario = Usuario.builder().id(10L).tenantId("tenant-a").build();
 
         when(usuarioService.obtenerUsuarioPorId(10L)).thenReturn(Optional.of(usuario));
-        when(mercadoPagoService.crearPreapproval(any(), any(), any(), any())).thenReturn(
+        when(mercadoPagoService.crearPreapproval(any(), any(), any(), any(), any(), any())).thenReturn(
                 MercadoPagoPreapprovalInfo.builder()
                         .preapprovalId("2c938084abc123")
                         .initPoint("https://mp.test/subscriptions/authorize")
@@ -109,7 +109,7 @@ class SuscripcionCheckoutServiceImplTest {
         when(suscripcionRepository.findByTenantIdAndUsuarioPrincipalId("tenant-a", 10L)).thenReturn(Optional.empty());
         when(suscripcionRepository.save(any(Suscripcion.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SuscripcionCheckoutResponseDTO response = suscripcionCheckoutService.iniciarCheckout("BASICO", "tenant-a", 10L);
+        SuscripcionCheckoutResponseDTO response = suscripcionCheckoutService.iniciarCheckout("BASICO", "tenant-a", 10L, null, null);
 
         assertThat(response.getPreapprovalId()).isEqualTo("2c938084abc123");
         assertThat(response.getInitPoint()).isEqualTo("https://mp.test/subscriptions/authorize");
@@ -126,7 +126,7 @@ class SuscripcionCheckoutServiceImplTest {
 
     @Test
     void iniciarCheckout_planInvalido_lanzaExcepcion() {
-        assertThatThrownBy(() -> suscripcionCheckoutService.iniciarCheckout("FREE", "tenant-a", 1L))
+        assertThatThrownBy(() -> suscripcionCheckoutService.iniciarCheckout("FREE", "tenant-a", 1L, null, null))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("planes pagos");
     }

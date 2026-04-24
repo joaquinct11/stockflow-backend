@@ -32,7 +32,8 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
     @Override
     @Transactional
-    public SuscripcionCheckoutResponseDTO iniciarCheckout(String planId, String tenantId, Long usuarioId) {
+    public SuscripcionCheckoutResponseDTO iniciarCheckout(String planId, String tenantId, Long usuarioId,
+                                                          String payerIdentificationType, String payerIdentificationNumber) {
         BigDecimal precioPlan = obtenerPrecioPlanPagado(planId);
         Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
@@ -41,8 +42,23 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
             throw new BadRequestException("Usuario no pertenece al tenant actual");
         }
 
+        // Persistir identificación si se envió en este request
+        boolean tieneIdentificacion = payerIdentificationType != null && !payerIdentificationType.isBlank()
+                && payerIdentificationNumber != null && !payerIdentificationNumber.isBlank();
+        if (tieneIdentificacion) {
+            usuario.setTipoDocumento(payerIdentificationType);
+            usuario.setNumeroDocumento(payerIdentificationNumber);
+            usuarioService.guardarUsuario(usuario);
+            log.info("💾 Identificación del pagador actualizada para usuario={}: tipo={}", usuarioId, payerIdentificationType);
+        }
+
+        // Leer la identificación desde la entidad (que ya tiene el valor actualizado o el guardado previamente)
+        String tipoDoc = usuario.getTipoDocumento();
+        String numDoc  = usuario.getNumeroDocumento();
+
         String externalReference = tenantId + ":" + usuarioId;
-        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.crearPreapproval(planId, precioPlan, externalReference, usuario.getEmail());
+        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.crearPreapproval(
+                planId, precioPlan, externalReference, usuario.getEmail(), tipoDoc, numDoc);
 
         Suscripcion suscripcion = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId)
                 .orElseGet(() -> Suscripcion.builder()
@@ -162,7 +178,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
     BigDecimal obtenerPrecioPlanPagado(String planId) {
         return switch (planId) {
-            case "BASICO" -> new BigDecimal("3.00");
+            case "BASICO" -> new BigDecimal("49.99");
             case "PRO" -> new BigDecimal("99.99");
             default -> throw new BadRequestException("Solo se permite checkout para planes pagos: BASICO o PRO");
         };

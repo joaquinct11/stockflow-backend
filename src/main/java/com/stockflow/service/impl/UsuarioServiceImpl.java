@@ -153,4 +153,9 @@ public class UsuarioServiceImpl implements UsuarioService {
 
         log.warn("🗑️ Cuenta completa eliminada: Tenant {} y todos sus datos", tenantId);
     }
+
+    @Override
+    public Usuario guardarUsuario(Usuario usuario) {
+        return usuarioRepository.save(usuario);
+    }
 }

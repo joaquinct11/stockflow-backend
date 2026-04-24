@@ -28,4 +28,10 @@ public interface UsuarioService {
     void eliminarUsuario(Long id);
 
     void eliminarCuentaCompleta(Long id);  // ✅ NUEVO (elimina tenant)
+
+    /**
+     * Guarda directamente el objeto Usuario (usado para actualizar campos como
+     * tipo_documento / numero_documento sin pasar por el flujo de actualización completa).
+     */
+    Usuario guardarUsuario(Usuario usuario);
 }
