@@ -55,4 +55,20 @@ public class Usuario {
 
     @Column(name = "token_recuperacion_expira")
     private LocalDateTime tokenRecuperacionExpira;
+
+    /**
+     * Tipo de documento de identidad del usuario (DNI, CE, RUC, PASAPORTE).
+     * Usado para pre-rellenar el campo de identificación en el checkout de
+     * Mercado Pago Suscripciones y evitar que el botón "Confirmar" quede
+     * deshabilitado por falta de datos del pagador.
+     */
+    @Column(name = "tipo_documento", length = 20)
+    private String tipoDocumento;
+
+    /**
+     * Número de documento del usuario.
+     * Requerido junto con tipoDocumento para habilitar el checkout de MP.
+     */
+    @Column(name = "numero_documento", length = 50)
+    private String numeroDocumento;
 }
