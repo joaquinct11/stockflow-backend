@@ -28,9 +28,12 @@ El perfil **no está hardcodeado** en `application.yml`. Se controla vía la var
 | `SPRING_DATASOURCE_PASSWORD` | Contraseña de base de datos | `<tu-password>` |
 | `JWT_SECRET` | Clave secreta para firmar JWT (mín. 32 chars) | `<generado-aleatoriamente>` |
 | `SENDGRID_API_KEY` | API key de SendGrid para emails | `SG.xxx...` |
-| `MERCADOPAGO_ACCESS_TOKEN` | Access token backend de Mercado Pago | `APP_USR-...` |
+| `MERCADOPAGO_ACCESS_TOKEN` | Access token backend de Mercado Pago | `APP_USR-...` (prod) / `TEST-...` (test) |
 | `MERCADOPAGO_WEBHOOK_SECRET` | Secreto para validar webhook (`X-Webhook-Token` o `?token=`) | `<secreto-random>` |
 | `MERCADOPAGO_NOTIFICATION_URL` | URL pública del webhook backend | `https://api.stockflow.pe/api/webhooks/mercadopago` |
+| `MERCADOPAGO_SUCCESS_URL` | URL de retorno tras pago exitoso (back_url de preapproval) | `https://www.stockflow.pe/checkout/success` |
+| `MERCADOPAGO_FAILURE_URL` | URL de retorno tras pago fallido | `https://www.stockflow.pe/checkout/failure` |
+| `MERCADOPAGO_PENDING_URL` | URL de retorno cuando el pago queda pendiente | `https://www.stockflow.pe/checkout/pending` |
 
 > **Alternativa de nombres legacy**: Si ya tienes configuradas las variables `DATABASE_URL`, `DB_USERNAME` y `DB_PASSWORD`, el backend también las acepta. Se recomienda migrar al formato `SPRING_DATASOURCE_*`.
 
@@ -67,6 +70,9 @@ SENDGRID_API_KEY=SG.xxx...
 MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
 MERCADOPAGO_WEBHOOK_SECRET=<secreto-random>
 MERCADOPAGO_NOTIFICATION_URL=https://api.stockflow.pe/api/webhooks/mercadopago
+MERCADOPAGO_SUCCESS_URL=https://www.stockflow.pe/checkout/success
+MERCADOPAGO_FAILURE_URL=https://www.stockflow.pe/checkout/failure
+MERCADOPAGO_PENDING_URL=https://www.stockflow.pe/checkout/pending
 ```
 
 ### 3. Variables de entorno en Render (UAT)
@@ -78,9 +84,12 @@ SPRING_DATASOURCE_USERNAME=postgres
 SPRING_DATASOURCE_PASSWORD=<password-uat>
 JWT_SECRET=<secret-uat>
 SENDGRID_API_KEY=SG.xxx...
-MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
+MERCADOPAGO_ACCESS_TOKEN=TEST-...
 MERCADOPAGO_WEBHOOK_SECRET=<secreto-random>
 MERCADOPAGO_NOTIFICATION_URL=https://api-uat.stockflow.pe/api/webhooks/mercadopago
+MERCADOPAGO_SUCCESS_URL=https://uat.stockflow.pe/checkout/success
+MERCADOPAGO_FAILURE_URL=https://uat.stockflow.pe/checkout/failure
+MERCADOPAGO_PENDING_URL=https://uat.stockflow.pe/checkout/pending
 ```
 
 ### 4. Dominios recomendados en Render
@@ -169,3 +178,42 @@ Cada perfil tiene CORS configurado para su dominio:
 | `dev`  | `http://localhost:5173`, `http://localhost:3000`, `http://127.0.0.1:5173` |
 | `uat`  | `https://uat.stockflow.pe` |
 | `prod` | `https://www.stockflow.pe`, `https://stockflow.pe` |
+
+---
+
+## Integración Mercado Pago Suscripciones (Preapproval)
+
+### TEST vs PRODUCCIÓN
+
+| Ambiente | Access Token | Compradores |
+|----------|-------------|-------------|
+| TEST     | `TEST-...`  | Test users creados en Mercado Pago Developers |
+| PROD     | `APP_USR-...` | Compradores reales |
+
+> **Importante:** No mezclar tokens TEST con compradores reales ni al revés.  
+> Si el pago muestra "Una de las partes con la que intentas hacer el pago es de prueba", es señal de mezcla de ambientes.
+
+### Requisitos de `back_url` (`MERCADOPAGO_SUCCESS_URL`)
+
+- **Debe** comenzar con `http://` o `https://`. El backend valida esto al arrancar el checkout.
+- **Recomendación**: usar una URL pública (no `localhost`) en ambientes TEST/UAT para que Mercado Pago pueda redirigir correctamente.
+- Ejemplo válido: `https://stockflow-frontend-uat.vercel.app/checkout/success`
+
+### Notificaciones (Webhook)
+
+- `MERCADOPAGO_NOTIFICATION_URL` debe ser una URL **pública** accesible por Mercado Pago.
+- Para desarrollo local, usar un túnel como [ngrok](https://ngrok.com):  
+  ```
+  ngrok http 8080
+  ```
+  y usar la URL resultante:  
+  ```
+  https://<subdomain>.ngrok-free.app/api/webhooks/mercadopago?token=<tu-webhook-secret>
+  ```
+
+### Flujo end-to-end (resumen)
+
+1. `POST /api/suscripciones/checkout` → crea preapproval en MP y devuelve `initPoint` + `preapprovalId`.
+2. El usuario abre `initPoint` e ingresa su medio de pago.
+3. MP redirige a `MERCADOPAGO_SUCCESS_URL` y envía webhook a `MERCADOPAGO_NOTIFICATION_URL`.
+4. El backend recibe el webhook, consulta `GET /preapproval/{id}` y actualiza el estado de la suscripción en BD.
