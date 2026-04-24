@@ -11,7 +11,7 @@ import com.stockflow.service.MercadoPagoService;
 import com.stockflow.service.SuscripcionCheckoutService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.service.model.MercadoPagoPaymentInfo;
-import com.stockflow.service.model.MercadoPagoPreferenceResponse;
+import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,7 +42,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         String externalReference = tenantId + ":" + usuarioId;
-        MercadoPagoPreferenceResponse preference = mercadoPagoService.crearPreferencia(planId, precioPlan, externalReference);
+        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.crearPreapproval(planId, precioPlan, externalReference);
 
         Suscripcion suscripcion = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId)
                 .orElseGet(() -> Suscripcion.builder()
@@ -54,13 +54,15 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcion.setPrecioMensual(precioPlan);
         suscripcion.setMetodoPago("MERCADOPAGO");
         suscripcion.setEstado("PENDIENTE");
-        suscripcion.setMpPreferenceId(preference.getPreferenceId());
+        suscripcion.setPreapprovalId(preapproval.getPreapprovalId());
 
         suscripcionRepository.save(suscripcion);
 
+        log.info("✅ Preapproval creado para tenant={}, usuario={}, preapprovalId={}", tenantId, usuarioId, preapproval.getPreapprovalId());
+
         return SuscripcionCheckoutResponseDTO.builder()
-                .initPoint(preference.getInitPoint())
-                .preferenceId(preference.getPreferenceId())
+                .initPoint(preapproval.getInitPoint())
+                .preapprovalId(preapproval.getPreapprovalId())
                 .build();
     }
 
@@ -73,15 +75,53 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         String tipo = webhookRequestDTO.getType() != null ? webhookRequestDTO.getType() : webhookRequestDTO.getTopic();
-        if (tipo == null || !"payment".equalsIgnoreCase(tipo)) {
+
+        if ("subscription_preapproval".equalsIgnoreCase(tipo) || "preapproval".equalsIgnoreCase(webhookRequestDTO.getEntity())) {
+            procesarWebhookPreapproval(webhookRequestDTO.getData().getId());
+        } else if ("payment".equalsIgnoreCase(tipo)) {
+            procesarWebhookPago(webhookRequestDTO.getData().getId());
+        } else {
             log.info("ℹ️ Webhook ignorado (tipo no soportado): {}", tipo);
-            return;
+        }
+    }
+
+    private void procesarWebhookPreapproval(String preapprovalId) {
+        log.info("🔔 Procesando webhook preapproval: {}", preapprovalId);
+        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.obtenerPreapproval(preapprovalId);
+
+        Suscripcion suscripcion = resolverSuscripcionPorPreapproval(preapproval)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontró suscripción para preapproval " + preapprovalId));
+
+        String estadoMp = preapproval.getStatus();
+        String nuevoEstado = mapearEstadoPreapproval(estadoMp);
+
+        suscripcion.setEstado(nuevoEstado);
+        suscripcion.setPreapprovalId(preapprovalId);
+
+        if ("ACTIVA".equals(nuevoEstado)) {
+            LocalDateTime now = LocalDateTime.now();
+            suscripcion.setCurrentPeriodStart(now);
+            suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
+            if (suscripcion.getFechaInicio() == null) {
+                suscripcion.setFechaInicio(now);
+            }
+            suscripcion.setFechaProximoCobro(now.plusMonths(1));
+            log.info("✅ Suscripción {} activada por preapproval webhook MP (status={})", suscripcion.getId(), estadoMp);
+        } else if ("CANCELADA".equals(nuevoEstado)) {
+            suscripcion.setFechaCancelacion(LocalDateTime.now());
+            log.info("❌ Suscripción {} cancelada por preapproval webhook MP (status={})", suscripcion.getId(), estadoMp);
+        } else {
+            log.info("ℹ️ Suscripción {} actualizada a {} por preapproval webhook MP (status={})", suscripcion.getId(), nuevoEstado, estadoMp);
         }
 
-        String paymentId = webhookRequestDTO.getData().getId();
+        suscripcionRepository.save(suscripcion);
+    }
+
+    private void procesarWebhookPago(String paymentId) {
+        log.info("🔔 Procesando webhook pago: {}", paymentId);
         MercadoPagoPaymentInfo payment = mercadoPagoService.obtenerPago(paymentId);
 
-        Suscripcion suscripcion = resolverSuscripcion(payment)
+        Suscripcion suscripcion = resolverSuscripcionPorPago(payment)
                 .orElseThrow(() -> new ResourceNotFoundException("No se encontró suscripción para el pago " + paymentId));
 
         suscripcion.setMpPaymentId(payment.getPaymentId());
@@ -98,7 +138,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 suscripcion.setFechaInicio(now);
             }
             suscripcion.setFechaProximoCobro(now.plusMonths(1));
-            log.info("✅ Suscripción {} activada por webhook MP", suscripcion.getId());
+            log.info("✅ Suscripción {} activada por webhook pago MP", suscripcion.getId());
         } else if ("rejected".equalsIgnoreCase(payment.getStatus()) || "cancelled".equalsIgnoreCase(payment.getStatus())) {
             suscripcion.setEstado("SUSPENDIDA");
             log.warn("⚠️ Suscripción {} suspendida por estado de pago: {}", suscripcion.getId(), payment.getStatus());
@@ -110,6 +150,16 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcionRepository.save(suscripcion);
     }
 
+    String mapearEstadoPreapproval(String estadoMp) {
+        if (estadoMp == null) return "PENDIENTE";
+        return switch (estadoMp.toLowerCase()) {
+            case "authorized", "active" -> "ACTIVA";
+            case "paused" -> "SUSPENDIDA";
+            case "cancelled" -> "CANCELADA";
+            default -> "PENDIENTE";
+        };
+    }
+
     BigDecimal obtenerPrecioPlanPagado(String planId) {
         return switch (planId) {
             case "BASICO" -> new BigDecimal("49.99");
@@ -118,19 +168,26 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         };
     }
 
-    private Optional<Suscripcion> resolverSuscripcion(MercadoPagoPaymentInfo payment) {
-        if (payment.getExternalReference() != null && payment.getExternalReference().contains(":")) {
-            String[] parts = payment.getExternalReference().split(":", 2);
-            String tenantId = parts[0];
-            Long usuarioId;
-            try {
-                usuarioId = Long.parseLong(parts[1]);
-            } catch (NumberFormatException ex) {
-                throw new BadRequestException("External reference inválida para Mercado Pago: " + payment.getExternalReference(), ex);
+    private Optional<Suscripcion> resolverSuscripcionPorPreapproval(MercadoPagoPreapprovalInfo preapproval) {
+        if (preapproval.getPreapprovalId() != null && !preapproval.getPreapprovalId().isBlank()) {
+            Optional<Suscripcion> byPreapprovalId = suscripcionRepository.findByPreapprovalId(preapproval.getPreapprovalId());
+            if (byPreapprovalId.isPresent()) {
+                return byPreapprovalId;
             }
-            Optional<Suscripcion> byTenantUser = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
-            if (byTenantUser.isPresent()) {
-                return byTenantUser;
+        }
+
+        if (preapproval.getExternalReference() != null && preapproval.getExternalReference().contains(":")) {
+            return resolverSuscripcionPorExternalRef(preapproval.getExternalReference());
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<Suscripcion> resolverSuscripcionPorPago(MercadoPagoPaymentInfo payment) {
+        if (payment.getExternalReference() != null && payment.getExternalReference().contains(":")) {
+            Optional<Suscripcion> byRef = resolverSuscripcionPorExternalRef(payment.getExternalReference());
+            if (byRef.isPresent()) {
+                return byRef;
             }
         }
 
@@ -140,4 +197,17 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
         return Optional.empty();
     }
+
+    private Optional<Suscripcion> resolverSuscripcionPorExternalRef(String externalReference) {
+        String[] parts = externalReference.split(":", 2);
+        String tenantId = parts[0];
+        Long usuarioId;
+        try {
+            usuarioId = Long.parseLong(parts[1]);
+        } catch (NumberFormatException ex) {
+            throw new BadRequestException("External reference inválida para Mercado Pago: " + externalReference, ex);
+        }
+        return suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
+    }
 }
+

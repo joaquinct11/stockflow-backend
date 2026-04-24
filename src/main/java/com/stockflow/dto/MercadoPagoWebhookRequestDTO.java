@@ -14,6 +14,7 @@ public class MercadoPagoWebhookRequestDTO {
     private String type;
     private String topic;
     private String action;
+    private String entity;
     private DataPayload data;
 
     @Data
