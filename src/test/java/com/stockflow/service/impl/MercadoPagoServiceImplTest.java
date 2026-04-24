@@ -86,7 +86,7 @@ class MercadoPagoServiceImplTest {
     void crearPreapproval_accessTokenNulo_lanzaExcepcion() {
         when(mercadoPagoProperties.getAccessToken()).thenReturn(null);
 
-        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com"))
+        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com", null, null))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("access-token");
     }
@@ -96,7 +96,7 @@ class MercadoPagoServiceImplTest {
         when(mercadoPagoProperties.getAccessToken()).thenReturn("TEST-valid-token");
         when(mercadoPagoProperties.getNotificationUrl()).thenReturn(null);
 
-        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com"))
+        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com", null, null))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("notification-url");
     }
@@ -107,7 +107,7 @@ class MercadoPagoServiceImplTest {
         when(mercadoPagoProperties.getNotificationUrl()).thenReturn("https://example.com/webhook");
         when(mercadoPagoProperties.getSuccessUrl()).thenReturn(null);
 
-        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com"))
+        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com", null, null))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("success-url");
     }
@@ -118,7 +118,7 @@ class MercadoPagoServiceImplTest {
         when(mercadoPagoProperties.getNotificationUrl()).thenReturn("https://example.com/webhook");
         when(mercadoPagoProperties.getSuccessUrl()).thenReturn("stockflow.pe/checkout/success");
 
-        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com"))
+        assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com", null, null))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("http");
     }

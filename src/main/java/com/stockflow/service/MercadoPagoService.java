@@ -10,7 +10,8 @@ public interface MercadoPagoService {
 
     MercadoPagoPreferenceResponse crearPreferencia(String planId, BigDecimal precioMensual, String externalReference);
 
-    MercadoPagoPreapprovalInfo crearPreapproval(String planId, BigDecimal precioMensual, String externalReference, String payerEmail);
+    MercadoPagoPreapprovalInfo crearPreapproval(String planId, BigDecimal precioMensual, String externalReference,
+                                                String payerEmail, String payerIdentificationType, String payerIdentificationNumber);
 
     MercadoPagoPreapprovalInfo obtenerPreapproval(String preapprovalId);
 

@@ -155,7 +155,9 @@ public class SuscripcionController {
         log.info("💳 Iniciando checkout Mercado Pago para tenant {}, usuario {}", tenantId, usuarioId);
 
         return ResponseEntity.ok(
-                suscripcionCheckoutService.iniciarCheckout(request.getPlanId(), tenantId, usuarioId)
+                suscripcionCheckoutService.iniciarCheckout(
+                        request.getPlanId(), tenantId, usuarioId,
+                        request.getTipoDocumento(), request.getNumeroDocumento())
         );
     }
 }

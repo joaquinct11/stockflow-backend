@@ -217,3 +217,70 @@ Cada perfil tiene CORS configurado para su dominio:
 2. El usuario abre `initPoint` e ingresa su medio de pago.
 3. MP redirige a `MERCADOPAGO_SUCCESS_URL` y envía webhook a `MERCADOPAGO_NOTIFICATION_URL`.
 4. El backend recibe el webhook, consulta `GET /preapproval/{id}` y actualiza el estado de la suscripción en BD.
+
+---
+
+## Diagnóstico: botón "Confirmar" deshabilitado en MP Suscripciones
+
+Si al abrir el `initPoint` el botón **"Confirmar"** aparece deshabilitado, las causas más frecuentes son:
+
+### 1. Datos de KYC del pagador incompletos
+
+Mercado Pago Perú exige que el pagador tenga en su cuenta:
+- **Documento de identidad** (DNI / CE / RUC) verificado
+- **Teléfono** verificado
+- **Nombre y apellido** completos
+
+Si el pagador no tiene estos datos, el botón queda deshabilitado sin mostrar un mensaje claro.
+
+**Solución preferida (nuevo campo en el checkout):**  
+Enviar el documento del pagador en el request de checkout para que el backend lo incluya en el payload del preapproval. Mercado Pago usa estos datos para pre-rellenar y validar el formulario:
+
+```json
+POST /api/suscripciones/checkout
+{
+  "planId": "BASICO",
+  "tipoDocumento": "DNI",
+  "numeroDocumento": "12345678"
+}
+```
+
+- `tipoDocumento`: `DNI`, `CE`, `RUC` o `PASAPORTE`
+- `numeroDocumento`: número real del documento (6–20 caracteres)
+
+Estos valores se almacenan en el perfil del usuario y se reutilizan en futuras suscripciones si no se envían nuevamente.
+
+**Solución alternativa (sin cambios de código):**  
+El pagador completa su perfil directamente en Mercado Pago:  
+`mercadopago.com.pe → Perfil → Datos personales → Validar identidad`
+
+### 2. Email del pagador no coincide con la cuenta de MP
+
+El `payer_email` enviado al preapproval debe coincidir con el email de la cuenta de Mercado Pago con la que el pagador se logueará en el checkout.
+
+- **Registro en la app StockFlow**: usar el email de la cuenta real de Mercado Pago del pagador.
+- Nunca usar `admin@farmacia.com` u otro email genérico para el usuario que va a pagar.
+
+### 3. Tarjeta no compatible con suscripciones recurrentes
+
+Algunas tarjetas de débito o tarjetas prepagas no soportan cargos recurrentes en Mercado Pago.  
+**Probar con una tarjeta de crédito Visa o Mastercard de banco local.**
+
+### 4. Verificar el estado del preapproval en los logs
+
+Con los logs de detalle habilitados, el backend registra el JSON exacto enviado a MP y la respuesta:
+
+```
+📤 Payload enviado a MP /preapproval: {...}
+📥 Respuesta MP /preapproval: status=201, body={...}
+📥 Respuesta MP GET /preapproval/{id}: status=200, body={...}
+```
+
+Revisa los logs del backend (`logs/stockflow-prod.log`) para identificar campos faltantes o respuestas de error de MP.
+
+### 5. Precios mínimos en Perú
+
+Mercado Pago Perú tiene un mínimo de **S/ 2.00** por suscripción.  
+Los precios configurados son: `BASICO = S/ 49.99`, `PRO = S/ 99.99`.  
+No usar montos menores a S/ 2.00 en producción.
+
