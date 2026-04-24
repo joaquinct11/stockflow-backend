@@ -62,11 +62,13 @@ management:
       show-details: always
 
 mercadopago:
-  access-token: ${MERCADOPAGO_ACCESS_TOKEN:TEST-2763402378969817-042315-e2056124374581960671ee04e8465e20-293036685}
-  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:b222f7d75228c234f3f4f0ab7669f2e25aef4d9e8ff39deb856038c0672beece}
+  access-token: ${MERCADOPAGO_ACCESS_TOKEN:APP_USR-2763402378969817-042315-2235453ea30e0170fdc75e8ae336319a-293036685}
+#  access-token: ${MERCADOPAGO_ACCESS_TOKEN:APP_USR-8889777727473379-042413-51cba2716e7670c3384df5a151ddbc50-3358217984}
+#  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:b222f7d75228c234f3f4f0ab7669f2e25aef4d9e8ff39deb856038c0672beece}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:3a0380919f61158813dc8691fa36bf9e4b298972227a69007a4cb002b9135aa0}
   currency-id: ${MERCADOPAGO_CURRENCY_ID:PEN}
   checkout-base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
-  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:https://dislike-curing-sprout.ngrok-free.dev/api/webhooks/mercadopago?token=b222f7d75228c234f3f4f0ab7669f2e25aef4d9e8ff39deb856038c0672beece}
+  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:https://dislike-curing-sprout.ngrok-free.dev/api/webhooks/mercadopago?token=3a0380919f61158813dc8691fa36bf9e4b298972227a69007a4cb002b9135aa0}
   success-url: ${MERCADOPAGO_SUCCESS_URL:https://stockflow-frontend-uat.vercel.app/checkout/success}
   failure-url: ${MERCADOPAGO_FAILURE_URL:https://stockflow-frontend-uat.vercel.app/checkout/failure}
   pending-url: ${MERCADOPAGO_PENDING_URL:https://stockflow-frontend-uat.vercel.app/checkout/pending}
