@@ -261,15 +261,31 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         // "esperando autorización del pagador" y obtener el initPoint correcto.
         payload.put("status", "pending");
 
+        String effectivePayerEmail;
         if (isTestToken) {
-            // En ambiente TEST, omitir email del pagador para evitar la mezcla
-            // de usuarios reales con usuarios de prueba de Mercado Pago.
-            log.info("🔑 payerEmailMode=OMITTED_FOR_TEST");
+            // En ambiente TEST usar el email de prueba configurable.
+            // MP requiere payer_email incluso en sandbox.
+            String testPayerEmail = mercadoPagoProperties.getTestPayerEmail();
+            if (testPayerEmail == null || testPayerEmail.isBlank()) {
+                throw new BadRequestException(
+                        "Configuración inválida: mercadopago.test-payer-email (MERCADOPAGO_TEST_PAYER_EMAIL) "
+                        + "es requerido cuando se usa un token TEST de Mercado Pago");
+            }
+            if (!testPayerEmail.contains("@")) {
+                throw new BadRequestException(
+                        "Configuración inválida: mercadopago.test-payer-email (MERCADOPAGO_TEST_PAYER_EMAIL) "
+                        + "debe ser un email válido (contener '@')");
+            }
+            effectivePayerEmail = testPayerEmail;
+            String domain = effectivePayerEmail.substring(effectivePayerEmail.indexOf('@'));
+            log.info("🔑 payerEmailMode=CONFIG_TEST_PAYER_EMAIL domain={}", domain);
         } else {
             // En PROD, incluir el email del usuario autenticado.
+            effectivePayerEmail = payerEmail;
             log.info("🔑 payerEmailMode=AUTH_USER_FOR_PROD");
-            payload.put("payer_email", payerEmail);
         }
+
+        payload.put("payer_email", effectivePayerEmail);
 
         // Incluir objeto payer con identificación si está disponible.
         // Esto pre-rellena el formulario de MP y evita que el botón
@@ -281,9 +297,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             identification.put("number", payerIdentificationNumber);
 
             Map<String, Object> payer = new HashMap<>();
-            if (!isTestToken) {
-                payer.put("email", payerEmail);
-            }
+            payer.put("email", effectivePayerEmail);
             payer.put("identification", identification);
 
             payload.put("payer", payer);

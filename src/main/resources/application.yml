@@ -70,3 +70,4 @@ mercadopago:
   success-url: ${MERCADOPAGO_SUCCESS_URL}
   failure-url: ${MERCADOPAGO_FAILURE_URL}
   pending-url: ${MERCADOPAGO_PENDING_URL}
+  test-payer-email: ${MERCADOPAGO_TEST_PAYER_EMAIL:}

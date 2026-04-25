@@ -33,6 +33,7 @@ El perfil **no está hardcodeado** en `application.yml`. Se controla vía la var
 | `MERCADOPAGO_NOTIFICATION_URL` | URL pública del webhook backend | `https://api.stockflow.pe/api/webhooks/mercadopago` |
 | `MERCADOPAGO_SUCCESS_URL` | URL de retorno tras pago exitoso (back_url de preapproval) | `https://www.stockflow.pe/checkout/success` |
 | `MERCADOPAGO_FAILURE_URL` | URL de retorno tras pago fallido | `https://www.stockflow.pe/checkout/failure` |
+| `MERCADOPAGO_TEST_PAYER_EMAIL` | Email del comprador de prueba MP (solo requerido cuando `MERCADOPAGO_ACCESS_TOKEN=TEST-...`) | `TESTUSER12345678@testuser.com` |
 | `MERCADOPAGO_PENDING_URL` | URL de retorno cuando el pago queda pendiente | `https://www.stockflow.pe/checkout/pending` |
 
 > **Alternativa de nombres legacy**: Si ya tienes configuradas las variables `DATABASE_URL`, `DB_USERNAME` y `DB_PASSWORD`, el backend también las acepta. Se recomienda migrar al formato `SPRING_DATASOURCE_*`.
@@ -90,6 +91,7 @@ MERCADOPAGO_NOTIFICATION_URL=https://api-uat.stockflow.pe/api/webhooks/mercadopa
 MERCADOPAGO_SUCCESS_URL=https://uat.stockflow.pe/checkout/success
 MERCADOPAGO_FAILURE_URL=https://uat.stockflow.pe/checkout/failure
 MERCADOPAGO_PENDING_URL=https://uat.stockflow.pe/checkout/pending
+MERCADOPAGO_TEST_PAYER_EMAIL=TESTUSER9076...@testuser.com
 ```
 
 ### 4. Dominios recomendados en Render
@@ -192,6 +194,11 @@ Cada perfil tiene CORS configurado para su dominio:
 
 > **Importante:** No mezclar tokens TEST con compradores reales ni al revés.  
 > Si el pago muestra "Una de las partes con la que intentas hacer el pago es de prueba", es señal de mezcla de ambientes.
+
+Cuando `MERCADOPAGO_ACCESS_TOKEN=TEST-...`, el backend **requiere** la variable `MERCADOPAGO_TEST_PAYER_EMAIL`
+con el email del comprador de prueba de Mercado Pago. Si no está configurada, el endpoint `/suscripciones/checkout`
+responderá 400 con un mensaje claro. Los usuarios de prueba de MP no exponen correo en el panel; usa un email
+de prueba genérico (por ejemplo `testbuyer@testuser.com`) o el que MP le asigne en tus tests.
 
 ### Requisitos de `back_url` (`MERCADOPAGO_SUCCESS_URL`)
 
