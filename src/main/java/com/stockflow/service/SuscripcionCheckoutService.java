@@ -2,6 +2,7 @@ package com.stockflow.service;
 
 import com.stockflow.dto.MercadoPagoWebhookRequestDTO;
 import com.stockflow.dto.SuscripcionCheckoutResponseDTO;
+import com.stockflow.dto.SuscripcionEstadoResponseDTO;
 
 public interface SuscripcionCheckoutService {
 
@@ -19,4 +20,14 @@ public interface SuscripcionCheckoutService {
                                                    String payerIdentificationType, String payerIdentificationNumber);
 
     void procesarWebhook(MercadoPagoWebhookRequestDTO webhookRequestDTO);
+
+    /**
+     * Retorna el estado actual de suscripción para un tenant/usuario.
+     * Nunca lanza excepción por ausencia de suscripción: en ese caso retorna estado "SIN_SUSCRIPCION".
+     *
+     * @param tenantId  tenant del usuario autenticado
+     * @param usuarioId ID del usuario autenticado
+     * @return DTO con estado, planId, preapprovalId, mpPaymentId y fechaProximoCobro
+     */
+    SuscripcionEstadoResponseDTO obtenerEstadoSuscripcion(String tenantId, Long usuarioId);
 }
