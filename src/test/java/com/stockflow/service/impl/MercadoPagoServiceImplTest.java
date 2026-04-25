@@ -11,7 +11,9 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.Mockito.when;
@@ -121,5 +123,70 @@ class MercadoPagoServiceImplTest {
         assertThatThrownBy(() -> service.crearPreapproval("PRO", BigDecimal.TEN, "tenant:1", "user@test.com", null, null))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("http");
+    }
+
+    // ── buildPreapprovalPayload: TEST vs PROD email handling ──────────────────
+
+    @Test
+    void buildPreapprovalPayload_tokenTest_omitePayerEmail() {
+        when(mercadoPagoProperties.getCurrencyId()).thenReturn("PEN");
+        when(mercadoPagoProperties.getNotificationUrl()).thenReturn("https://example.com/webhook");
+        when(mercadoPagoProperties.getSuccessUrl()).thenReturn("https://example.com/success");
+
+        Map<String, Object> payload = service.buildPreapprovalPayload(
+                "PRO", BigDecimal.TEN, "tenant:1", "user@real.com",
+                null, null, true);
+
+        assertThat(payload).doesNotContainKey("payer_email");
+        assertThat(payload).doesNotContainKey("payer");
+    }
+
+    @Test
+    void buildPreapprovalPayload_tokenTest_conIdentificacion_omiteEmailEnPayer() {
+        when(mercadoPagoProperties.getCurrencyId()).thenReturn("PEN");
+        when(mercadoPagoProperties.getNotificationUrl()).thenReturn("https://example.com/webhook");
+        when(mercadoPagoProperties.getSuccessUrl()).thenReturn("https://example.com/success");
+
+        Map<String, Object> payload = service.buildPreapprovalPayload(
+                "PRO", BigDecimal.TEN, "tenant:1", "user@real.com",
+                "DNI", "12345678", true);
+
+        assertThat(payload).doesNotContainKey("payer_email");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payer = (Map<String, Object>) payload.get("payer");
+        assertThat(payer).isNotNull();
+        assertThat(payer).doesNotContainKey("email");
+        assertThat(payer).containsKey("identification");
+    }
+
+    @Test
+    void buildPreapprovalPayload_tokenProd_incluyePayerEmail() {
+        when(mercadoPagoProperties.getCurrencyId()).thenReturn("PEN");
+        when(mercadoPagoProperties.getNotificationUrl()).thenReturn("https://example.com/webhook");
+        when(mercadoPagoProperties.getSuccessUrl()).thenReturn("https://example.com/success");
+
+        Map<String, Object> payload = service.buildPreapprovalPayload(
+                "PRO", BigDecimal.TEN, "tenant:1", "user@real.com",
+                null, null, false);
+
+        assertThat(payload).containsEntry("payer_email", "user@real.com");
+    }
+
+    @Test
+    void buildPreapprovalPayload_tokenProd_conIdentificacion_incluyeEmailEnPayer() {
+        when(mercadoPagoProperties.getCurrencyId()).thenReturn("PEN");
+        when(mercadoPagoProperties.getNotificationUrl()).thenReturn("https://example.com/webhook");
+        when(mercadoPagoProperties.getSuccessUrl()).thenReturn("https://example.com/success");
+
+        Map<String, Object> payload = service.buildPreapprovalPayload(
+                "PRO", BigDecimal.TEN, "tenant:1", "user@real.com",
+                "DNI", "12345678", false);
+
+        assertThat(payload).containsEntry("payer_email", "user@real.com");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payer = (Map<String, Object>) payload.get("payer");
+        assertThat(payer).isNotNull();
+        assertThat(payer).containsEntry("email", "user@real.com");
+        assertThat(payer).containsKey("identification");
     }
 }
