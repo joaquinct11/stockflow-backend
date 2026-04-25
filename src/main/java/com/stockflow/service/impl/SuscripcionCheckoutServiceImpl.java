@@ -246,7 +246,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
     BigDecimal obtenerPrecioPlanPagado(String planId) {
         return switch (planId) {
-            case "BASICO" -> new BigDecimal("2.50");
+            case "BASICO" -> new BigDecimal("49.99");
             case "PRO" -> new BigDecimal("99.99");
             default -> throw new BadRequestException("Solo se permite checkout para planes pagos: BASICO o PRO");
         };
