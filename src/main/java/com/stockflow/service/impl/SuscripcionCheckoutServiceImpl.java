@@ -2,6 +2,7 @@ package com.stockflow.service.impl;
 
 import com.stockflow.dto.MercadoPagoWebhookRequestDTO;
 import com.stockflow.dto.SuscripcionCheckoutResponseDTO;
+import com.stockflow.dto.SuscripcionEstadoResponseDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
 import com.stockflow.exception.BadRequestException;
@@ -94,6 +95,8 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
         if ("subscription_preapproval".equalsIgnoreCase(tipo) || "preapproval".equalsIgnoreCase(webhookRequestDTO.getEntity())) {
             procesarWebhookPreapproval(webhookRequestDTO.getData().getId());
+        } else if ("subscription_authorized_payment".equalsIgnoreCase(tipo)) {
+            procesarWebhookAuthorizedPayment(webhookRequestDTO.getData().getId());
         } else if ("payment".equalsIgnoreCase(tipo)) {
             procesarWebhookPago(webhookRequestDTO.getData().getId());
         } else {
@@ -105,8 +108,12 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         log.info("🔔 Procesando webhook preapproval: {}", preapprovalId);
         MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.obtenerPreapproval(preapprovalId);
 
-        Suscripcion suscripcion = resolverSuscripcionPorPreapproval(preapproval)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontró suscripción para preapproval " + preapprovalId));
+        Optional<Suscripcion> optSuscripcion = resolverSuscripcionPorPreapproval(preapproval);
+        if (optSuscripcion.isEmpty()) {
+            log.warn("⚠️ Webhook preapproval ignorado: no existe suscripción local para preapproval_id={}", preapprovalId);
+            return;
+        }
+        Suscripcion suscripcion = optSuscripcion.get();
 
         String estadoMp = preapproval.getStatus();
         String nuevoEstado = mapearEstadoPreapproval(estadoMp);
@@ -133,12 +140,54 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcionRepository.save(suscripcion);
     }
 
+    private void procesarWebhookAuthorizedPayment(String paymentId) {
+        log.info("🔔 Procesando webhook subscription_authorized_payment: {}", paymentId);
+        MercadoPagoPaymentInfo payment = mercadoPagoService.obtenerPago(paymentId);
+
+        Optional<Suscripcion> optSuscripcion = resolverSuscripcionPorPago(payment);
+        if (optSuscripcion.isEmpty()) {
+            log.warn("⚠️ Webhook authorized_payment ignorado: no existe suscripción local para payment_id={}", paymentId);
+            return;
+        }
+        Suscripcion suscripcion = optSuscripcion.get();
+
+        suscripcion.setMpPaymentId(payment.getPaymentId());
+        if (payment.getLastFourDigits() != null && !payment.getLastFourDigits().isBlank()) {
+            suscripcion.setUltimos4Digitos(payment.getLastFourDigits());
+        }
+
+        String statusPago = payment.getStatus();
+        if ("approved".equalsIgnoreCase(statusPago) || "authorized".equalsIgnoreCase(statusPago)) {
+            LocalDateTime now = LocalDateTime.now();
+            suscripcion.setEstado("ACTIVA");
+            suscripcion.setCurrentPeriodStart(now);
+            suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
+            if (suscripcion.getFechaInicio() == null) {
+                suscripcion.setFechaInicio(now);
+            }
+            suscripcion.setFechaProximoCobro(now.plusMonths(1));
+            log.info("✅ Suscripción {} activada por webhook authorized_payment MP (status={})", suscripcion.getId(), statusPago);
+        } else if ("rejected".equalsIgnoreCase(statusPago) || "cancelled".equalsIgnoreCase(statusPago)) {
+            suscripcion.setEstado("SUSPENDIDA");
+            log.warn("⚠️ Suscripción {} suspendida por authorized_payment rechazado/cancelado (status={})", suscripcion.getId(), statusPago);
+        } else {
+            suscripcion.setEstado("PENDIENTE");
+            log.info("ℹ️ Suscripción {} permanece PENDIENTE por authorized_payment (status={})", suscripcion.getId(), statusPago);
+        }
+
+        suscripcionRepository.save(suscripcion);
+    }
+
     private void procesarWebhookPago(String paymentId) {
         log.info("🔔 Procesando webhook pago: {}", paymentId);
         MercadoPagoPaymentInfo payment = mercadoPagoService.obtenerPago(paymentId);
 
-        Suscripcion suscripcion = resolverSuscripcionPorPago(payment)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontró suscripción para el pago " + paymentId));
+        Optional<Suscripcion> optSuscripcion = resolverSuscripcionPorPago(payment);
+        if (optSuscripcion.isEmpty()) {
+            log.warn("⚠️ Webhook pago ignorado: no existe suscripción local para payment_id={}", paymentId);
+            return;
+        }
+        Suscripcion suscripcion = optSuscripcion.get();
 
         suscripcion.setMpPaymentId(payment.getPaymentId());
         if (payment.getLastFourDigits() != null && !payment.getLastFourDigits().isBlank()) {
@@ -164,6 +213,25 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         suscripcionRepository.save(suscripcion);
+    }
+
+    @Override
+    public SuscripcionEstadoResponseDTO obtenerEstadoSuscripcion(String tenantId, Long usuarioId) {
+        Optional<Suscripcion> optSuscripcion = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
+        if (optSuscripcion.isEmpty()) {
+            log.info("ℹ️ No existe suscripción para tenant={}, usuario={}", tenantId, usuarioId);
+            return SuscripcionEstadoResponseDTO.builder()
+                    .estado("SIN_SUSCRIPCION")
+                    .build();
+        }
+        Suscripcion s = optSuscripcion.get();
+        return SuscripcionEstadoResponseDTO.builder()
+                .estado(s.getEstado())
+                .planId(s.getPlanId())
+                .preapprovalId(s.getPreapprovalId())
+                .mpPaymentId(s.getMpPaymentId())
+                .fechaProximoCobro(s.getFechaProximoCobro())
+                .build();
     }
 
     String mapearEstadoPreapproval(String estadoMp) {

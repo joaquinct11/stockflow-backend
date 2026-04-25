@@ -147,6 +147,14 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             }
 
             String payloadJson = objectMapper.writeValueAsString(payload);
+
+            String tokenPrefix = mercadoPagoProperties.getAccessToken() != null
+                    ? mercadoPagoProperties.getAccessToken().substring(0, Math.min(4, mercadoPagoProperties.getAccessToken().length())) + "..."
+                    : "null";
+            boolean isTestToken = mercadoPagoProperties.getAccessToken() != null
+                    && mercadoPagoProperties.getAccessToken().startsWith("TEST-");
+            log.info("🔑 MP token prefix={}, isTestToken={}", tokenPrefix, isTestToken);
+            log.info("📋 MP external_reference={}, back_url={}", externalReference, mercadoPagoProperties.getSuccessUrl());
             log.info("📤 Payload enviado a MP /preapproval: {}", payloadJson);
 
             log.info("🔄 Creando preapproval MP para plan={}, externalRef={}", planId, externalReference);
@@ -168,6 +176,10 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             }
 
             Map<String, Object> responseBody = objectMapper.readValue(response.body(), new TypeReference<>() {});
+
+            Object applicationId = responseBody.get("application_id");
+            Object collectorId = responseBody.get("collector_id");
+            log.info("🏷️ MP preapproval creado: application_id={}, collector_id={}", applicationId, collectorId);
 
             return MercadoPagoPreapprovalInfo.builder()
                     .preapprovalId((String) responseBody.get("id"))
