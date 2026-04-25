@@ -149,7 +149,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             String payloadJson = objectMapper.writeValueAsString(payload);
 
             String tokenPrefix = mercadoPagoProperties.getAccessToken() != null
-                    ? mercadoPagoProperties.getAccessToken().substring(0, Math.min(8, mercadoPagoProperties.getAccessToken().length())) + "..."
+                    ? mercadoPagoProperties.getAccessToken().substring(0, Math.min(4, mercadoPagoProperties.getAccessToken().length())) + "..."
                     : "null";
             boolean isTestToken = mercadoPagoProperties.getAccessToken() != null
                     && mercadoPagoProperties.getAccessToken().startsWith("TEST-");

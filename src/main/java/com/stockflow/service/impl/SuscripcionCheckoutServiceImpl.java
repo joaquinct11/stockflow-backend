@@ -6,6 +6,7 @@ import com.stockflow.dto.SuscripcionEstadoResponseDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
 import com.stockflow.exception.BadRequestException;
+import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.service.MercadoPagoService;
 import com.stockflow.service.SuscripcionCheckoutService;
@@ -36,7 +37,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                                                           String payerIdentificationType, String payerIdentificationNumber) {
         BigDecimal precioPlan = obtenerPrecioPlanPagado(planId);
         Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
-                .orElseThrow(() -> new BadRequestException("Usuario no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         if (!tenantId.equals(usuario.getTenantId())) {
             throw new BadRequestException("Usuario no pertenece al tenant actual");
