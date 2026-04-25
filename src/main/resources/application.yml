@@ -62,12 +62,12 @@ management:
       show-details: always
 
 mercadopago:
-  access-token: ${MERCADOPAGO_ACCESS_TOKEN:APP_USR-8889777727473379-042413-51cba2716e7670c3384df5a151ddbc50-3358217984}
-  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:324312ceb54bbbec5188750a84925881ab7a7db15175a318177d8e6297baf065}
-  currency-id: ${MERCADOPAGO_CURRENCY_ID:PEN}
-  checkout-base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
-  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:https://dislike-curing-sprout.ngrok-free.dev/api/webhooks/mercadopago}
-  success-url: ${MERCADOPAGO_SUCCESS_URL:https://stockflow-frontend-uat.vercel.app/dashboard/checkout/success}
-  failure-url: ${MERCADOPAGO_FAILURE_URL:https://stockflow-frontend-uat.vercel.app/dashboard/checkout/failure}
-  pending-url: ${MERCADOPAGO_PENDING_URL:https://stockflow-frontend-uat.vercel.app/dashboard/checkout/pending}
+  access-token: ${MERCADOPAGO_ACCESS_TOKEN}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET}
+  currency-id: ${MERCADOPAGO_CURRENCY_ID}
+  checkout-base-url: ${MERCADOPAGO_BASE_URL}
+  notification-url: ${MERCADOPAGO_NOTIFICATION_URL}
+  success-url: ${MERCADOPAGO_SUCCESS_URL}
+  failure-url: ${MERCADOPAGO_FAILURE_URL}
+  pending-url: ${MERCADOPAGO_PENDING_URL}
   test-payer-email: ${MERCADOPAGO_TEST_PAYER_EMAIL:test_user_9076553453484756485@testuser.com}

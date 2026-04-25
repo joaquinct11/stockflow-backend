@@ -33,7 +33,7 @@ jwt:
 cors:
   allowed-origins:
     - https://uat.stockflow.pe
-    - https://stockflow-frontend-uat.vercel.app/
+    - https://fluxus-uat.vercel.app/
 
 # Servidor
 server:
