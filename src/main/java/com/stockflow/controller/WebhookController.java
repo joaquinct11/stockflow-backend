@@ -31,7 +31,7 @@ public class WebhookController {
             @RequestHeader(value = "X-Webhook-Token", required = false) String headerToken,
             @RequestParam(value = "token", required = false) String queryToken) {
 
-        if (!isWebhookTokenValid(queryToken)) {
+        if (!isWebhookTokenValid(headerToken, queryToken)) {
             log.warn("⚠️ Webhook Mercado Pago rechazado por token inválido");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("status", "unauthorized"));
@@ -41,12 +41,12 @@ public class WebhookController {
         return ResponseEntity.ok(Map.of("status", "ok"));
     }
 
-    private boolean isWebhookTokenValid(String queryToken) {
+    private boolean isWebhookTokenValid(String headerToken, String queryToken) {
         String configuredSecret = mercadoPagoProperties.getWebhookSecret();
         if (configuredSecret == null || configuredSecret.isBlank()) {
             log.warn("⚠️ mercadopago.webhook-secret no está configurado; webhook sin validación de token.");
             return true;
         }
-        return configuredSecret.equals(queryToken);
+        return configuredSecret.equals(headerToken) || configuredSecret.equals(queryToken);
     }
 }
