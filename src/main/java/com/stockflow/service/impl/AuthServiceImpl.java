@@ -143,11 +143,11 @@ public class AuthServiceImpl implements AuthService {
         boolean planPago = !"FREE".equals(request.getPlanId());
 
         // Generar preapprovalId automáticamente
-        String preapprovalId = generarPreapprovalId();
+//        String preapprovalId = generarPreapprovalId();
 
         Suscripcion suscripcion = Suscripcion.builder()
                 .usuarioPrincipal(usuarioCreado)
-                .preapprovalId(preapprovalId)
+//                .preapprovalId(preapprovalId)
                 .planId(request.getPlanId())
                 .precioMensual(precioMensual)
                 .estado(planPago ? "PENDIENTE" : "ACTIVA")
@@ -238,16 +238,16 @@ public class AuthServiceImpl implements AuthService {
         log.info("✅ Refresh token revocado (logout)");
     }
 
-    private String generarPreapprovalId() {
-        LocalDateTime ahora = LocalDateTime.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-        String fecha = ahora.format(formatter);
-
-        Random random = new Random();
-        int numero = random.nextInt(999999);
-
-        return String.format("PRE-%s-%06d", fecha, numero);
-    }
+//    private String generarPreapprovalId() {
+//        LocalDateTime ahora = LocalDateTime.now();
+//        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+//        String fecha = ahora.format(formatter);
+//
+//        Random random = new Random();
+//        int numero = random.nextInt(999999);
+//
+//        return String.format("PRE-%s-%06d", fecha, numero);
+//    }
 
     private BigDecimal obtenerPrecioPlan(String planId) {
         return switch (planId) {

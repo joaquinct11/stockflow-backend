@@ -13,7 +13,12 @@ CREATE TABLE suscripciones (
                                metodo_pago VARCHAR(50),
                                ultimos_4_digitos VARCHAR(4),
                                tenant_id VARCHAR(100) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
-                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                               mp_preference_id VARCHAR(255),
+                               mp_payment_id VARCHAR(255),
+                               current_period_start TIMESTAMP,
+                               current_period_end TIMESTAMP,
+                               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                               updated_at TIMESTAMP
 );
 
 CREATE INDEX idx_suscripciones_usuario_id ON suscripciones(usuario_principal_id);
@@ -22,3 +27,6 @@ CREATE INDEX idx_suscripciones_deleted_at ON suscripciones(deleted_at);
 CREATE INDEX idx_suscripciones_fecha_proximo_cobro ON suscripciones(fecha_proximo_cobro);
 CREATE INDEX idx_suscripciones_tenant_id ON suscripciones(tenant_id);
 CREATE INDEX idx_suscripciones_usuario_tenant ON suscripciones(usuario_principal_id, tenant_id);
+CREATE INDEX idx_suscripciones_mp_preference_id ON suscripciones(mp_preference_id);
+CREATE INDEX idx_suscripciones_mp_payment_id ON suscripciones(mp_payment_id);
+CREATE INDEX idx_suscripciones_preapproval_id ON suscripciones(preapproval_id);
