@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stockflow.config.properties.MercadoPagoProperties;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.service.MercadoPagoService;
+import com.stockflow.service.model.MercadoPagoAuthorizedPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import com.stockflow.service.model.MercadoPagoPreferenceResponse;
@@ -346,6 +347,54 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             // ignore JSON parse errors; fall through to return raw body
         }
         return responseBody;
+    }
+
+    @Override
+    public MercadoPagoAuthorizedPaymentInfo obtenerAuthorizedPayment(String authorizedPaymentId) {
+        validarConfiguracion();
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/authorized_payments/" + authorizedPaymentId))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP GET /authorized_payments/{}: status={}, body={}", authorizedPaymentId, response.statusCode(), response.body());
+
+            if (response.statusCode() >= 400) {
+                log.error("❌ Error consultando authorized_payment {}. status={}, body={}", authorizedPaymentId, response.statusCode(), response.body());
+                throw new BadRequestException("No se pudo consultar el authorized_payment en Mercado Pago. status=" + response.statusCode());
+            }
+
+            Map<String, Object> body = objectMapper.readValue(response.body(), new TypeReference<>() {});
+
+            String preapprovalId = body.get("preapproval_id") != null ? String.valueOf(body.get("preapproval_id")) : null;
+            String status = body.get("status") != null ? String.valueOf(body.get("status")) : null;
+
+            String paymentId = null;
+            String paymentStatus = null;
+            Object paymentObj = body.get("payment");
+            if (paymentObj instanceof Map<?, ?> paymentMap) {
+                if (paymentMap.get("id") != null) paymentId = String.valueOf(paymentMap.get("id"));
+                if (paymentMap.get("status") != null) paymentStatus = String.valueOf(paymentMap.get("status"));
+            }
+
+            return MercadoPagoAuthorizedPaymentInfo.builder()
+                    .authorizedPaymentId(String.valueOf(body.get("id")))
+                    .preapprovalId(preapprovalId)
+                    .status(status)
+                    .paymentId(paymentId)
+                    .paymentStatus(paymentStatus)
+                    .build();
+
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("❌ Error consultando authorized_payment {} en Mercado Pago", authorizedPaymentId, ex);
+            throw new BadRequestException("No se pudo consultar el authorized_payment en Mercado Pago", ex);
+        }
     }
 
     @Override

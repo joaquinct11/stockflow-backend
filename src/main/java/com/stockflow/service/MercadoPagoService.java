@@ -1,5 +1,6 @@
 package com.stockflow.service;
 
+import com.stockflow.service.model.MercadoPagoAuthorizedPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import com.stockflow.service.model.MercadoPagoPreferenceResponse;
@@ -18,4 +19,6 @@ public interface MercadoPagoService {
     MercadoPagoPaymentInfo obtenerPago(String paymentId);
 
     void cancelarPreapproval(String preapprovalId);
+
+    MercadoPagoAuthorizedPaymentInfo obtenerAuthorizedPayment(String authorizedPaymentId);
 }

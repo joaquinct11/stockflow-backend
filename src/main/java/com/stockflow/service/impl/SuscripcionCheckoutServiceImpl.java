@@ -13,6 +13,7 @@ import com.stockflow.repository.WebhookLogRepository;
 import com.stockflow.service.MercadoPagoService;
 import com.stockflow.service.SuscripcionCheckoutService;
 import com.stockflow.service.UsuarioService;
+import com.stockflow.service.model.MercadoPagoAuthorizedPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import lombok.RequiredArgsConstructor;
@@ -125,15 +126,19 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         String webhookId = webhookRequestDTO.getData().getId();
         String tipo = webhookRequestDTO.getType() != null ?
                 webhookRequestDTO.getType() : webhookRequestDTO.getTopic();
+        String action = webhookRequestDTO.getAction() != null ? webhookRequestDTO.getAction() : "";
 
-        // IDEMPOTENCIA: Verificar si ya procesamos este webhook
-        if (webhookYaProcesado(webhookId, tipo)) {
-            log.info("ℹ️ Webhook {} tipo {} ya fue procesado anteriormente", webhookId, tipo);
+        // Incluir la acción en la clave para diferenciar created/updated del mismo recurso
+        String webhookKey = webhookId + (action.isBlank() ? "" : ":" + action);
+
+        // IDEMPOTENCIA: Verificar si ya procesamos este webhook exacto
+        if (webhookYaProcesado(webhookKey, tipo)) {
+            log.info("ℹ️ Webhook {} tipo {} action={} ya fue procesado anteriormente", webhookId, tipo, action);
             return;
         }
 
         // Registrar webhook
-        registrarWebhook(webhookId, tipo, "PROCESANDO");
+        registrarWebhook(webhookKey, tipo, "PROCESANDO");
 
         try {
             if ("subscription_preapproval".equalsIgnoreCase(tipo) ||
@@ -145,16 +150,16 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 procesarWebhookPago(webhookId);
             } else {
                 log.info("ℹ️ Webhook ignorado (tipo no soportado): {}", tipo);
-                registrarWebhook(webhookId, tipo, "IGNORADO");
+                registrarWebhook(webhookKey, tipo, "IGNORADO");
                 return;
             }
 
             // Marcar como procesado exitosamente
-            actualizarEstadoWebhook(webhookId, tipo, "PROCESADO");
+            actualizarEstadoWebhook(webhookKey, tipo, "PROCESADO");
 
         } catch (Exception e) {
-            log.error("❌ Error procesando webhook {} tipo {}", webhookId, tipo, e);
-            actualizarEstadoWebhook(webhookId, tipo, "ERROR");
+            log.error("❌ Error procesando webhook {} tipo {} action={}", webhookId, tipo, action, e);
+            actualizarEstadoWebhook(webhookKey, tipo, "ERROR");
             throw e; // Re-lanzar para que MP reintente
         }
     }
@@ -325,24 +330,35 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcionRepository.save(suscripcion);
     }
 
-    private void procesarWebhookAuthorizedPayment(String paymentId) {
-        log.info("🔔 Procesando webhook subscription_authorized_payment: {}", paymentId);
-        MercadoPagoPaymentInfo payment = mercadoPagoService.obtenerPago(paymentId);
+    private void procesarWebhookAuthorizedPayment(String authorizedPaymentId) {
+        log.info("🔔 Procesando webhook subscription_authorized_payment: {}", authorizedPaymentId);
+        MercadoPagoAuthorizedPaymentInfo authPayment = mercadoPagoService.obtenerAuthorizedPayment(authorizedPaymentId);
 
-        Optional<Suscripcion> optSuscripcion = resolverSuscripcionPorPago(payment);
+        // Resolver suscripción por preapproval_id (campo incluido en la respuesta de authorized_payments)
+        Optional<Suscripcion> optSuscripcion = Optional.empty();
+        if (authPayment.getPreapprovalId() != null && !authPayment.getPreapprovalId().isBlank()) {
+            optSuscripcion = suscripcionRepository.findByPreapprovalId(authPayment.getPreapprovalId());
+        }
+
         if (optSuscripcion.isEmpty()) {
-            log.warn("⚠️ Webhook authorized_payment ignorado: no existe suscripción local para payment_id={}", paymentId);
+            log.warn("⚠️ Webhook authorized_payment ignorado: no existe suscripción local para preapproval_id={}",
+                    authPayment.getPreapprovalId());
             return;
         }
         Suscripcion suscripcion = optSuscripcion.get();
 
-        suscripcion.setMpPaymentId(payment.getPaymentId());
-        if (payment.getLastFourDigits() != null && !payment.getLastFourDigits().isBlank()) {
-            suscripcion.setUltimos4Digitos(payment.getLastFourDigits());
+        if (authPayment.getPaymentId() != null && !authPayment.getPaymentId().isBlank()) {
+            suscripcion.setMpPaymentId(authPayment.getPaymentId());
         }
 
-        String statusPago = payment.getStatus();
-        if ("approved".equalsIgnoreCase(statusPago) || "authorized".equalsIgnoreCase(statusPago)) {
+        // status del authorized_payment: "processed", "pending", "refunded", "cancelled"
+        String status = authPayment.getStatus();
+        String paymentStatus = authPayment.getPaymentStatus(); // "approved", "rejected", etc.
+
+        boolean pagoAprobado = "processed".equalsIgnoreCase(status) &&
+                ("approved".equalsIgnoreCase(paymentStatus) || paymentStatus == null);
+
+        if (pagoAprobado || "processed".equalsIgnoreCase(status)) {
             LocalDateTime now = LocalDateTime.now();
             suscripcion.setEstado("ACTIVA");
             suscripcion.setCurrentPeriodStart(now);
@@ -351,13 +367,16 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 suscripcion.setFechaInicio(now);
             }
             suscripcion.setFechaProximoCobro(now.plusMonths(1));
-            log.info("✅ Suscripción {} activada por webhook authorized_payment MP (status={})", suscripcion.getId(), statusPago);
-        } else if ("rejected".equalsIgnoreCase(statusPago) || "cancelled".equalsIgnoreCase(statusPago)) {
+            log.info("✅ Suscripción {} activada por authorized_payment (status={}, paymentStatus={})",
+                    suscripcion.getId(), status, paymentStatus);
+        } else if ("refunded".equalsIgnoreCase(status) || "cancelled".equalsIgnoreCase(status)
+                || "rejected".equalsIgnoreCase(paymentStatus)) {
             suscripcion.setEstado("SUSPENDIDA");
-            log.warn("⚠️ Suscripción {} suspendida por authorized_payment rechazado/cancelado (status={})", suscripcion.getId(), statusPago);
+            log.warn("⚠️ Suscripción {} suspendida por authorized_payment (status={}, paymentStatus={})",
+                    suscripcion.getId(), status, paymentStatus);
         } else {
             suscripcion.setEstado("PENDIENTE");
-            log.info("ℹ️ Suscripción {} permanece PENDIENTE por authorized_payment (status={})", suscripcion.getId(), statusPago);
+            log.info("ℹ️ Suscripción {} permanece PENDIENTE por authorized_payment (status={})", suscripcion.getId(), status);
         }
 
         suscripcionRepository.save(suscripcion);
