@@ -358,7 +358,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         boolean pagoAprobado = "processed".equalsIgnoreCase(status) &&
                 ("approved".equalsIgnoreCase(paymentStatus) || paymentStatus == null);
 
-        if (pagoAprobado || "processed".equalsIgnoreCase(status)) {
+        if (pagoAprobado) {
             LocalDateTime now = LocalDateTime.now();
             suscripcion.setEstado("ACTIVA");
             suscripcion.setCurrentPeriodStart(now);
