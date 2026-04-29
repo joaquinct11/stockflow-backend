@@ -16,4 +16,6 @@ public interface MercadoPagoService {
     MercadoPagoPreapprovalInfo obtenerPreapproval(String preapprovalId);
 
     MercadoPagoPaymentInfo obtenerPago(String paymentId);
+
+    void cancelarPreapproval(String preapprovalId);
 }

@@ -13,12 +13,12 @@ CREATE INDEX idx_usuario_permisos_permiso_id ON usuario_permisos(permiso_id);
 CREATE INDEX idx_usuario_permisos_tenant_id  ON usuario_permisos(tenant_id);
 
 -- Añadir permisos adicionales para todos los módulos
-INSERT INTO permisos (nombre, descripcion, created_at) VALUES
-    ('CREAR_INVENTARIO',    'Permiso para crear movimientos de inventario', NOW()),
-    ('ELIMINAR_INVENTARIO', 'Permiso para eliminar movimientos de inventario', NOW()),
-    ('ELIMINAR_VENTA',      'Permiso para eliminar ventas', NOW()),
-    ('CREAR_PROVEEDOR',     'Permiso para crear proveedores', NOW()),
-    ('EDITAR_PROVEEDOR',    'Permiso para editar proveedores', NOW()),
-    ('ELIMINAR_PROVEEDOR',  'Permiso para eliminar proveedores', NOW()),
-    ('VER_SUSCRIPCIONES',   'Permiso para ver suscripciones', NOW())
-ON CONFLICT (nombre) DO NOTHING;
+-- INSERT INTO permisos (nombre, descripcion, created_at) VALUES
+--     ('CREAR_INVENTARIO',    'Permiso para crear movimientos de inventario', NOW()),
+--     ('ELIMINAR_INVENTARIO', 'Permiso para eliminar movimientos de inventario', NOW()),
+--     ('ELIMINAR_VENTA',      'Permiso para eliminar ventas', NOW()),
+--     ('CREAR_PROVEEDOR',     'Permiso para crear proveedores', NOW()),
+--     ('EDITAR_PROVEEDOR',    'Permiso para editar proveedores', NOW()),
+--     ('ELIMINAR_PROVEEDOR',  'Permiso para eliminar proveedores', NOW()),
+--     ('VER_SUSCRIPCIONES',   'Permiso para ver suscripciones', NOW())
+-- ON CONFLICT (nombre) DO NOTHING;

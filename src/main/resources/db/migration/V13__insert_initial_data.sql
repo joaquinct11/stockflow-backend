@@ -10,13 +10,13 @@ INSERT INTO roles (nombre, descripcion, created_at) VALUES
 -- INSERT INTO tenants (tenant_id, nombre, activo, created_at, updated_at) VALUES
 --     ('farmacia-001', 'Farmacia De Desarrollo', true, NOW(), NOW())
 --     ON CONFLICT (tenant_id) DO NOTHING;
---
+-- --
 -- -- Insertar Usuarios de prueba
--- INSERT INTO usuarios (email, contraseña, nombre, rol_id, activo, created_at, tenant_id) VALUES
---                                                                                             ('admin@farmacia.com', '$2a$10$kBzOE9BxR24pAPFizoDGAeY1.b3V2ppwF4609khiWr8j5g9FObZKu', 'Admin Farmacia', 1, true, NOW(), 'farmacia-001'),
---                                                                                             ('vendedor@farmacia.com', '$2a$10$/tPqlp3qm0DHuCA94ynqK.JDefr0pnodFTk.HtF19hN.39iaRYQQ6', 'Vendedor Principal', 2, true, NOW(), 'farmacia-001'),
---                                                                                             ('gestor@farmacia.com', '$2a$10$0x5YA6SF6aHOLbfG8dsUDe97dTS1d4Xt2/Ne8C.g3dzs6JHGouTOi', 'Gestor Inventario', 3, true, NOW(), 'farmacia-001'),
---                                                                                             ('gerente@farmacia.com', '$2a$10$mRFCU9orVZ5B36VIJ.OeG.28hrUK1B7ylh2W1ynOzuzrexETlOqoW', 'Gerente Farmacia', 4, true, NOW(), 'farmacia-001')
+-- INSERT INTO usuarios (email, contraseña, nombre, tipo_documento, numero_documento, telefono, rol_id, activo, created_at, tenant_id) VALUES
+--                                                                                             ('admin@farmacia.com', '$2a$10$kBzOE9BxR24pAPFizoDGAeY1.b3V2ppwF4609khiWr8j5g9FObZKu', 'Admin Farmacia','DNI','74510635', '985632569', 1, true, NOW(), 'farmacia-001'),
+--                                                                                             ('vendedor@farmacia.com', '$2a$10$/tPqlp3qm0DHuCA94ynqK.JDefr0pnodFTk.HtF19hN.39iaRYQQ6', 'Vendedor Principal','DNI','74510101', '954532002', 2, true, NOW(), 'farmacia-001'),
+--                                                                                             ('gestor@farmacia.com', '$2a$10$0x5YA6SF6aHOLbfG8dsUDe97dTS1d4Xt2/Ne8C.g3dzs6JHGouTOi', 'Gestor Inventario','DNI','72063259', '965410269', 3, true, NOW(), 'farmacia-001'),
+--                                                                                             ('gerente@farmacia.com', '$2a$10$mRFCU9orVZ5B36VIJ.OeG.28hrUK1B7ylh2W1ynOzuzrexETlOqoW', 'Gerente Farmacia','DNI','45310597', '941205059', 4, true, NOW(), 'farmacia-001')
 --     ON CONFLICT (email) DO NOTHING;
 --
 -- -- Insertar Proveedores
@@ -56,17 +56,61 @@ INSERT INTO unidad_medida (nombre, abreviatura, tenant_id, es_default) VALUES
 --                                                                                                                                                                                                            ('Atorvastatina 10mg', '7501234567897', 'Cardiovasculares', 45, 10, 300, 6.00, 14.99, 'L33333', '2025-09-05',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  3, true, 'farmacia-001', NOW())
 --     ON CONFLICT (codigo_barras) DO NOTHING;
 --
--- -- Insertar Permisos
--- INSERT INTO permisos (nombre, descripcion, rol_id, created_at) VALUES
---                                                                    ('CREAR_PRODUCTO', 'Permiso para crear productos', 1, NOW()),
---                                                                    ('EDITAR_PRODUCTO', 'Permiso para editar productos', 1, NOW()),
---                                                                    ('ELIMINAR_PRODUCTO', 'Permiso para eliminar productos', 1, NOW()),
---                                                                    ('VER_REPORTES', 'Permiso para ver reportes', 1, NOW()),
---                                                                    ('CREAR_VENTA', 'Permiso para crear ventas', 2, NOW()),
---                                                                    ('VER_INVENTARIO', 'Permiso para ver inventario', 3, NOW()),
---                                                                    ('GESTIONAR_USUARIOS', 'Permiso para gestionar usuarios', 1, NOW()),
---                                                                    ('VER_VENTAS', 'Permiso para ver ventas', 4, NOW())
---     ON CONFLICT (nombre) DO NOTHING;
+-- Insertar Permisos
+INSERT INTO permisos (nombre, descripcion, created_at) VALUES
+
+-- VER
+('VER_REPORTES', 'Permiso para ver reportes', NOW()),
+('VER_INVENTARIO', 'Permiso para ver inventario', NOW()),
+('VER_VENTAS', 'Permiso para ver ventas', NOW()),
+('VER_SUSCRIPCIONES', 'Permiso para ver suscripciones', NOW()),
+('VER_MIS_VENTAS', 'Permiso para ver sus propias ventas', NOW()),
+('VER_DASHBOARD', 'Permiso para ver el dashboard', NOW()),
+('VER_PROVEEDORES', 'Permiso para listar proveedores', NOW()),
+('VER_PRODUCTOS', 'Permiso para listar productos', NOW()),
+('VER_DETALLE_VENTA', 'Permiso para ver el detalle de una venta', NOW()),
+('VER_DETALLE_INVENTARIO', 'Permiso para ver el detalle de un movimiento de inventario', NOW()),
+('VER_USUARIOS', 'Permiso para listar usuarios', NOW()),
+('VER_PERMISOS', 'Permiso para consultar el catálogo de permisos', NOW()),
+('VER_FACTURACION', 'Permiso para acceder al módulo de facturación', NOW()),
+('VER_COMPROBANTE', 'Permiso para ver el detalle de un comprobante', NOW()),
+('VER_OC', 'Permiso para listar órdenes de compra', NOW()),
+('VER_RECEPCIONES', 'Permiso para listar recepciones de mercadería', NOW()),
+
+-- CREAR
+('CREAR_PRODUCTO', 'Permiso para crear productos', NOW()),
+('CREAR_VENTA', 'Permiso para crear ventas', NOW()),
+('CREAR_INVENTARIO', 'Permiso para crear movimientos de inventario', NOW()),
+('CREAR_PROVEEDOR', 'Permiso para crear proveedores', NOW()),
+('CREAR_USUARIO', 'Permiso para crear usuarios', NOW()),
+('CREAR_SUSCRIPCION', 'Permiso para crear suscripciones', NOW()),
+('CREAR_OC', 'Permiso para crear órdenes de compra', NOW()),
+('CREAR_RECEPCION', 'Permiso para crear recepciones de mercadería', NOW()),
+
+-- EDITAR
+('EDITAR_PRODUCTO', 'Permiso para editar productos', NOW()),
+('EDITAR_PROVEEDOR', 'Permiso para editar proveedores', NOW()),
+('EDITAR_USUARIO', 'Permiso para editar usuarios', NOW()),
+('EDITAR_SUSCRIPCION', 'Permiso para editar suscripciones', NOW()),
+('EDITAR_OC', 'Permiso para editar órdenes de compra', NOW()),
+
+-- ELIMINAR
+('ELIMINAR_PRODUCTO', 'Permiso para eliminar productos', NOW()),
+('ELIMINAR_INVENTARIO', 'Permiso para eliminar movimientos de inventario', NOW()),
+('ELIMINAR_VENTA', 'Permiso para eliminar ventas', NOW()),
+('ELIMINAR_PROVEEDOR', 'Permiso para eliminar proveedores', NOW()),
+('ELIMINAR_USUARIO', 'Permiso para eliminar usuarios', NOW()),
+('ELIMINAR_SUSCRIPCION', 'Permiso para eliminar suscripciones', NOW()),
+
+-- CAMBIAR_ESTADO
+('CAMBIAR_ESTADO_USUARIO', 'Permiso para activar/desactivar usuarios', NOW()),
+('CAMBIAR_ESTADO_PROVEEDOR', 'Permiso para activar/desactivar proveedores', NOW()),
+('CAMBIAR_ESTADO_SUSCRIPCION', 'Permiso para activar/cancelar suscripciones', NOW()),
+
+-- OTROS
+('EMITIR_COMPROBANTE', 'Permiso para emitir comprobantes (boleta/factura)', NOW()),
+('ANULAR_COMPROBANTE', 'Permiso para anular comprobantes emitidos', NOW()),
+('CONFIRMAR_RECEPCION', 'Permiso para confirmar recepciones (impacta inventario)', NOW());
 --
 -- -- Insertar Suscripción para usuario admin (ACTIVA)
 -- INSERT INTO suscripciones (usuario_principal_id, plan_id, precio_mensual, preapproval_id, estado, fecha_inicio, metodo_pago, ultimos_4_digitos, tenant_id, created_at) VALUES

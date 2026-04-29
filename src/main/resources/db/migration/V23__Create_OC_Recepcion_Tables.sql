@@ -69,11 +69,11 @@ CREATE INDEX idx_recd_recepcion ON recepcion_detalle (recepcion_id);
 CREATE INDEX idx_recd_producto  ON recepcion_detalle (producto_id);
 
 -- ── 5. New permission codes ───────────────────────────────────────────────────
-INSERT INTO permisos (nombre, descripcion, created_at) VALUES
-    ('VER_OC',              'Permiso para listar órdenes de compra',            NOW()),
-    ('CREAR_OC',            'Permiso para crear órdenes de compra',             NOW()),
-    ('EDITAR_OC',           'Permiso para editar órdenes de compra',            NOW()),
-    ('VER_RECEPCIONES',     'Permiso para listar recepciones de mercadería',    NOW()),
-    ('CREAR_RECEPCION',     'Permiso para crear recepciones de mercadería',     NOW()),
-    ('CONFIRMAR_RECEPCION', 'Permiso para confirmar recepciones (impacta inventario)', NOW())
-ON CONFLICT (nombre) DO NOTHING;
+-- INSERT INTO permisos (nombre, descripcion, created_at) VALUES
+--     ('VER_OC',              'Permiso para listar órdenes de compra',            NOW()),
+--     ('CREAR_OC',            'Permiso para crear órdenes de compra',             NOW()),
+--     ('EDITAR_OC',           'Permiso para editar órdenes de compra',            NOW()),
+--     ('VER_RECEPCIONES',     'Permiso para listar recepciones de mercadería',    NOW()),
+--     ('CREAR_RECEPCION',     'Permiso para crear recepciones de mercadería',     NOW()),
+--     ('CONFIRMAR_RECEPCION', 'Permiso para confirmar recepciones (impacta inventario)', NOW())
+-- ON CONFLICT (nombre) DO NOTHING;

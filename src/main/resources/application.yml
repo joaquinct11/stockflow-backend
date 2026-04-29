@@ -71,3 +71,7 @@ mercadopago:
   failure-url: ${MERCADOPAGO_FAILURE_URL:https://fluxus-uat.vercel.app/dashboard/checkout/failure}
   pending-url: ${MERCADOPAGO_PENDING_URL:https://fluxus-uat.vercel.app/dashboard/checkout/pending}
   test-payer-email: ${MERCADOPAGO_TEST_PAYER_EMAIL:test_user_9076553453484756485@testuser.com}
+
+webhook:
+  max-retries: 3
+  retry-delay-seconds: 5

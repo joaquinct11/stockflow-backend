@@ -5,9 +5,11 @@ import com.stockflow.dto.SuscripcionCheckoutResponseDTO;
 import com.stockflow.dto.SuscripcionEstadoResponseDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
+import com.stockflow.entity.WebhookLog;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.SuscripcionRepository;
+import com.stockflow.repository.WebhookLogRepository;
 import com.stockflow.service.MercadoPagoService;
 import com.stockflow.service.SuscripcionCheckoutService;
 import com.stockflow.service.UsuarioService;
@@ -30,11 +32,17 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
     private final SuscripcionRepository suscripcionRepository;
     private final UsuarioService usuarioService;
     private final MercadoPagoService mercadoPagoService;
+    private final WebhookLogRepository webhookLogRepository; // NUEVO
 
     @Override
     @Transactional
     public SuscripcionCheckoutResponseDTO iniciarCheckout(String planId, String tenantId, Long usuarioId,
                                                           String payerIdentificationType, String payerIdentificationNumber) {
+        // Validar que el plan sea válido
+        if (!"BASICO".equals(planId) && !"PRO".equals(planId)) {
+            throw new BadRequestException("Plan inválido. Solo se permiten: BASICO, PRO");
+        }
+
         BigDecimal precioPlan = obtenerPrecioPlanPagado(planId);
         Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
@@ -43,39 +51,61 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
             throw new BadRequestException("Usuario no pertenece al tenant actual");
         }
 
-        // Persistir identificación si se envió en este request
+        // Validar que el usuario no tenga una suscripción activa de otro plan
+        Optional<Suscripcion> suscripcionExistente = suscripcionRepository
+                .findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
+
+        if (suscripcionExistente.isPresent() &&
+                "ACTIVA".equals(suscripcionExistente.get().getEstado()) &&
+                !planId.equals(suscripcionExistente.get().getPlanId())) {
+            throw new BadRequestException(
+                    "Ya tiene una suscripción activa. Cancele primero su plan actual.");
+        }
+
+        // Persistir identificación si se envió
         boolean tieneIdentificacion = payerIdentificationType != null && !payerIdentificationType.isBlank()
                 && payerIdentificationNumber != null && !payerIdentificationNumber.isBlank();
+
         if (tieneIdentificacion) {
+            // Validar formato de documento
+            validarDocumento(payerIdentificationType, payerIdentificationNumber);
+
             usuario.setTipoDocumento(payerIdentificationType);
             usuario.setNumeroDocumento(payerIdentificationNumber);
             usuarioService.guardarUsuario(usuario);
-            log.info("💾 Identificación del pagador actualizada para usuario={}: tipo={}", usuarioId, payerIdentificationType);
+            log.info("💾 Identificación actualizada para usuario={}: tipo={}", usuarioId, payerIdentificationType);
         }
 
-        // Leer la identificación desde la entidad (que ya tiene el valor actualizado o el guardado previamente)
         String tipoDoc = usuario.getTipoDocumento();
         String numDoc  = usuario.getNumeroDocumento();
 
         String externalReference = tenantId + ":" + usuarioId;
-        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.crearPreapproval(
-                planId, precioPlan, externalReference, usuario.getEmail(), tipoDoc, numDoc);
 
-        Suscripcion suscripcion = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId)
-                .orElseGet(() -> Suscripcion.builder()
-                        .usuarioPrincipal(usuario)
-                        .tenantId(tenantId)
-                        .build());
+        MercadoPagoPreapprovalInfo preapproval;
+        try {
+            preapproval = mercadoPagoService.crearPreapproval(
+                    planId, precioPlan, externalReference, usuario.getEmail(), tipoDoc, numDoc);
+        } catch (Exception e) {
+            log.error("❌ Error creando preapproval en MP para tenant={}, usuario={}", tenantId, usuarioId, e);
+            throw new BadRequestException("No se pudo iniciar el checkout. Intente nuevamente.");
+        }
+
+        Suscripcion suscripcion = suscripcionExistente.orElseGet(() -> Suscripcion.builder()
+                .usuarioPrincipal(usuario)
+                .tenantId(tenantId)
+                .build());
 
         suscripcion.setPlanId(planId);
         suscripcion.setPrecioMensual(precioPlan);
         suscripcion.setMetodoPago("MERCADOPAGO");
         suscripcion.setEstado("PENDIENTE");
         suscripcion.setPreapprovalId(preapproval.getPreapprovalId());
+//        suscripcion.setFechaUltimaActualizacion(LocalDateTime.now()); // NUEVO
 
         suscripcionRepository.save(suscripcion);
 
-        log.info("✅ Preapproval creado para tenant={}, usuario={}, preapprovalId={}", tenantId, usuarioId, preapproval.getPreapprovalId());
+        log.info("✅ Preapproval creado para tenant={}, usuario={}, preapprovalId={}",
+                tenantId, usuarioId, preapproval.getPreapprovalId());
 
         return SuscripcionCheckoutResponseDTO.builder()
                 .initPoint(preapproval.getInitPoint())
@@ -86,22 +116,177 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
     @Override
     @Transactional
     public void procesarWebhook(MercadoPagoWebhookRequestDTO webhookRequestDTO) {
-        if (webhookRequestDTO == null || webhookRequestDTO.getData() == null || webhookRequestDTO.getData().getId() == null) {
-            log.info("ℹ️ Webhook Mercado Pago ignorado por payload incompleto");
+        if (webhookRequestDTO == null || webhookRequestDTO.getData() == null ||
+                webhookRequestDTO.getData().getId() == null) {
+            log.info("ℹ️ Webhook MP ignorado por payload incompleto");
             return;
         }
 
-        String tipo = webhookRequestDTO.getType() != null ? webhookRequestDTO.getType() : webhookRequestDTO.getTopic();
+        String webhookId = webhookRequestDTO.getData().getId();
+        String tipo = webhookRequestDTO.getType() != null ?
+                webhookRequestDTO.getType() : webhookRequestDTO.getTopic();
 
-        if ("subscription_preapproval".equalsIgnoreCase(tipo) || "preapproval".equalsIgnoreCase(webhookRequestDTO.getEntity())) {
-            procesarWebhookPreapproval(webhookRequestDTO.getData().getId());
-        } else if ("subscription_authorized_payment".equalsIgnoreCase(tipo)) {
-            procesarWebhookAuthorizedPayment(webhookRequestDTO.getData().getId());
-        } else if ("payment".equalsIgnoreCase(tipo)) {
-            procesarWebhookPago(webhookRequestDTO.getData().getId());
-        } else {
-            log.info("ℹ️ Webhook ignorado (tipo no soportado): {}", tipo);
+        // IDEMPOTENCIA: Verificar si ya procesamos este webhook
+        if (webhookYaProcesado(webhookId, tipo)) {
+            log.info("ℹ️ Webhook {} tipo {} ya fue procesado anteriormente", webhookId, tipo);
+            return;
         }
+
+        // Registrar webhook
+        registrarWebhook(webhookId, tipo, "PROCESANDO");
+
+        try {
+            if ("subscription_preapproval".equalsIgnoreCase(tipo) ||
+                    "preapproval".equalsIgnoreCase(webhookRequestDTO.getEntity())) {
+                procesarWebhookPreapproval(webhookId);
+            } else if ("subscription_authorized_payment".equalsIgnoreCase(tipo)) {
+                procesarWebhookAuthorizedPayment(webhookId);
+            } else if ("payment".equalsIgnoreCase(tipo)) {
+                procesarWebhookPago(webhookId);
+            } else {
+                log.info("ℹ️ Webhook ignorado (tipo no soportado): {}", tipo);
+                registrarWebhook(webhookId, tipo, "IGNORADO");
+                return;
+            }
+
+            // Marcar como procesado exitosamente
+            actualizarEstadoWebhook(webhookId, tipo, "PROCESADO");
+
+        } catch (Exception e) {
+            log.error("❌ Error procesando webhook {} tipo {}", webhookId, tipo, e);
+            actualizarEstadoWebhook(webhookId, tipo, "ERROR");
+            throw e; // Re-lanzar para que MP reintente
+        }
+    }
+
+    // NUEVO: Validar documento
+    private void validarDocumento(String tipo, String numero) {
+        if (numero == null || numero.isBlank()) {
+            throw new BadRequestException("Número de documento es requerido");
+        }
+
+        switch (tipo) {
+            case "DNI":
+                if (!numero.matches("\\d{8}")) {
+                    throw new BadRequestException("DNI debe tener 8 dígitos");
+                }
+                break;
+            case "CE":
+                if (!numero.matches("\\d{9}")) {
+                    throw new BadRequestException("Carnet de Extranjería debe tener 9 dígitos");
+                }
+                break;
+            case "RUC":
+                if (!numero.matches("\\d{11}")) {
+                    throw new BadRequestException("RUC debe tener 11 dígitos");
+                }
+                break;
+            default:
+                // Otros tipos: permitir formato flexible
+                if (numero.length() < 6 || numero.length() > 20) {
+                    throw new BadRequestException("Documento debe tener entre 6 y 20 caracteres");
+                }
+        }
+    }
+
+    @Override
+    @Transactional
+    public void cancelarSuscripcion(Long suscripcionId) {
+        Suscripcion suscripcion = suscripcionRepository.findById(suscripcionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
+
+        if ("CANCELADA".equals(suscripcion.getEstado())) {
+            throw new BadRequestException("La suscripción ya está cancelada");
+        }
+
+        cancelarPreapprovalEnMP(suscripcion);
+
+        suscripcion.setEstado("CANCELADA");
+        suscripcion.setFechaCancelacion(LocalDateTime.now());
+        suscripcionRepository.save(suscripcion);
+        log.info("✅ Suscripción {} cancelada para tenant={}", suscripcionId, suscripcion.getTenantId());
+    }
+
+    @Override
+    @Transactional
+    public SuscripcionEstadoResponseDTO sincronizarDesdeMP(String tenantId, Long usuarioId) {
+        Suscripcion suscripcion = suscripcionRepository
+                .findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe suscripción para este usuario"));
+
+        if (suscripcion.getPreapprovalId() == null || suscripcion.getPreapprovalId().isBlank()) {
+            throw new BadRequestException("La suscripción no tiene preapproval_id para sincronizar");
+        }
+
+        MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.obtenerPreapproval(suscripcion.getPreapprovalId());
+        String nuevoEstado = mapearEstadoPreapproval(preapproval.getStatus());
+
+        suscripcion.setEstado(nuevoEstado);
+        if ("ACTIVA".equals(nuevoEstado)) {
+            LocalDateTime now = LocalDateTime.now();
+            suscripcion.setCurrentPeriodStart(now);
+            suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
+            if (suscripcion.getFechaInicio() == null) {
+                suscripcion.setFechaInicio(now);
+            }
+            suscripcion.setFechaProximoCobro(now.plusMonths(1));
+        } else if ("CANCELADA".equals(nuevoEstado) && suscripcion.getFechaCancelacion() == null) {
+            suscripcion.setFechaCancelacion(LocalDateTime.now());
+        }
+
+        suscripcionRepository.save(suscripcion);
+        log.info("🔄 Suscripción sincronizada desde MP para tenant={}, usuario={}: estado MP={} → local={}",
+                tenantId, usuarioId, preapproval.getStatus(), nuevoEstado);
+
+        return SuscripcionEstadoResponseDTO.builder()
+                .estado(suscripcion.getEstado())
+                .planId(suscripcion.getPlanId())
+                .preapprovalId(suscripcion.getPreapprovalId())
+                .mpPaymentId(suscripcion.getMpPaymentId())
+                .fechaProximoCobro(suscripcion.getFechaProximoCobro())
+                .build();
+    }
+
+    private void cancelarPreapprovalEnMP(Suscripcion suscripcion) {
+        if (suscripcion.getPreapprovalId() == null || suscripcion.getPreapprovalId().isBlank()) {
+            return;
+        }
+        try {
+            mercadoPagoService.cancelarPreapproval(suscripcion.getPreapprovalId());
+            log.info("✅ Preapproval {} cancelado en MP", suscripcion.getPreapprovalId());
+        } catch (Exception e) {
+            log.error("❌ Error cancelando preapproval {} en MP (cancelación local se aplica igual)",
+                    suscripcion.getPreapprovalId(), e);
+        }
+    }
+
+    private boolean webhookYaProcesado(String webhookId, String tipo) {
+        return webhookLogRepository.findByWebhookIdAndTipo(webhookId, tipo)
+                .map(wl -> "PROCESADO".equals(wl.getEstado()))
+                .orElse(false);
+    }
+
+    private void registrarWebhook(String webhookId, String tipo, String estado) {
+        WebhookLog webhookLog = webhookLogRepository.findByWebhookIdAndTipo(webhookId, tipo)
+                .orElseGet(() -> WebhookLog.builder()
+                        .webhookId(webhookId)
+                        .tipo(tipo)
+                        .build());
+        webhookLog.setEstado(estado);
+        webhookLog.setFechaProcesamiento(LocalDateTime.now());
+        webhookLogRepository.save(webhookLog);
+    }
+
+    private void actualizarEstadoWebhook(String webhookId, String tipo, String estado) {
+        registrarWebhook(webhookId, tipo, estado);
+    }
+
+    BigDecimal obtenerPrecioPlanPagado(String planId) {
+        return switch (planId) {
+            case "BASICO" -> new BigDecimal("49.99");
+            case "PRO" -> new BigDecimal("99.99");
+            default -> throw new BadRequestException("Solo se permite checkout para planes pagos: BASICO o PRO");
+        };
     }
 
     private void procesarWebhookPreapproval(String preapprovalId) {
@@ -241,14 +426,6 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
             case "paused" -> "SUSPENDIDA";
             case "cancelled" -> "CANCELADA";
             default -> "PENDIENTE";
-        };
-    }
-
-    BigDecimal obtenerPrecioPlanPagado(String planId) {
-        return switch (planId) {
-            case "BASICO" -> new BigDecimal("49.99");
-            case "PRO" -> new BigDecimal("99.99");
-            default -> throw new BadRequestException("Solo se permite checkout para planes pagos: BASICO o PRO");
         };
     }
 

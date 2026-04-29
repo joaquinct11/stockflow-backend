@@ -121,12 +121,10 @@ public class SuscripcionController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
     public ResponseEntity<SuscripcionDTO> cancelar(@PathVariable Long id) {
         log.info("🗑️ Cancelando suscripción ID: {}", id);
+        suscripcionCheckoutService.cancelarSuscripcion(id);
         return suscripcionService.obtenerSuscripcionPorId(id)
-                .map(suscripcion -> {
-                    suscripcion.setEstado("CANCELADA");
-                    Suscripcion suscripcionActualizada = suscripcionService.actualizarSuscripcion(id, suscripcion);
-                    return ResponseEntity.ok(suscripcionMapper.toDTO(suscripcionActualizada));
-                })
+                .map(suscripcionMapper::toDTO)
+                .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
     }
 
@@ -169,5 +167,14 @@ public class SuscripcionController {
         Long usuarioId = TenantContext.getCurrentUserId();
         log.info("📊 Consultando estado de suscripción para tenant {}, usuario {}", tenantId, usuarioId);
         return ResponseEntity.ok(suscripcionCheckoutService.obtenerEstadoSuscripcion(tenantId, usuarioId));
+    }
+
+    @PostMapping("/sincronizar")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<SuscripcionEstadoResponseDTO> sincronizar() {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long usuarioId = TenantContext.getCurrentUserId();
+        log.info("🔄 Sincronizando estado desde Mercado Pago para tenant {}, usuario {}", tenantId, usuarioId);
+        return ResponseEntity.ok(suscripcionCheckoutService.sincronizarDesdeMP(tenantId, usuarioId));
     }
 }

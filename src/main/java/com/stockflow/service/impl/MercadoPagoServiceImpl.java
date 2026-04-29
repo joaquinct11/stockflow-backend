@@ -348,6 +348,35 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         return responseBody;
     }
 
+    @Override
+    public void cancelarPreapproval(String preapprovalId) {
+        validarConfiguracion();
+
+        try {
+            Map<String, Object> payload = Map.of("status", "cancelled");
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/preapproval/" + preapprovalId))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .header("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP PUT /preapproval/{}: status={}", preapprovalId, response.statusCode());
+
+            if (response.statusCode() >= 400) {
+                log.error("❌ Error cancelando preapproval {}. status={}, body={}", preapprovalId, response.statusCode(), response.body());
+                throw new BadRequestException("No se pudo cancelar la suscripción en Mercado Pago. status=" + response.statusCode());
+            }
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("❌ Error cancelando preapproval {} en Mercado Pago", preapprovalId, ex);
+            throw new BadRequestException("No se pudo cancelar la suscripción en Mercado Pago", ex);
+        }
+    }
+
     private boolean hasAnyBackUrl() {
         return (mercadoPagoProperties.getSuccessUrl() != null && !mercadoPagoProperties.getSuccessUrl().isBlank())
                 || (mercadoPagoProperties.getFailureUrl() != null && !mercadoPagoProperties.getFailureUrl().isBlank())

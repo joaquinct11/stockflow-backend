@@ -24,10 +24,18 @@ public interface SuscripcionCheckoutService {
     /**
      * Retorna el estado actual de suscripción para un tenant/usuario.
      * Nunca lanza excepción por ausencia de suscripción: en ese caso retorna estado "SIN_SUSCRIPCION".
-     *
-     * @param tenantId  tenant del usuario autenticado
-     * @param usuarioId ID del usuario autenticado
-     * @return DTO con estado, planId, preapprovalId, mpPaymentId y fechaProximoCobro
      */
     SuscripcionEstadoResponseDTO obtenerEstadoSuscripcion(String tenantId, Long usuarioId);
+
+    /**
+     * Cancela una suscripción localmente y en Mercado Pago si tiene preapproval_id.
+     * Si la cancelación en MP falla, se registra el error pero la cancelación local se aplica igual.
+     */
+    void cancelarSuscripcion(Long suscripcionId);
+
+    /**
+     * Consulta el estado actual del preapproval directamente en Mercado Pago
+     * y sincroniza el estado local. Útil en la pantalla de retorno tras el pago.
+     */
+    SuscripcionEstadoResponseDTO sincronizarDesdeMP(String tenantId, Long usuarioId);
 }
