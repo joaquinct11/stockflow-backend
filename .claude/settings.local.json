@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git commit -m ' *)",
       "Bash(curl -s -X POST -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/joaquinct11/stockflow-backend/pulls)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

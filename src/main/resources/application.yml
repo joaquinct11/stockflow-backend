@@ -43,6 +43,7 @@ cors:
     - http://localhost:5173
     - http://localhost:3000
     - http://127.0.0.1:5173
+    - https://fluxus-uat.vercel.app
 
 # Logging
 logging:
@@ -67,9 +68,9 @@ mercadopago:
   currency-id: ${MERCADOPAGO_CURRENCY_ID:PEN}
   checkout-base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
   notification-url: ${MERCADOPAGO_NOTIFICATION_URL:https://dislike-curing-sprout.ngrok-free.dev/api/webhooks/mercadopago}
-  success-url: ${MERCADOPAGO_SUCCESS_URL:https://fluxus-uat.vercel.app/dashboard/checkout/success}
-  failure-url: ${MERCADOPAGO_FAILURE_URL:https://fluxus-uat.vercel.app/dashboard/checkout/failure}
-  pending-url: ${MERCADOPAGO_PENDING_URL:https://fluxus-uat.vercel.app/dashboard/checkout/pending}
+  success-url: ${MERCADOPAGO_SUCCESS_URL:https://fluxus-uat.vercel.app/checkout/success}
+  failure-url: ${MERCADOPAGO_FAILURE_URL:https://fluxus-uat.vercel.app/checkout/failure}
+  pending-url: ${MERCADOPAGO_PENDING_URL:https://fluxus-uat.vercel.app/checkout/pending}
   test-payer-email: ${MERCADOPAGO_TEST_PAYER_EMAIL:test_user_9076553453484756485@testuser.com}
 
 webhook:
