@@ -151,6 +151,10 @@ public class RecepcionServiceImpl implements RecepcionService {
             }
         }
 
+        log.debug("📥 upsertItem recepcionId={} productoId={} qty={} fecha={} lote={}",
+                recepcionId, request.getProductoId(), request.getCantidadRecibida(),
+                request.getFechaVencimiento(), request.getLote());
+
         // Upsert
         RecepcionDetalle detalle = detalleRepository
                 .findByRecepcionIdAndProductoId(recepcionId, request.getProductoId())
@@ -161,6 +165,7 @@ public class RecepcionServiceImpl implements RecepcionService {
 
         detalle.setCantidadRecibida(request.getCantidadRecibida());
         detalle.setFechaVencimiento(request.getFechaVencimiento());
+        detalle.setLote(request.getLote());
         RecepcionDetalle saved = detalleRepository.save(detalle);
 
         return toDetalleResponseDTO(saved);
@@ -222,6 +227,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                     .tenantId(recepcion.getTenantId())
                     .proveedorId(recepcion.getProveedor().getId())
                     .fechaVencimiento(detalle.getFechaVencimiento())
+                    .lote(detalle.getLote())
                     .build();
 
             movimientoRepository.save(mov);
@@ -288,6 +294,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .productoNombre(d.getProducto().getNombre())
                 .cantidadRecibida(d.getCantidadRecibida())
                 .fechaVencimiento(d.getFechaVencimiento())
+                .lote(d.getLote())
                 .build();
     }
 }

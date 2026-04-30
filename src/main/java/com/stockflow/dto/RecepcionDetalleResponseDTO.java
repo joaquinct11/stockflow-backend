@@ -18,4 +18,5 @@ public class RecepcionDetalleResponseDTO {
     private String productoNombre;
     private Integer cantidadRecibida;
     private LocalDate fechaVencimiento;
+    private String lote;
 }

@@ -34,6 +34,11 @@ public interface SuscripcionCheckoutService {
     void cancelarSuscripcion(Long suscripcionId);
 
     /**
+     * Cancela la suscripción activa del usuario autenticado (identificado por tenantId + usuarioId).
+     */
+    void cancelarMiSuscripcion(String tenantId, Long usuarioId);
+
+    /**
      * Consulta el estado actual del preapproval directamente en Mercado Pago
      * y sincroniza el estado local. Útil en la pantalla de retorno tras el pago.
      */

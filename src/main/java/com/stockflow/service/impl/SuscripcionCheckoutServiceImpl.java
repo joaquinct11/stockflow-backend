@@ -214,6 +214,25 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
     @Override
     @Transactional
+    public void cancelarMiSuscripcion(String tenantId, Long usuarioId) {
+        Suscripcion suscripcion = suscripcionRepository
+                .findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("No existe suscripción para este usuario"));
+
+        if ("CANCELADA".equals(suscripcion.getEstado())) {
+            throw new BadRequestException("La suscripción ya está cancelada");
+        }
+
+        cancelarPreapprovalEnMP(suscripcion);
+
+        suscripcion.setEstado("CANCELADA");
+        suscripcion.setFechaCancelacion(LocalDateTime.now());
+        suscripcionRepository.save(suscripcion);
+        log.info("✅ Suscripción cancelada para tenant={}, usuario={}", tenantId, usuarioId);
+    }
+
+    @Override
+    @Transactional
     public SuscripcionEstadoResponseDTO sincronizarDesdeMP(String tenantId, Long usuarioId) {
         Suscripcion suscripcion = suscripcionRepository
                 .findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId)

@@ -33,4 +33,7 @@ public class RecepcionDetalle {
 
     @Column(name = "fecha_vencimiento")
     private LocalDate fechaVencimiento;
+
+    @Column(length = 100)
+    private String lote;
 }

@@ -128,6 +128,16 @@ public class SuscripcionController {
                 .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
     }
 
+    @PatchMapping("/cancelar")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
+    public ResponseEntity<Void> cancelarMiSuscripcion() {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long usuarioId = TenantContext.getCurrentUserId();
+        log.info("🗑️ Cancelando suscripción para tenant={}, usuario={}", tenantId, usuarioId);
+        suscripcionCheckoutService.cancelarMiSuscripcion(tenantId, usuarioId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/{id}/activar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
     public ResponseEntity<SuscripcionDTO> activar(@PathVariable Long id) {

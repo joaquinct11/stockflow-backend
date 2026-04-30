@@ -1,5 +1,6 @@
 package com.stockflow.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -22,5 +23,8 @@ public class RecepcionDetalleRequestDTO {
     @Min(value = 1, message = "La cantidad debe ser mayor a 0")
     private Integer cantidadRecibida;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate fechaVencimiento;
+
+    private String lote;
 }
