@@ -7,7 +7,7 @@ spring:
     name: StockFlow
 
   jpa:
-    show-sql: true
+    show-sql: false
     hibernate:
       ddl-auto: validate
     properties:

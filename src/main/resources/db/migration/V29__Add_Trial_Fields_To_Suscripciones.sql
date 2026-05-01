@@ -1,0 +1,3 @@
+ALTER TABLE suscripciones
+    ADD COLUMN IF NOT EXISTS trial_end_date TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS en_periodo_prueba BOOLEAN NOT NULL DEFAULT FALSE;

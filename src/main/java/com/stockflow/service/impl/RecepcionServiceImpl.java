@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -53,7 +54,7 @@ public class RecepcionServiceImpl implements RecepcionService {
     public RecepcionResponseDTO crearRecepcion(RecepcionRequestDTO request,
                                                Long usuarioReceptorId,
                                                String tenantId) {
-        OrdenCompra oc = null;
+        OrdenCompra oc;
         Proveedor proveedor;
 
         if (request.getOcId() != null) {
@@ -62,8 +63,15 @@ public class RecepcionServiceImpl implements RecepcionService {
             if ("CANCELADA".equals(oc.getEstado())) {
                 throw new BadRequestException("No se puede recepcionar una OC cancelada");
             }
+            if ("BORRADOR".equals(oc.getEstado())) {
+                throw new BadRequestException("La OC debe ser enviada antes de recepcionar");
+            }
+            if ("RECIBIDA".equals(oc.getEstado())) {
+                throw new BadRequestException("Esta OC ya fue recibida completamente");
+            }
             proveedor = oc.getProveedor();
         } else {
+            oc = null;
             if (request.getProveedorId() == null) {
                 throw new BadRequestException("Se requiere proveedorId cuando no se indica ocId");
             }
@@ -89,11 +97,17 @@ public class RecepcionServiceImpl implements RecepcionService {
             List<OrdenCompraDetalle> ocDetalles = ocDetalleRepository.findByOrdenCompraId(oc.getId());
 
             List<RecepcionDetalle> detalles = ocDetalles.stream()
-                    .map(ocDet -> RecepcionDetalle.builder()
-                            .recepcion(saved)
-                            .producto(ocDet.getProducto())
-                            .cantidadRecibida(ocDet.getCantidadSolicitada()) // inicia en 0; luego el usuario actualiza en Recepciones
-                            .build())
+                    .map(ocDet -> {
+                        int yaRecibido = ocDetalleRepository.totalRecibidoPorOcYProducto(
+                                oc.getId(), ocDet.getProducto().getId());
+                        int pendiente = Math.max(0, ocDet.getCantidadSolicitada() - yaRecibido);
+                        return RecepcionDetalle.builder()
+                                .recepcion(saved)
+                                .producto(ocDet.getProducto())
+                                .cantidadEsperada(pendiente)
+                                .cantidadRecibida(0)
+                                .build();
+                    })
                     .toList();
 
             detalleRepository.saveAll(detalles);
@@ -150,10 +164,6 @@ public class RecepcionServiceImpl implements RecepcionService {
                         "Cantidad excede lo pendiente (" + pendiente + ") para este producto en la OC");
             }
         }
-
-        log.debug("📥 upsertItem recepcionId={} productoId={} qty={} fecha={} lote={}",
-                recepcionId, request.getProductoId(), request.getCantidadRecibida(),
-                request.getFechaVencimiento(), request.getLote());
 
         // Upsert
         RecepcionDetalle detalle = detalleRepository
@@ -214,8 +224,21 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         // Generate inventory movements and update product stock
+        List<OrdenCompraDetalle> ocDetalles = recepcion.getOrdenCompra() != null
+                ? ocDetalleRepository.findByOrdenCompraId(recepcion.getOrdenCompra().getId())
+                : List.of();
+
         for (RecepcionDetalle detalle : detalles) {
+            if (detalle.getCantidadRecibida() == null || detalle.getCantidadRecibida() <= 0) continue;
+
             Producto producto = detalle.getProducto();
+
+            BigDecimal costoUnitario = ocDetalles.stream()
+                    .filter(d -> d.getProducto().getId().equals(producto.getId()))
+                    .map(OrdenCompraDetalle::getPrecioUnitario)
+                    .filter(p -> p != null)
+                    .findFirst()
+                    .orElse(producto.getCostoUnitario());
 
             MovimientoInventario mov = MovimientoInventario.builder()
                     .producto(producto)
@@ -228,6 +251,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                     .proveedorId(recepcion.getProveedor().getId())
                     .fechaVencimiento(detalle.getFechaVencimiento())
                     .lote(detalle.getLote())
+                    .costoUnitario(costoUnitario)
                     .build();
 
             movimientoRepository.save(mov);
@@ -292,6 +316,8 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .id(d.getId())
                 .productoId(d.getProducto().getId())
                 .productoNombre(d.getProducto().getNombre())
+                .codigoBarras(d.getProducto().getCodigoBarras())
+                .cantidadEsperada(d.getCantidadEsperada())
                 .cantidadRecibida(d.getCantidadRecibida())
                 .fechaVencimiento(d.getFechaVencimiento())
                 .lote(d.getLote())

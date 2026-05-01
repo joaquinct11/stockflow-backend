@@ -39,7 +39,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             Map<String, Object> payload = new HashMap<>();
             payload.put("items", List.of(
                     Map.of(
-                            "title", "StockFlow Plan " + planId,
+                            "title", "Fluxus Plan " + planId,
                             "quantity", 1,
                             "currency_id", mercadoPagoProperties.getCurrencyId(),
                             "unit_price", precioMensual
@@ -253,7 +253,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         autoRecurring.put("currency_id", mercadoPagoProperties.getCurrencyId());
 
         Map<String, Object> payload = new HashMap<>();
-        payload.put("reason", "StockFlow Plan " + planId);
+        payload.put("reason", "Fluxus Plan " + planId);
         payload.put("auto_recurring", autoRecurring);
         payload.put("external_reference", externalReference);
         payload.put("notification_url", mercadoPagoProperties.getNotificationUrl());

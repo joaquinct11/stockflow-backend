@@ -88,6 +88,19 @@ public class AuthServiceImpl implements AuthService {
         Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorUsuario(usuario.getId())
                 .orElse(null);
 
+        // Si el trial venció, pasar a PENDIENTE para que el usuario pague
+        if (suscripcion != null) {
+            log.info("🔍 Suscripción encontrada — estado={} trialEnd={} ahora={}",
+                    suscripcion.getEstado(), suscripcion.getTrialEndDate(), LocalDateTime.now());
+        }
+        if (suscripcion != null
+                && "TRIAL".equals(suscripcion.getEstado())
+                && suscripcion.getTrialEndDate() != null
+                && LocalDateTime.now().isAfter(suscripcion.getTrialEndDate())) {
+            suscripcion = suscripcionService.expirarTrial(suscripcion.getId());
+            log.info("⏰ Trial vencido para usuario {} — estado actualizado a PENDIENTE", usuario.getEmail());
+        }
+
         SuscripcionDTO suscripcionDTO = suscripcion != null ? mapToSuscripcionDTO(suscripcion) : null;
 
         return JwtResponseDTO.builder()
@@ -138,23 +151,22 @@ public class AuthServiceImpl implements AuthService {
         Usuario usuarioCreado = usuarioRepository.save(usuario);
         log.info("✅ Usuario creado: {} con tenant: {}", usuarioCreado.getEmail(), tenant.getTenantId());
 
-        // 4. Crear SUSCRIPCIÓN
+        // 4. Crear SUSCRIPCIÓN en período de prueba de 14 días
         BigDecimal precioMensual = obtenerPrecioPlan(request.getPlanId());
-        boolean planPago = !"FREE".equals(request.getPlanId());
-
-        // Generar preapprovalId automáticamente
-//        String preapprovalId = generarPreapprovalId();
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime trialEnd = ahora.plusDays(14);
 
         Suscripcion suscripcion = Suscripcion.builder()
                 .usuarioPrincipal(usuarioCreado)
-//                .preapprovalId(preapprovalId)
                 .planId(request.getPlanId())
                 .precioMensual(precioMensual)
-                .estado(planPago ? "PENDIENTE" : "ACTIVA")
-                .metodoPago(planPago ? "MERCADOPAGO" : "FREE")
+                .estado("TRIAL")
+                .metodoPago("MERCADOPAGO")
+                .enPeriodoPrueba(true)
+                .trialEndDate(trialEnd)
                 .tenantId(tenant.getTenantId())
-                .fechaInicio(LocalDateTime.now())
-                .fechaProximoCobro(LocalDateTime.now().plusMonths(1))
+                .fechaInicio(ahora)
+                .fechaProximoCobro(trialEnd)
                 .build();
 
         Suscripcion suscripcionCreada = suscripcionService.crearSuscripcion(suscripcion);
@@ -215,6 +227,15 @@ public class AuthServiceImpl implements AuthService {
         Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorUsuario(usuario.getId())
                 .orElse(null);
 
+        // Expirar trial si venció
+        if (suscripcion != null
+                && "TRIAL".equals(suscripcion.getEstado())
+                && suscripcion.getTrialEndDate() != null
+                && LocalDateTime.now().isAfter(suscripcion.getTrialEndDate())) {
+            suscripcion = suscripcionService.expirarTrial(suscripcion.getId());
+            log.info("⏰ Trial vencido detectado en refresh para usuario {}", usuario.getEmail());
+        }
+
         SuscripcionDTO suscripcionDTO = suscripcion != null ? mapToSuscripcionDTO(suscripcion) : null;
 
         return JwtResponseDTO.builder()
@@ -251,7 +272,6 @@ public class AuthServiceImpl implements AuthService {
 
     private BigDecimal obtenerPrecioPlan(String planId) {
         return switch (planId) {
-            case "FREE" -> BigDecimal.ZERO;
             case "BASICO" -> new BigDecimal("49.99");
             case "PRO" -> new BigDecimal("99.99");
             default -> throw new BadRequestException("Plan inválido: " + planId);
@@ -266,6 +286,8 @@ public class AuthServiceImpl implements AuthService {
                 .precioMensual(suscripcion.getPrecioMensual())
                 .estado(suscripcion.getEstado())
                 .tenantId(suscripcion.getTenantId())
+                .trialEndDate(suscripcion.getTrialEndDate())
+                .enPeriodoPrueba(suscripcion.getEnPeriodoPrueba())
                 .build();
     }
 

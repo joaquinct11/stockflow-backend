@@ -28,4 +28,6 @@ public interface SuscripcionService {
     List<Suscripcion> obtenerSuscripcionesPorTenant(String tenantId);
 
     List<Suscripcion> obtenerSuscripcionesPorEstadoYTenant(String estado, String tenantId);
+
+    Suscripcion expirarTrial(Long suscripcionId);
 }

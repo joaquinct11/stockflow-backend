@@ -7,6 +7,7 @@ import com.stockflow.service.SuscripcionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -120,5 +121,16 @@ public class SuscripcionServiceImpl implements SuscripcionService {
     public List<Suscripcion> obtenerSuscripcionesPorEstadoYTenant(String estado, String tenantId) {
         log.info("🔍 Obteniendo suscripciones con estado: {} para tenant: {}", estado, tenantId);
         return suscripcionRepository.findByEstadoAndTenantId(estado, tenantId);
+    }
+
+    @Override
+    @Transactional
+    public Suscripcion expirarTrial(Long suscripcionId) {
+        log.info("⏰ Expirando trial para suscripción ID: {}", suscripcionId);
+        Suscripcion s = suscripcionRepository.findById(suscripcionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada con ID: " + suscripcionId));
+        s.setEstado("PENDIENTE");
+        s.setEnPeriodoPrueba(false);
+        return suscripcionRepository.save(s);
     }
 }

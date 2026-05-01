@@ -28,6 +28,9 @@ public class RecepcionDetalle {
     @JoinColumn(name = "producto_id", nullable = false)
     private Producto producto;
 
+    @Column(name = "cantidad_esperada")
+    private Integer cantidadEsperada;
+
     @Column(name = "cantidad_recibida", nullable = false)
     private Integer cantidadRecibida;
 
