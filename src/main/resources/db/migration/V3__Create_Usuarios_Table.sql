@@ -5,7 +5,7 @@ CREATE TABLE usuarios (
                           nombre VARCHAR(150) NOT NULL,
                           tipo_documento  VARCHAR(20)  DEFAULT NULL,
                           numero_documento VARCHAR(50) DEFAULT NULL,
-                          telefono VARCHAR(20) DEFAULT NULL,
+                          numero_celular VARCHAR(20) DEFAULT NULL,
                           rol_id BIGINT NOT NULL REFERENCES roles(id),
                           activo BOOLEAN DEFAULT true,
                           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -440,7 +440,15 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
     @Override
     public SuscripcionEstadoResponseDTO obtenerEstadoSuscripcion(String tenantId, Long usuarioId) {
-        Optional<Suscripcion> optSuscripcion = suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
+        // Primero buscar por propietario; si no existe (GERENTE u otro rol no-owner)
+        // buscar cualquier suscripción del tenant para que puedan verla en modo lectura.
+        Optional<Suscripcion> optSuscripcion = suscripcionRepository
+                .findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
+
+        if (optSuscripcion.isEmpty()) {
+            optSuscripcion = suscripcionRepository.findFirstByTenantIdOrderByIdAsc(tenantId);
+        }
+
         if (optSuscripcion.isEmpty()) {
             log.info("ℹ️ No existe suscripción para tenant={}, usuario={}", tenantId, usuarioId);
             return SuscripcionEstadoResponseDTO.builder()

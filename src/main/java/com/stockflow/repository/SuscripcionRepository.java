@@ -20,6 +20,9 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
 
     Optional<Suscripcion> findByTenantIdAndUsuarioPrincipalId(String tenantId, Long usuarioPrincipalId);
 
+    /** Para usuarios no-owner (GERENTE, etc.) que pertenecen al mismo tenant. */
+    Optional<Suscripcion> findFirstByTenantIdOrderByIdAsc(String tenantId);
+
     Optional<Suscripcion> findFirstByMpPreferenceIdOrderByIdDesc(String mpPreferenceId);
 
     Optional<Suscripcion> findByPreapprovalId(String preapprovalId);

@@ -146,6 +146,8 @@ public class AuthServiceImpl implements AuthService {
                 .fechaCreacion(LocalDateTime.now())
                 .ultimoLogin(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
+                .tipoDocumento(request.getTipoDocumento())
+                .numeroDocumento(request.getNumeroDocumento())
                 .build();
 
         Usuario usuarioCreado = usuarioRepository.save(usuario);
@@ -315,7 +317,10 @@ public class AuthServiceImpl implements AuthService {
                 .createdAt(usuario.getCreatedAt())
                 .activo(usuario.getActivo())
                 .nombreFarmacia(tenant != null ? tenant.getNombre() : "N/A")
-                .permisos(new ArrayList<>(permisos)) // sorted by TreeSet, unique
+                .permisos(new ArrayList<>(permisos))
+                .tipoDocumento(usuario.getTipoDocumento())
+                .numeroDocumento(usuario.getNumeroDocumento())
+                .numeroCelular(usuario.getNumeroCelular())
                 .build();
     }
 
