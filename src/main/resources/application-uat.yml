@@ -32,8 +32,7 @@ jwt:
 # CORS - solo dominio UAT
 cors:
   allowed-origins:
-    - https://uat.stockflow.pe
-    - https://fluxus-uat.vercel.app/
+    - ${FRONTEND_URL}
 
 # Servidor
 server:
@@ -67,13 +66,16 @@ management:
     health:
       show-details: when-authorized
 
+# ── Email (Resend REST API — no requiere dominio propio) ────────────────────
+# Signup en https://resend.com → API Keys → crea una key
+# Free tier: 3,000 emails/mes, 100/día
 app:
-  frontend-url: ${FRONTEND_URL:https://uat.stockflow.pe}
+  frontend-url: ${FRONTEND_URL}
 
-sendgrid:
-  api-key: ${SENDGRID_API_KEY}
-  from-email: joaquincastillotello2001@gmail.com
-  from-name: StockFlow UAT
+resend:
+  api-key: ${RESEND_API_KEY}
+  from-email: ${RESEND_FROM_EMAIL}
+  from-name: ${RESEND_FROM_NAME:Fluxus}
 
 springdoc:
   api-docs:
