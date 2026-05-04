@@ -166,20 +166,23 @@ public class VentaController {
                 })
                 .collect(Collectors.toList());
 
-        final BigDecimal IGV_RATE = new BigDecimal("0.18");
+        // Los precios ya incluyen IGV. El total es la suma directa de los subtotales.
+        // El IGV se extrae (no se suma encima): base = total/1.18, igv = total - base
+        final BigDecimal IGV_DIVISOR = new BigDecimal("1.18");
 
-        BigDecimal subtotalVenta = detalles.stream()
+        BigDecimal totalVenta = detalles.stream()
                 .map(DetalleVenta::getSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal igvVenta = subtotalVenta.multiply(IGV_RATE).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal totalVenta = subtotalVenta.add(igvVenta).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal baseImponible = totalVenta.divide(IGV_DIVISOR, 2, RoundingMode.HALF_UP);
+        BigDecimal igvVenta = totalVenta.subtract(baseImponible).setScale(2, RoundingMode.HALF_UP);
 
-        log.info("📊 Subtotal: {}, IGV: {}, Total: {}", subtotalVenta, igvVenta, totalVenta);
+        log.info("📊 Base imponible: {}, IGV incluido: {}, Total: {}", baseImponible, igvVenta, totalVenta);
 
         Venta venta = Venta.builder()
                 .vendedor(vendedor)
-                .total(totalVenta) // ✅ total con IGV
+                .total(totalVenta) // ✅ precio ya incluye IGV, no se multiplica
                 .metodoPago(ventaDTO.getMetodoPago())
                 .estado(ventaDTO.getEstado())
                 .tenantId(tenantId)

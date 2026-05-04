@@ -45,7 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final TenantService tenantService;
     private final SuscripcionService suscripcionService;
-//    private final EmailService emailService;
+    private final EmailService emailService;
     private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
     private final RolePermissionDefaults rolePermissionDefaults;
 
@@ -188,7 +188,18 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("✅ Registro completado exitosamente para: {}", request.getEmail());
 
-        // 6. Retornar respuesta
+        // 6. Enviar email de bienvenida (async — no bloquea)
+        try {
+            emailService.enviarBienvenida(
+                    usuarioCreado.getEmail(),
+                    request.getNombreFarmacia(),
+                    usuarioCreado.getNombre()
+            );
+        } catch (Exception e) {
+            log.error("❌ Error enviando email de bienvenida: {}", e.getMessage(), e);
+        }
+
+        // 7. Retornar respuesta
         return JwtResponseDTO.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken.getToken())
@@ -375,17 +386,17 @@ public class AuthServiceImpl implements AuthService {
         log.info("🔑 Token generado: {}", token);
         log.info("📧 Enviando email a: {}", usuario.getEmail());
 
-        // ✅ ENVIAR EMAIL
-//        try {
-//            emailService.enviarEmailRecuperacionContraseña(
-//                    usuario.getEmail(),
-//                    usuario.getNombre(),
-//                    token
-//            );
-//            log.info("✅ Email enviado exitosamente");
-//        } catch (Exception e) {
-//            log.error("❌ Error enviando email: {}", e.getMessage(), e);
-//        }
+        // ✅ ENVIAR EMAIL (async — no bloquea la respuesta)
+        try {
+            emailService.enviarEmailRecuperacionContraseña(
+                    usuario.getEmail(),
+                    usuario.getNombre(),
+                    token
+            );
+            log.info("✅ Email de recuperación enviado a: {}", usuario.getEmail());
+        } catch (Exception e) {
+            log.error("❌ Error enviando email de recuperación: {}", e.getMessage(), e);
+        }
     }
 
     @Override

@@ -18,6 +18,15 @@ public interface OrdenCompraService {
     /** Returns the pending items (with received/pending quantities) for a given OC. */
     List<OrdenCompraItemDTO> obtenerItemsConPendientes(Long ocId);
 
+    /** Edita cabecera (observaciones) de una OC en BORRADOR. */
+    OrdenCompraResponseDTO editarCabecera(Long id, String observaciones, String tenantId);
+
+    /** Agrega o actualiza un ítem en una OC en BORRADOR (upsert por productoId). */
+    OrdenCompraResponseDTO upsertItem(Long id, OrdenCompraItemDTO item, String tenantId);
+
+    /** Elimina un ítem de una OC en BORRADOR. */
+    void removeItem(Long id, Long itemId, String tenantId);
+
     OrdenCompraResponseDTO enviar(Long id, String tenantId);
     OrdenCompraResponseDTO cancelar(Long id, String tenantId);
 }

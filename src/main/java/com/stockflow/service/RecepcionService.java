@@ -28,4 +28,10 @@ public interface RecepcionService {
      * and marks the recepcion as CONFIRMADA.  Idempotent: throws if already confirmed.
      */
     RecepcionResponseDTO confirmar(Long recepcionId, Long usuarioId);
+
+    /** Anula una recepción en estado BORRADOR. No impacta inventario. */
+    void anular(Long id, String tenantId);
+
+    /** Elimina un ítem de una recepción en estado BORRADOR. */
+    void removeItem(Long recepcionId, Long itemId);
 }

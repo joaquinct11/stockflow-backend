@@ -273,6 +273,46 @@ public class RecepcionServiceImpl implements RecepcionService {
         return toResponseDTO(saved);
     }
 
+    @Override
+    @Transactional
+    public void anular(Long id, String tenantId) {
+        Recepcion recepcion = recepcionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if (!recepcion.getTenantId().equals(tenantId)) {
+            throw new BadRequestException("No tienes acceso a esta recepción");
+        }
+
+        if ("CONFIRMADA".equals(recepcion.getEstado())) {
+            throw new BadRequestException("No se puede anular una recepción ya confirmada — el stock ya fue actualizado");
+        }
+
+        recepcion.setEstado("ANULADA");
+        recepcionRepository.save(recepcion);
+        log.info("🚫 Recepción #{} anulada", id);
+    }
+
+    @Override
+    @Transactional
+    public void removeItem(Long recepcionId, Long itemId) {
+        Recepcion recepcion = recepcionRepository.findById(recepcionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if ("CONFIRMADA".equals(recepcion.getEstado())) {
+            throw new BadRequestException("No se pueden eliminar ítems de una recepción ya confirmada");
+        }
+
+        RecepcionDetalle detalle = detalleRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ítem no encontrado"));
+
+        if (!detalle.getRecepcion().getId().equals(recepcionId)) {
+            throw new BadRequestException("El ítem no pertenece a esta recepción");
+        }
+
+        detalleRepository.delete(detalle);
+        log.info("🗑️ Ítem #{} eliminado de recepción #{}", itemId, recepcionId);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private void actualizarEstadoOC(OrdenCompra oc) {

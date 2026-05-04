@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -23,9 +24,9 @@ public class ComprobanteDTO {
     private String numero;        // e.g. B001-00000001
     private LocalDateTime fechaEmision;
     private String estado;        // EMITIDO | ANULADO | ERROR
-    private BigDecimal subtotal;
-    private BigDecimal igv;
-    private BigDecimal total;
+    private BigDecimal subtotal;  // base imponible (total / 1.18)
+    private BigDecimal igv;       // IGV incluido (total - subtotal)
+    private BigDecimal total;     // total con IGV incluido
     private String receptorDocTipo;
     private String receptorDocNumero;
     private String receptorNombre;
@@ -38,4 +39,20 @@ public class ComprobanteDTO {
     private String xmlUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Detalle de productos de la venta
+    private List<ItemComprobanteDTO> items;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ItemComprobanteDTO {
+        private Long productoId;
+        private String productoNombre;
+        private String codigoBarras;
+        private Integer cantidad;
+        private BigDecimal precioUnitario;  // precio con IGV incluido
+        private BigDecimal subtotal;        // cantidad × precioUnitario
+    }
 }

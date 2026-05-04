@@ -105,6 +105,7 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
                     .id(d.getId())
                     .productoId(d.getProducto().getId())
                     .productoNombre(d.getProducto().getNombre())
+                    .codigoBarras(d.getProducto().getCodigoBarras())
                     .cantidadSolicitada(d.getCantidadSolicitada())
                     .precioUnitario(d.getPrecioUnitario())
                     .cantidadRecibida(recibido)
@@ -123,6 +124,7 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
                     .id(d.getId())
                     .productoId(d.getProducto().getId())
                     .productoNombre(d.getProducto().getNombre())
+                    .codigoBarras(d.getProducto().getCodigoBarras())
                     .cantidadSolicitada(d.getCantidadSolicitada())
                     .precioUnitario(d.getPrecioUnitario())
                     .cantidadRecibida(recibido)
@@ -143,6 +145,68 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
                 .updatedAt(oc.getUpdatedAt())
                 .items(items)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public OrdenCompraResponseDTO editarCabecera(Long id, String observaciones, String tenantId) {
+        OrdenCompra oc = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("OC no encontrada"));
+        if (!oc.getTenantId().equals(tenantId))
+            throw new BadRequestException("OC no pertenece al tenant actual");
+        if (!"BORRADOR".equals(oc.getEstado()))
+            throw new BadRequestException("Solo se puede editar una OC en estado BORRADOR");
+
+        oc.setObservaciones(observaciones);
+        return toResponseDTO(ordenCompraRepository.save(oc));
+    }
+
+    @Override
+    @Transactional
+    public OrdenCompraResponseDTO upsertItem(Long id, OrdenCompraItemDTO item, String tenantId) {
+        OrdenCompra oc = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("OC no encontrada"));
+        if (!oc.getTenantId().equals(tenantId))
+            throw new BadRequestException("OC no pertenece al tenant actual");
+        if (!"BORRADOR".equals(oc.getEstado()))
+            throw new BadRequestException("Solo se puede editar una OC en estado BORRADOR");
+
+        Producto producto = productoRepository.findById(item.getProductoId())
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + item.getProductoId()));
+
+        // Upsert: buscar si ya existe ese producto en la OC
+        OrdenCompraDetalle detalle = detalleRepository
+                .findByOrdenCompraIdAndProductoId(id, item.getProductoId())
+                .orElse(OrdenCompraDetalle.builder()
+                        .ordenCompra(oc)
+                        .producto(producto)
+                        .build());
+
+        detalle.setCantidadSolicitada(item.getCantidadSolicitada());
+        detalle.setPrecioUnitario(item.getPrecioUnitario());
+        detalleRepository.save(detalle);
+
+        log.info("✏️ Upsert ítem productoId={} en OC id={}", item.getProductoId(), id);
+        return toResponseDTO(ordenCompraRepository.findById(id).orElseThrow());
+    }
+
+    @Override
+    @Transactional
+    public void removeItem(Long id, Long itemId, String tenantId) {
+        OrdenCompra oc = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("OC no encontrada"));
+        if (!oc.getTenantId().equals(tenantId))
+            throw new BadRequestException("OC no pertenece al tenant actual");
+        if (!"BORRADOR".equals(oc.getEstado()))
+            throw new BadRequestException("Solo se pueden quitar ítems de una OC en estado BORRADOR");
+
+        OrdenCompraDetalle detalle = detalleRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ítem no encontrado"));
+        if (!detalle.getOrdenCompra().getId().equals(id))
+            throw new BadRequestException("El ítem no pertenece a esta OC");
+
+        detalleRepository.delete(detalle);
+        log.info("🗑️ Ítem #{} eliminado de OC #{}", itemId, id);
     }
 
     @Override
