@@ -1,14 +1,23 @@
-# ========================================
-# UAT (User Acceptance Testing)
-# ========================================
+# ============================================================
+# PERFIL UAT — FLUXUS BACKEND
+# Variables de entorno requeridas en Render:
+#   SPRING_DATASOURCE_URL, DB_USERNAME, DB_PASSWORD
+#   JWT_SECRET
+#   FRONTEND_URL         → https://fluxus-uat.vercel.app
+#   RESEND_API_KEY
+#   RESEND_FROM_EMAIL    → onboarding@resend.dev (sin dominio)
+#   MERCADOPAGO_ACCESS_TOKEN, MERCADOPAGO_WEBHOOK_SECRET
+#   MERCADOPAGO_NOTIFICATION_URL, MERCADOPAGO_SUCCESS_URL
+#   MERCADOPAGO_FAILURE_URL, MERCADOPAGO_PENDING_URL
+# ============================================================
 
+# ── Base de datos ─────────────────────────────────────────────
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
     username: ${SPRING_DATASOURCE_USERNAME:${DB_USERNAME}}
     password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD}}
     driver-class-name: org.postgresql.Driver
-
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
@@ -17,24 +26,24 @@ spring:
       max-lifetime: 1800000
 
   jpa:
-    hibernate:
-      ddl-auto: validate  # ✅ NUNCA update en entornos desplegados
     show-sql: false
+    hibernate:
+      ddl-auto: validate   # NUNCA update en entornos desplegados
 
   flyway:
     enabled: true
-    clean-disabled: true  # ❌ No permitir limpiar en UAT
+    clean-disabled: true   # No permitir limpiar en UAT
 
-# JWT
+# ── JWT ──────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET}
 
-# CORS - solo dominio UAT
+# ── CORS ─────────────────────────────────────────────────────
 cors:
   allowed-origins:
-    - ${FRONTEND_URL}
+    - ${FRONTEND_URL:https://fluxus-uat.vercel.app}
 
-# Servidor
+# ── Servidor ─────────────────────────────────────────────────
 server:
   port: ${PORT:8080}
   error:
@@ -44,7 +53,7 @@ server:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/plain
 
-# Logging más detallado que prod, menos que dev
+# ── Logging ──────────────────────────────────────────────────
 logging:
   level:
     root: INFO
@@ -52,11 +61,11 @@ logging:
     org.springframework.web: INFO
     org.springframework.security: INFO
   file:
-    name: logs/stockflow-uat.log
+    name: logs/fluxus-uat.log
     max-size: 50MB
     max-history: 14
 
-# Actuator
+# ── Actuator ─────────────────────────────────────────────────
 management:
   endpoints:
     web:
@@ -66,17 +75,17 @@ management:
     health:
       show-details: when-authorized
 
-# ── Email (Resend REST API — no requiere dominio propio) ────────────────────
-# Signup en https://resend.com → API Keys → crea una key
-# Free tier: 3,000 emails/mes, 100/día
+# ── App ──────────────────────────────────────────────────────
 app:
-  frontend-url: ${FRONTEND_URL}
+  frontend-url: ${FRONTEND_URL:https://fluxus-uat.vercel.app}
 
+# ── Email — Resend ────────────────────────────────────────────
 resend:
-  api-key: ${RESEND_API_KEY}
-  from-email: ${RESEND_FROM_EMAIL}
-  from-name: ${RESEND_FROM_NAME:Fluxus}
+  api-key:    ${RESEND_API_KEY}
+  from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
+  from-name:  ${RESEND_FROM_NAME:Fluxus}
 
+# ── Swagger/OpenAPI ───────────────────────────────────────────
 springdoc:
   api-docs:
     path: /api-docs

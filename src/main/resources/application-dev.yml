@@ -52,11 +52,6 @@ logging:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
-
-sendgrid:
-  api-key: ${SENDGRID_API_KEY}
-  from-email: joaquincastillotello2001@gmail.com
-  from-name: StockFlow
   
 springdoc:
   api-docs:

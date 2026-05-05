@@ -74,3 +74,14 @@ springdoc:
     operationsSorter: method
     tagsSorter: alpha
     display-request-duration: true
+
+# ── Email (Resend REST API — no requiere dominio propio) ────────────────────
+# Signup en https://resend.com → API Keys → crea una key
+# Free tier: 3,000 emails/mes, 100/día
+app:
+  frontend-url: ${FRONTEND_URL}
+
+resend:
+  api-key: ${RESEND_API_KEY}
+  from-email: ${RESEND_FROM_EMAIL}
+  from-name: ${RESEND_FROM_NAME:Fluxus}
