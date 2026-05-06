@@ -257,7 +257,12 @@ public class RecepcionServiceImpl implements RecepcionService {
             movimientoRepository.save(mov);
 
             producto.setStockActual(producto.getStockActual() + detalle.getCantidadRecibida());
+            // Actualizar último costo unitario del producto con el precio de esta recepción
+            producto.setCostoUnitario(costoUnitario);
             productoRepository.save(producto);
+            log.info("📦 Producto #{} '{}': stock +{} → {}, costo actualizado → {}",
+                    producto.getId(), producto.getNombre(),
+                    detalle.getCantidadRecibida(), producto.getStockActual(), costoUnitario);
         }
 
         recepcion.setEstado("CONFIRMADA");

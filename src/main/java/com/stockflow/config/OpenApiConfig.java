@@ -14,13 +14,13 @@ public class OpenApiConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("StockFlow API")
+                        .title("Fluxus API")
                         .version("1.0.0")
                         .description("API REST para Sistema de Inventario SaaS")
                         .contact(new Contact()
-                                .name("StockFlow Team")
-                                .url("https://stockflow.com")
-                                .email("support@stockflow.com"))
+                                .name("Fluxus Team")
+                                .url("https://fluxus.com")
+                                .email("support@fluxus.com"))
                         .license(new License()
                                 .name("MIT License")
                                 .url("https://opensource.org/licenses/MIT")));

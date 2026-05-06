@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.Set;
 
 /**
- * Canonical permission catalog and role-default mappings for StockFlow RBAC.
+ * Canonical permission catalog and role-default mappings for Fluxus RBAC.
  *
  * This is the single source of truth for:
  *  - The full permission code catalog.
