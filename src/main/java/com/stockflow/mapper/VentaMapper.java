@@ -11,6 +11,7 @@ public interface VentaMapper {
 
     @Mapping(source = "vendedor.id", target = "vendedorId")
     @Mapping(source = "vendedor.nombre", target = "vendedorNombre")
+    @Mapping(source = "cajaId", target = "cajaId")
     VentaDTO toDTO(Venta venta);
 
     @Mapping(target = "id", ignore = true)

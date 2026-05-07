@@ -15,7 +15,11 @@ import com.stockflow.repository.OrdenCompraRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.entity.Tenant;
+import com.stockflow.repository.TenantRepository;
+import com.stockflow.service.EmailService;
 import com.stockflow.service.OrdenCompraService;
+import com.stockflow.util.OcPdfGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +39,9 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
     private final ProveedorRepository proveedorRepository;
     private final ProductoRepository productoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final EmailService emailService;
+    private final TenantRepository tenantRepository;
+    private final OcPdfGenerator ocPdfGenerator;
 
     @Override
     @Transactional
@@ -112,6 +119,19 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
                     .cantidadPendiente(pendiente)
                     .build();
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generarPdf(Long id, String tenantId) {
+        OrdenCompra oc = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("OC no encontrada"));
+        if (!oc.getTenantId().equals(tenantId)) {
+            throw new BadRequestException("OC no pertenece al tenant actual");
+        }
+        Tenant tenant = tenantRepository.findByTenantId(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado"));
+        return ocPdfGenerator.generar(oc, tenant);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -225,6 +245,11 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
 
         oc.setEstado("ENVIADA");
         OrdenCompra saved = ordenCompraRepository.save(oc);
+        log.info("📤 OC #{} marcada como ENVIADA para tenant={}", saved.getId(), tenantId);
+
+        // Enviar email al proveedor de forma asíncrona (solo IDs — el service carga en su propia transacción)
+        emailService.enviarOCAlProveedor(saved.getId(), tenantId);
+
         return toResponseDTO(saved);
     }
 

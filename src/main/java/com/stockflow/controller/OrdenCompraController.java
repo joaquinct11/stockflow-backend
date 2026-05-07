@@ -8,7 +8,9 @@ import com.stockflow.util.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -117,6 +119,22 @@ public class OrdenCompraController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📤 Enviando OC id={} tenant={}", id, tenantId);
         return ResponseEntity.ok(ordenCompraService.enviar(id, tenantId));
+    }
+
+    /**
+     * GET /api/oc/{id}/pdf — Descarga el PDF de la OC (mismo que se envía al proveedor).
+     */
+    @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC')")
+    public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📄 Generando PDF de OC id={} tenant={}", id, tenantId);
+        byte[] pdf = ordenCompraService.generarPdf(id, tenantId);
+        String filename = String.format("OC-%05d.pdf", id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 
     /**

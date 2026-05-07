@@ -29,4 +29,7 @@ public interface OrdenCompraService {
 
     OrdenCompraResponseDTO enviar(Long id, String tenantId);
     OrdenCompraResponseDTO cancelar(Long id, String tenantId);
+
+    /** Genera y devuelve el PDF de la OC como bytes. */
+    byte[] generarPdf(Long id, String tenantId);
 }

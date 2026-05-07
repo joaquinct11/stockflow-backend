@@ -5,6 +5,7 @@ import com.stockflow.dto.UnidadMedidaResponseDTO;
 import com.stockflow.entity.UnidadMedida;
 import com.stockflow.repository.UnidadMedidaRepository;
 import com.stockflow.service.UnidadMedidaService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class UnidadMedidaServiceImpl implements UnidadMedidaService {
     public UnidadMedidaResponseDTO crear(UnidadMedidaRequestDTO request) {
         UnidadMedida unidad = new UnidadMedida();
         unidad.setNombre(request.getNombre());
+        unidad.setTenantId(TenantContext.getCurrentTenant());
 
         return map(repository.save(unidad));
     }

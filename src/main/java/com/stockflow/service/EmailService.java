@@ -10,4 +10,11 @@ public interface EmailService {
 
     /** Bienvenida al nuevo tenant/empresa */
     void enviarBienvenida(String email, String nombreEmpresa, String nombreUsuario);
+
+    /**
+     * Envía la OC al proveedor por email con detalle HTML (asíncrono).
+     * Recibe solo IDs para evitar problemas de sesión Hibernate entre hilos.
+     * Si el proveedor no tiene email configurado, se omite silenciosamente.
+     */
+    void enviarOCAlProveedor(Long ocId, String tenantId);
 }

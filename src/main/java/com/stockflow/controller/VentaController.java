@@ -188,6 +188,7 @@ public class VentaController {
                 .tenantId(tenantId)
                 .detalles(detalles)
                 .createdAt(LocalDateTime.now())
+                .cajaId(ventaDTO.getCajaId())
                 .build();
 
         // 3) Persistir venta primero (para tener ID y usarlo como referencia)
