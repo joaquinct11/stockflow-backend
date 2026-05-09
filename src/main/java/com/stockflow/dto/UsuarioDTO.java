@@ -36,4 +36,10 @@ public class UsuarioDTO {
     private Boolean activo;
 
     private String tenantId;
+
+    private String tipoDocumento;
+
+    private String numeroDocumento;
+
+    private String numeroCelular;
 }

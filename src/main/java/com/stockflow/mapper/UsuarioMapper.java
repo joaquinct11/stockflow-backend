@@ -11,12 +11,18 @@ import java.util.List;
 public interface UsuarioMapper {
 
     @Mapping(source = "rol.nombre", target = "rolNombre")
+    @Mapping(source = "tipoDocumento",   target = "tipoDocumento")
+    @Mapping(source = "numeroDocumento", target = "numeroDocumento")
+    @Mapping(source = "numeroCelular",   target = "numeroCelular")
     UsuarioDTO toDTO(Usuario usuario);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "rol", ignore = true)
     @Mapping(target = "fechaCreacion", expression = "java(java.time.LocalDateTime.now())")
     @Mapping(target = "activo", defaultValue = "true")
+    @Mapping(source = "tipoDocumento",   target = "tipoDocumento")
+    @Mapping(source = "numeroDocumento", target = "numeroDocumento")
+    @Mapping(source = "numeroCelular",   target = "numeroCelular")
     Usuario toEntity(UsuarioDTO dto);
 
     List<UsuarioDTO> toDTOList(List<Usuario> usuarios);

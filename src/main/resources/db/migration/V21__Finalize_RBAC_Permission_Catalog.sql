@@ -14,48 +14,48 @@
 -- The rol_id column is intentionally left NULL here so that the canonical rows
 -- carry no stale role assignment and the Java layer is the single source of truth.
 
-INSERT INTO permisos (nombre, descripcion, created_at) VALUES
-    -- Dashboard
-    ('VER_DASHBOARD',              'Permiso para ver el dashboard',                              NOW()),
-    -- Proveedores
-    ('VER_PROVEEDORES',            'Permiso para listar proveedores',                            NOW()),
-    ('CREAR_PROVEEDOR',            'Permiso para crear proveedores',                             NOW()),
-    ('EDITAR_PROVEEDOR',           'Permiso para editar proveedores',                            NOW()),
-    ('ELIMINAR_PROVEEDOR',         'Permiso para eliminar proveedores',                          NOW()),
-    ('CAMBIAR_ESTADO_PROVEEDOR',   'Permiso para activar/desactivar proveedores',                NOW()),
-    -- Productos
-    ('VER_PRODUCTOS',              'Permiso para listar productos',                              NOW()),
-    ('CREAR_PRODUCTO',             'Permiso para crear productos',                               NOW()),
-    ('EDITAR_PRODUCTO',            'Permiso para editar productos',                              NOW()),
-    ('ELIMINAR_PRODUCTO',          'Permiso para eliminar productos',                            NOW()),
-    -- Ventas
-    ('VER_VENTAS',                 'Permiso para ver todas las ventas',                          NOW()),
-    ('VER_MIS_VENTAS',             'Permiso para ver las propias ventas (vendedor)',              NOW()),
-    ('CREAR_VENTA',                'Permiso para crear ventas',                                  NOW()),
-    ('VER_DETALLE_VENTA',          'Permiso para ver el detalle de una venta',                   NOW()),
-    ('ELIMINAR_VENTA',             'Permiso para eliminar ventas',                               NOW()),
-    -- Inventario
-    ('VER_INVENTARIO',             'Permiso para listar movimientos de inventario',              NOW()),
-    ('CREAR_INVENTARIO',           'Permiso para registrar movimientos de inventario',           NOW()),
-    ('VER_DETALLE_INVENTARIO',     'Permiso para ver el detalle de un movimiento de inventario', NOW()),
-    ('ELIMINAR_INVENTARIO',        'Permiso para eliminar movimientos de inventario',            NOW()),
-    -- Usuarios
-    ('VER_USUARIOS',               'Permiso para listar usuarios',                               NOW()),
-    ('CREAR_USUARIO',              'Permiso para crear usuarios',                                NOW()),
-    ('EDITAR_USUARIO',             'Permiso para editar usuarios',                               NOW()),
-    ('ELIMINAR_USUARIO',           'Permiso para eliminar usuarios',                             NOW()),
-    ('CAMBIAR_ESTADO_USUARIO',     'Permiso para activar/desactivar usuarios',                   NOW()),
-    -- Suscripciones
-    ('VER_SUSCRIPCIONES',          'Permiso para listar suscripciones',                          NOW()),
-    ('CREAR_SUSCRIPCION',          'Permiso para crear suscripciones',                           NOW()),
-    ('EDITAR_SUSCRIPCION',         'Permiso para editar suscripciones',                          NOW()),
-    ('ELIMINAR_SUSCRIPCION',       'Permiso para eliminar suscripciones',                        NOW()),
-    ('CAMBIAR_ESTADO_SUSCRIPCION', 'Permiso para activar/cancelar suscripciones',                NOW()),
-    -- Reportes
-    ('VER_REPORTES',               'Permiso para ver reportes',                                  NOW()),
-    -- Permisos (admin / super-admin)
-    ('VER_PERMISOS',               'Permiso para consultar el catálogo de permisos',             NOW())
-ON CONFLICT (nombre) DO NOTHING;
+-- INSERT INTO permisos (nombre, descripcion, created_at) VALUES
+--     -- Dashboard
+--     ('VER_DASHBOARD',              'Permiso para ver el dashboard',                              NOW()),
+--     -- Proveedores
+--     ('VER_PROVEEDORES',            'Permiso para listar proveedores',                            NOW()),
+--     ('CREAR_PROVEEDOR',            'Permiso para crear proveedores',                             NOW()),
+--     ('EDITAR_PROVEEDOR',           'Permiso para editar proveedores',                            NOW()),
+--     ('ELIMINAR_PROVEEDOR',         'Permiso para eliminar proveedores',                          NOW()),
+--     ('CAMBIAR_ESTADO_PROVEEDOR',   'Permiso para activar/desactivar proveedores',                NOW()),
+--     -- Productos
+--     ('VER_PRODUCTOS',              'Permiso para listar productos',                              NOW()),
+--     ('CREAR_PRODUCTO',             'Permiso para crear productos',                               NOW()),
+--     ('EDITAR_PRODUCTO',            'Permiso para editar productos',                              NOW()),
+--     ('ELIMINAR_PRODUCTO',          'Permiso para eliminar productos',                            NOW()),
+--     -- Ventas
+--     ('VER_VENTAS',                 'Permiso para ver todas las ventas',                          NOW()),
+--     ('VER_MIS_VENTAS',             'Permiso para ver las propias ventas (vendedor)',              NOW()),
+--     ('CREAR_VENTA',                'Permiso para crear ventas',                                  NOW()),
+--     ('VER_DETALLE_VENTA',          'Permiso para ver el detalle de una venta',                   NOW()),
+--     ('ELIMINAR_VENTA',             'Permiso para eliminar ventas',                               NOW()),
+--     -- Inventario
+--     ('VER_INVENTARIO',             'Permiso para listar movimientos de inventario',              NOW()),
+--     ('CREAR_INVENTARIO',           'Permiso para registrar movimientos de inventario',           NOW()),
+--     ('VER_DETALLE_INVENTARIO',     'Permiso para ver el detalle de un movimiento de inventario', NOW()),
+--     ('ELIMINAR_INVENTARIO',        'Permiso para eliminar movimientos de inventario',            NOW()),
+--     -- Usuarios
+--     ('VER_USUARIOS',               'Permiso para listar usuarios',                               NOW()),
+--     ('CREAR_USUARIO',              'Permiso para crear usuarios',                                NOW()),
+--     ('EDITAR_USUARIO',             'Permiso para editar usuarios',                               NOW()),
+--     ('ELIMINAR_USUARIO',           'Permiso para eliminar usuarios',                             NOW()),
+--     ('CAMBIAR_ESTADO_USUARIO',     'Permiso para activar/desactivar usuarios',                   NOW()),
+--     -- Suscripciones
+--     ('VER_SUSCRIPCIONES',          'Permiso para listar suscripciones',                          NOW()),
+--     ('CREAR_SUSCRIPCION',          'Permiso para crear suscripciones',                           NOW()),
+--     ('EDITAR_SUSCRIPCION',         'Permiso para editar suscripciones',                          NOW()),
+--     ('ELIMINAR_SUSCRIPCION',       'Permiso para eliminar suscripciones',                        NOW()),
+--     ('CAMBIAR_ESTADO_SUSCRIPCION', 'Permiso para activar/cancelar suscripciones',                NOW()),
+--     -- Reportes
+--     ('VER_REPORTES',               'Permiso para ver reportes',                                  NOW()),
+--     -- Permisos (admin / super-admin)
+--     ('VER_PERMISOS',               'Permiso para consultar el catálogo de permisos',             NOW())
+-- ON CONFLICT (nombre) DO NOTHING;
 
 -- Clean up the legacy typo 'VER_DATELLE_INVENTARIO' if it was ever inserted,
 -- keeping only the correctly-spelled 'VER_DETALLE_INVENTARIO'.

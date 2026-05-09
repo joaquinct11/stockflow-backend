@@ -49,4 +49,8 @@ public class SuscripcionDTO {
     private LocalDateTime currentPeriodEnd;
 
     private String tenantId;
+
+    private LocalDateTime trialEndDate;
+
+    private Boolean enPeriodoPrueba;
 }

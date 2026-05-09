@@ -1,10 +1,12 @@
-# ========================================
-# CONFIGURACIÓN BASE - STOCKFLOW
-# ========================================
+# ============================================================
+# CONFIGURACIÓN BASE — FLUXUS BACKEND
+# Se aplica a todos los entornos. Los perfiles (uat, prod)
+# sobreescriben solo lo que necesitan.
+# ============================================================
 
 spring:
   application:
-    name: StockFlow
+    name: Fluxus
 
   jpa:
     show-sql: false
@@ -14,6 +16,8 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        jdbc:
+          time_zone: America/Lima
 
   flyway:
     enabled: true
@@ -24,34 +28,34 @@ spring:
     time-zone: America/Lima
     date-format: yyyy-MM-dd'T'HH:mm:ss
 
-# Servidor
+# ── Servidor ─────────────────────────────────────────────────
 server:
   port: 8080
   servlet:
     context-path: /api
 
-# JWT
+# ── JWT ──────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 900000           # 15 minutos (900000)
+  expiration: 900000        # 15 minutos
   refresh:
-    expiration: 604800000    # 7 días
+    expiration: 604800000   # 7 días
 
-# ? AGREGAR ESTO - CORS por defecto
+# ── CORS (local) ─────────────────────────────────────────────
 cors:
   allowed-origins:
     - http://localhost:5173
     - http://localhost:3000
     - http://127.0.0.1:5173
 
-# Logging
+# ── Logging ──────────────────────────────────────────────────
 logging:
   level:
     root: INFO
     com.stockflow: DEBUG
     org.springframework.security: DEBUG
 
-# Actuator
+# ── Actuator ─────────────────────────────────────────────────
 management:
   endpoints:
     web:
@@ -61,12 +65,32 @@ management:
     health:
       show-details: always
 
+# ── MercadoPago ──────────────────────────────────────────────
 mercadopago:
-  access-token: ${MERCADOPAGO_ACCESS_TOKEN}
-  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET}
-  currency-id: ${MERCADOPAGO_CURRENCY_ID}
-  checkout-base-url: ${MERCADOPAGO_BASE_URL}
-  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:}
-  success-url: ${MERCADOPAGO_SUCCESS_URL}
-  failure-url: ${MERCADOPAGO_FAILURE_URL}
-  pending-url: ${MERCADOPAGO_PENDING_URL}
+  access-token: ${MERCADOPAGO_ACCESS_TOKEN:APP_USR-8889777727473379-042413-51cba2716e7670c3384df5a151ddbc50-3358217984}
+  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET:324312ceb54bbbec5188750a84925881ab7a7db15175a318177d8e6297baf065}
+  currency-id: ${MERCADOPAGO_CURRENCY_ID:PEN}
+  checkout-base-url: ${MERCADOPAGO_BASE_URL:https://api.mercadopago.com}
+  notification-url: ${MERCADOPAGO_NOTIFICATION_URL:https://dislike-curing-sprout.ngrok-free.dev/api/webhooks/mercadopago}
+  success-url: ${MERCADOPAGO_SUCCESS_URL:https://fluxus-uat.vercel.app/checkout/success}
+  failure-url: ${MERCADOPAGO_FAILURE_URL:https://fluxus-uat.vercel.app/checkout/failure}
+  pending-url: ${MERCADOPAGO_PENDING_URL:https://fluxus-uat.vercel.app/checkout/pending}
+  test-payer-email: ${MERCADOPAGO_TEST_PAYER_EMAIL:test_user_9076553453484756485@testuser.com}
+
+# ── Webhook ──────────────────────────────────────────────────
+webhook:
+  max-retries: 3
+  retry-delay-seconds: 5
+
+# ── Email — Resend REST API ───────────────────────────────────
+# Free tier: 3,000 emails/mes · 100/día
+# Sin dominio propio: solo envía al email del owner de Resend
+# Con dominio verificado: envía a cualquier destinatario
+resend:
+  api-key:    ${RESEND_API_KEY:re_Eime4qYw_PCCRrspdpsCJWx5dp5L7ezMS}
+  from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
+  from-name:  ${RESEND_FROM_NAME:Fluxus}
+
+# ── App ──────────────────────────────────────────────────────
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}

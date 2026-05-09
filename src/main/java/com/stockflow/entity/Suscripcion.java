@@ -78,6 +78,12 @@ public class Suscripcion {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "trial_end_date")
+    private LocalDateTime trialEndDate;
+
+    @Column(name = "en_periodo_prueba", nullable = false)
+    private Boolean enPeriodoPrueba = false;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();

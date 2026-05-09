@@ -28,6 +28,45 @@ public class Tenant {
     @Column(nullable = false)
     private Boolean activo = true;
 
+    // ── Configuración del negocio ────────────────────────────────────────────
+    @Column(name = "ruc", length = 20)
+    private String ruc;
+
+    @Column(name = "direccion", length = 255)
+    private String direccion;
+
+    @Column(name = "telefono", length = 30)
+    private String telefono;
+
+    @Column(name = "email_contacto", length = 120)
+    private String emailContacto;
+
+    @Column(name = "ciudad", length = 100)
+    private String ciudad;
+
+    @Column(name = "logo_base64", columnDefinition = "TEXT")
+    private String logoBase64;
+
+    @Column(name = "moneda", length = 10)
+    @Builder.Default
+    private String moneda = "S/.";
+
+    @Column(name = "igv_porcentaje")
+    @Builder.Default
+    private Double igvPorcentaje = 18.0;
+
+    @Column(name = "pie_pagina_pdf", length = 255)
+    private String piePaginaPdf;
+
+    @Column(name = "serie_boleta", length = 10)
+    @Builder.Default
+    private String serieBoleta = "B001";
+
+    @Column(name = "serie_factura", length = 10)
+    @Builder.Default
+    private String serieFactura = "F001";
+    // ────────────────────────────────────────────────────────────────────────
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 

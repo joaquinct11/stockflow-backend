@@ -30,8 +30,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ComprobanteServiceImpl implements ComprobanteService {
 
-    private static final BigDecimal IGV_RATE = new BigDecimal("0.18");
-
     private final ComprobanteRepository comprobanteRepository;
     private final ComprobanteSerieRepository comprobanteSerieRepository;
     private final VentaRepository ventaRepository;
@@ -82,13 +80,14 @@ public class ComprobanteServiceImpl implements ComprobanteService {
 
         String numero = serie + "-" + String.format("%08d", correlativo);
 
-        // Compute financial amounts from venta detalles
-        BigDecimal subtotal = venta.getDetalles().stream()
+        // Los precios ya incluyen IGV → total = suma directa de subtotales.
+        // Base e IGV se extraen para el desglose: base = total/1.18, igv = total - base
+        BigDecimal total = venta.getDetalles().stream()
                 .map(DetalleVenta::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal igv = subtotal.multiply(IGV_RATE).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal total = subtotal.add(igv).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal subtotal = total.divide(new BigDecimal("1.18"), 2, RoundingMode.HALF_UP);
+        BigDecimal igv = total.subtract(subtotal).setScale(2, RoundingMode.HALF_UP);
 
         Comprobante comprobante = Comprobante.builder()
                 .tenantId(tenantId)
@@ -165,6 +164,19 @@ public class ComprobanteServiceImpl implements ComprobanteService {
     // ── Mapper ───────────────────────────────────────────────────────────────
 
     private ComprobanteDTO toDTO(Comprobante c) {
+        List<ComprobanteDTO.ItemComprobanteDTO> items = c.getVenta() != null && c.getVenta().getDetalles() != null
+                ? c.getVenta().getDetalles().stream()
+                        .map(d -> ComprobanteDTO.ItemComprobanteDTO.builder()
+                                .productoId(d.getProducto() != null ? d.getProducto().getId() : null)
+                                .productoNombre(d.getProducto() != null ? d.getProducto().getNombre() : null)
+                                .codigoBarras(d.getProducto() != null ? d.getProducto().getCodigoBarras() : null)
+                                .cantidad(d.getCantidad())
+                                .precioUnitario(d.getPrecioUnitario())
+                                .subtotal(d.getSubtotal())
+                                .build())
+                        .collect(Collectors.toList())
+                : List.of();
+
         return ComprobanteDTO.builder()
                 .id(c.getId())
                 .tenantId(c.getTenantId())
@@ -190,6 +202,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
                 .xmlUrl(c.getXmlUrl())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
+                .items(items)
                 .build();
     }
 }

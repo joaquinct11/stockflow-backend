@@ -23,4 +23,7 @@ public class UsuarioProfileDTO {
     private Boolean activo;
     private String nombreFarmacia;
     private List<String> permisos;
+    private String tipoDocumento;
+    private String numeroDocumento;
+    private String numeroCelular;
 }

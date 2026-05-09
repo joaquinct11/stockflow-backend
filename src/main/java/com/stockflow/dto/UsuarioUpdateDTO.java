@@ -23,4 +23,10 @@ public class UsuarioUpdateDTO {
     private String tenantId;
 
     private Boolean activo;
+
+    private String tipoDocumento;
+
+    private String numeroDocumento;
+
+    private String numeroCelular;
 }

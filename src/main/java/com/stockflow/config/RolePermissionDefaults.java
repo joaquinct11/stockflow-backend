@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import java.util.Set;
 
 /**
- * Canonical permission catalog and role-default mappings for StockFlow RBAC.
+ * Canonical permission catalog and role-default mappings for Fluxus RBAC.
  *
  * This is the single source of truth for:
  *  - The full permission code catalog.
@@ -65,33 +65,60 @@ public class RolePermissionDefaults {
     public Set<String> getBasePermissions(String role) {
         return switch (role) {
             case "ADMIN" -> ALL_PERMISSIONS;
+
+            // Casi-admin: puede crear/editar en todos los módulos operativos,
+            // pero NO puede eliminar registros ni gestionar la suscripción.
             case "GERENTE" -> Set.of(
                     "VER_DASHBOARD",
-                    "VER_VENTAS", "VER_DETALLE_VENTA",
-                    "VER_PRODUCTOS",
-                    "VER_PROVEEDORES",
-                    "VER_INVENTARIO", "VER_DETALLE_INVENTARIO",
-                    "VER_USUARIOS",
+                    // Productos
+                    "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO",
+                    // Proveedores
+                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "CAMBIAR_ESTADO_PROVEEDOR",
+                    // Ventas
+                    "VER_VENTAS", "VER_DETALLE_VENTA", "CREAR_VENTA",
+                    // Inventario
+                    "VER_INVENTARIO", "VER_DETALLE_INVENTARIO", "CREAR_INVENTARIO",
+                    // Usuarios
+                    "VER_USUARIOS", "CREAR_USUARIO", "EDITAR_USUARIO", "CAMBIAR_ESTADO_USUARIO",
+                    // Suscripciones (solo ver — no cancela ni modifica)
                     "VER_SUSCRIPCIONES",
+                    // Reportes
                     "VER_REPORTES",
-                    "VER_FACTURACION", "VER_COMPROBANTE",
-                    "VER_OC",
-                    "VER_RECEPCIONES"
+                    // Facturación
+                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE",
+                    // Órdenes de compra
+                    "VER_OC", "CREAR_OC", "EDITAR_OC",
+                    // Recepciones
+                    "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION"
             );
+
+            // Foco en inventario: compras, recepciones, productos y proveedores.
+            // Sin acceso a ventas, facturación ni usuarios.
+            case "GESTOR_INVENTARIO" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Productos
+                    "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO",
+                    // Proveedores
+                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "CAMBIAR_ESTADO_PROVEEDOR",
+                    // Inventario
+                    "VER_INVENTARIO", "VER_DETALLE_INVENTARIO", "CREAR_INVENTARIO",
+                    // Órdenes de compra
+                    "VER_OC", "CREAR_OC", "EDITAR_OC",
+                    // Recepciones
+                    "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION",
+                    // Reportes (Kardex y movimientos de stock)
+                    "VER_REPORTES"
+            );
+
+            // Foco en ventas: ver productos, crear ventas propias y emitir comprobantes.
+            // Sin acceso a compras, inventario ni usuarios.
             case "VENDEDOR" -> Set.of(
                     "VER_DASHBOARD",
                     "VER_PRODUCTOS",
                     "CREAR_VENTA", "VER_MIS_VENTAS", "VER_DETALLE_VENTA",
                     "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE"
             );
-            case "GESTOR_INVENTARIO" -> Set.of(
-                    "VER_DASHBOARD",
-                    "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO",
-                    "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "CAMBIAR_ESTADO_PROVEEDOR",
-                    "VER_INVENTARIO", "CREAR_INVENTARIO", "VER_DETALLE_INVENTARIO",
-                    "VER_OC", "CREAR_OC", "EDITAR_OC",
-                    "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION"
-            );
+
             default -> Set.of();
         };
     }

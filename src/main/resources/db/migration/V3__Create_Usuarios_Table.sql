@@ -3,14 +3,17 @@ CREATE TABLE usuarios (
                           email VARCHAR(150) NOT NULL UNIQUE,
                           contraseña VARCHAR(255) NOT NULL,
                           nombre VARCHAR(150) NOT NULL,
+                          tipo_documento  VARCHAR(20)  DEFAULT NULL,
+                          numero_documento VARCHAR(50) DEFAULT NULL,
+                          numero_celular VARCHAR(20) DEFAULT NULL,
                           rol_id BIGINT NOT NULL REFERENCES roles(id),
                           activo BOOLEAN DEFAULT true,
-                          deleted_at TIMESTAMP DEFAULT NULL,
                           fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                           token_recuperacion VARCHAR(255) UNIQUE,
                           token_recuperacion_expira TIMESTAMP,
                           ultimo_login TIMESTAMP,
                           tenant_id VARCHAR(100) NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+                          deleted_at TIMESTAMP DEFAULT NULL,
                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

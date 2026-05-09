@@ -71,4 +71,7 @@ public class Usuario {
      */
     @Column(name = "numero_documento", length = 50)
     private String numeroDocumento;
+
+    @Column(name = "numero_celular", length = 20)
+    private String numeroCelular;
 }

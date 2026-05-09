@@ -166,4 +166,6 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin
     );
+
+    List<Venta> findByCajaIdAndTenantId(Long cajaId, String tenantId);
 }

@@ -13,6 +13,8 @@ public interface OrdenCompraDetalleRepository extends JpaRepository<OrdenCompraD
 
     List<OrdenCompraDetalle> findByOrdenCompraId(Long ordenCompraId);
 
+    java.util.Optional<OrdenCompraDetalle> findByOrdenCompraIdAndProductoId(Long ordenCompraId, Long productoId);
+
     /**
      * Returns the total quantity received (from CONFIRMED recepciones) for a
      * specific producto within a given orden_compra.
