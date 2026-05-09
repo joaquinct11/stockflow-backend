@@ -8,7 +8,9 @@ import com.stockflow.util.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -70,6 +72,45 @@ public class OrdenCompraController {
 
 
     /**
+     * PATCH /api/oc/{id} — Edita observaciones de una OC en BORRADOR.
+     */
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_OC')")
+    public ResponseEntity<OrdenCompraResponseDTO> editarCabecera(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body) {
+        String tenantId = TenantContext.getCurrentTenant();
+        String observaciones = body.getOrDefault("observaciones", null);
+        log.info("✏️ Editando cabecera OC id={} tenant={}", id, tenantId);
+        return ResponseEntity.ok(ordenCompraService.editarCabecera(id, observaciones, tenantId));
+    }
+
+    /**
+     * POST /api/oc/{id}/items — Agrega o actualiza un ítem (upsert por productoId) en BORRADOR.
+     */
+    @PostMapping("/{id}/items")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_OC')")
+    public ResponseEntity<OrdenCompraResponseDTO> upsertItem(
+            @PathVariable Long id,
+            @Valid @RequestBody OrdenCompraItemDTO item) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("➕ Upsert ítem en OC id={} tenant={}", id, tenantId);
+        return ResponseEntity.ok(ordenCompraService.upsertItem(id, item, tenantId));
+    }
+
+    /**
+     * DELETE /api/oc/{id}/items/{itemId} — Elimina un ítem de una OC en BORRADOR.
+     */
+    @DeleteMapping("/{id}/items/{itemId}")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_OC')")
+    public ResponseEntity<Void> removeItem(@PathVariable Long id, @PathVariable Long itemId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("🗑️ Eliminando ítem #{} de OC #{}", itemId, id);
+        ordenCompraService.removeItem(id, itemId, tenantId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * PATCH /api/oc/{id}/enviar — Cambia estado a ENVIADA
      */
     @PatchMapping("/{id}/enviar")
@@ -78,6 +119,22 @@ public class OrdenCompraController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📤 Enviando OC id={} tenant={}", id, tenantId);
         return ResponseEntity.ok(ordenCompraService.enviar(id, tenantId));
+    }
+
+    /**
+     * GET /api/oc/{id}/pdf — Descarga el PDF de la OC (mismo que se envía al proveedor).
+     */
+    @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC')")
+    public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📄 Generando PDF de OC id={} tenant={}", id, tenantId);
+        byte[] pdf = ordenCompraService.generarPdf(id, tenantId);
+        String filename = String.format("OC-%05d.pdf", id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 
     /**

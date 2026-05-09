@@ -93,4 +93,27 @@ public class RecepcionController {
         log.info("✅ Confirmando recepción id={}", id);
         return ResponseEntity.ok(recepcionService.confirmar(id, usuarioId));
     }
+
+    /**
+     * DELETE /api/recepciones/{id} — Anula una recepción en BORRADOR (no afecta inventario).
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_RECEPCION')")
+    public ResponseEntity<Void> anular(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("🚫 Anulando recepción id={}", id);
+        recepcionService.anular(id, tenantId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * DELETE /api/recepciones/{id}/items/{itemId} — Elimina un ítem de una recepción en BORRADOR.
+     */
+    @DeleteMapping("/{id}/items/{itemId}")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_RECEPCION')")
+    public ResponseEntity<Void> removeItem(@PathVariable Long id, @PathVariable Long itemId) {
+        log.info("🗑️ Eliminando item id={} de recepción id={}", itemId, id);
+        recepcionService.removeItem(id, itemId);
+        return ResponseEntity.noContent().build();
+    }
 }

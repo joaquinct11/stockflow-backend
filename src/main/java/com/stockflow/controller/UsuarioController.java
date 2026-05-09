@@ -83,6 +83,14 @@ public class UsuarioController {
             usuario.setTenantId(tenantId);  // ✅ Setear tenantId automáticamente
             usuario.setCreatedAt(LocalDateTime.now());
 
+            // Datos de identidad y contacto (explícito por si MapStruct no los auto-mapea)
+            if (usuarioDTO.getTipoDocumento() != null && !usuarioDTO.getTipoDocumento().isBlank())
+                usuario.setTipoDocumento(usuarioDTO.getTipoDocumento());
+            if (usuarioDTO.getNumeroDocumento() != null && !usuarioDTO.getNumeroDocumento().isBlank())
+                usuario.setNumeroDocumento(usuarioDTO.getNumeroDocumento());
+            if (usuarioDTO.getNumeroCelular() != null && !usuarioDTO.getNumeroCelular().isBlank())
+                usuario.setNumeroCelular(usuarioDTO.getNumeroCelular());
+
             // Guardar en BD
             Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
 
@@ -109,6 +117,14 @@ public class UsuarioController {
                         // Actualizar campos básicos
                         usuario.setNombre(updateDTO.getNombre());
                         usuario.setActivo(updateDTO.getActivo());
+
+                        // Datos de identidad y contacto (opcionales)
+                        if (updateDTO.getTipoDocumento() != null)
+                            usuario.setTipoDocumento(updateDTO.getTipoDocumento());
+                        if (updateDTO.getNumeroDocumento() != null)
+                            usuario.setNumeroDocumento(updateDTO.getNumeroDocumento());
+                        if (updateDTO.getNumeroCelular() != null)
+                            usuario.setNumeroCelular(updateDTO.getNumeroCelular());
 
                         // Actualizar rol
                         Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())

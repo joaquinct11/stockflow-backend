@@ -4,6 +4,8 @@ import com.stockflow.dto.DatosEliminacionDTO;
 import com.stockflow.entity.Tenant;
 import com.stockflow.repository.*;
 import com.stockflow.service.TenantService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class TenantServiceImpl implements TenantService {
+
+    @PersistenceContext
+    private EntityManager em;
 
     private final TenantRepository tenantRepository;
     private final UsuarioRepository usuarioRepository;
@@ -82,19 +87,62 @@ public class TenantServiceImpl implements TenantService {
     public void eliminarPermanentemente(String tenantId) {
         log.warn("⚠️ ELIMINACIÓN PERMANENTE de tenant: {}", tenantId);
 
-        tenantRepository.findByTenantId(tenantId)
-                .ifPresent(tenant -> {
-                    // ON DELETE CASCADE se encarga de eliminar:
-                    // - usuarios
-                    // - productos
-                    // - proveedores
-                    // - ventas
-                    // - suscripciones
-                    // - movimientos_inventario
+        tenantRepository.findByTenantId(tenantId).ifPresent(tenant -> {
 
-                    tenantRepository.delete(tenant);
-                    log.warn("🗑️ Tenant eliminado permanentemente: {}", tenantId);
-                });
+            // ── 1. Facturación ─────────────────────────────────────────────────
+            // (webhook_logs no tiene tenant_id — es tabla global de idempotencia MP, se omite)
+            nativeDelete("DELETE FROM comprobante_series WHERE tenant_id = :t", tenantId);
+            nativeDelete("DELETE FROM comprobantes WHERE tenant_id = :t", tenantId);
+
+            // ── 3. Detalles de venta (sin tenant_id directo → subquery) ────────
+            nativeDelete(
+                "DELETE FROM detalles_venta WHERE venta_id IN " +
+                "(SELECT id FROM ventas WHERE tenant_id = :t)", tenantId);
+
+            // ── 4. Ventas y cajas (ventas referencia cajas → ventas primero) ──
+            nativeDelete("DELETE FROM ventas WHERE tenant_id = :t", tenantId);
+            nativeDelete("DELETE FROM cajas WHERE tenant_id = :t", tenantId);
+
+            // ── 5. Recepciones y OC (con sus detalles primero) ─────────────────
+            nativeDelete(
+                "DELETE FROM recepcion_detalle WHERE recepcion_id IN " +
+                "(SELECT id FROM recepcion WHERE tenant_id = :t)", tenantId);
+            nativeDelete("DELETE FROM recepcion WHERE tenant_id = :t", tenantId);
+
+            nativeDelete(
+                "DELETE FROM orden_compra_detalle WHERE orden_compra_id IN " +
+                "(SELECT id FROM orden_compra WHERE tenant_id = :t)", tenantId);
+            nativeDelete("DELETE FROM orden_compra WHERE tenant_id = :t", tenantId);
+
+            // ── 6. Inventario y catálogo ───────────────────────────────────────
+            nativeDelete("DELETE FROM movimientos_inventario WHERE tenant_id = :t", tenantId);
+            nativeDelete("DELETE FROM productos WHERE tenant_id = :t", tenantId);
+            nativeDelete("DELETE FROM proveedores WHERE tenant_id = :t", tenantId);
+            // Solo categorías propias del tenant (las globales tienen tenant_id NULL)
+            nativeDelete("DELETE FROM categorias WHERE tenant_id = :t", tenantId);
+
+            // ── 7. Usuarios y sesiones ─────────────────────────────────────────
+            nativeDelete(
+                "DELETE FROM refresh_tokens WHERE usuario_id IN " +
+                "(SELECT id FROM usuarios WHERE tenant_id = :t)", tenantId);
+            nativeDelete(
+                "DELETE FROM usuario_permisos WHERE usuario_id IN " +
+                "(SELECT id FROM usuarios WHERE tenant_id = :t)", tenantId);
+            nativeDelete("DELETE FROM suscripciones WHERE tenant_id = :t", tenantId);
+            nativeDelete("DELETE FROM usuarios WHERE tenant_id = :t", tenantId);
+
+            // ── 8. Tenant (último) ─────────────────────────────────────────────
+            tenantRepository.delete(tenant);
+            log.warn("🗑️ Tenant eliminado permanentemente: {}", tenantId);
+        });
+    }
+
+    /** Helper para ejecutar un DELETE nativo con el parámetro :t = tenantId */
+    private void nativeDelete(String sql, String tenantId) {
+        int rows = em.createNativeQuery(sql)
+                .setParameter("t", tenantId)
+                .executeUpdate();
+        log.debug("🗑️ [{}] → {} filas eliminadas", sql.substring(0, Math.min(sql.length(), 60)), rows);
     }
 
     @Override

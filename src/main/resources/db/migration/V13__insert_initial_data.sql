@@ -1,34 +1,34 @@
--- Insertar Roles
+-- -- Insertar Roles
 INSERT INTO roles (nombre, descripcion, created_at) VALUES
                                                         ('ADMIN', 'Administrador del sistema', NOW()),
                                                         ('VENDEDOR', 'Vendedor de productos', NOW()),
                                                         ('GESTOR_INVENTARIO', 'Gestor de inventario y stock', NOW()),
                                                         ('GERENTE', 'Gerente de farmacia', NOW())
     ON CONFLICT (nombre) DO NOTHING;
-
--- Insertar Tenant por defecto (para desarrollo)
-INSERT INTO tenants (tenant_id, nombre, activo, created_at, updated_at) VALUES
-    ('farmacia-001', 'Farmacia De Desarrollo', true, NOW(), NOW())
-    ON CONFLICT (tenant_id) DO NOTHING;
-
--- Insertar Usuarios de prueba
-INSERT INTO usuarios (email, contraseña, nombre, rol_id, activo, created_at, tenant_id) VALUES
-                                                                                            ('admin@farmacia.com', '$2a$10$kBzOE9BxR24pAPFizoDGAeY1.b3V2ppwF4609khiWr8j5g9FObZKu', 'Admin Farmacia', 1, true, NOW(), 'farmacia-001'),
-                                                                                            ('vendedor@farmacia.com', '$2a$10$/tPqlp3qm0DHuCA94ynqK.JDefr0pnodFTk.HtF19hN.39iaRYQQ6', 'Vendedor Principal', 2, true, NOW(), 'farmacia-001'),
-                                                                                            ('gestor@farmacia.com', '$2a$10$0x5YA6SF6aHOLbfG8dsUDe97dTS1d4Xt2/Ne8C.g3dzs6JHGouTOi', 'Gestor Inventario', 3, true, NOW(), 'farmacia-001'),
-                                                                                            ('gerente@farmacia.com', '$2a$10$mRFCU9orVZ5B36VIJ.OeG.28hrUK1B7ylh2W1ynOzuzrexETlOqoW', 'Gerente Farmacia', 4, true, NOW(), 'farmacia-001')
-    ON CONFLICT (email) DO NOTHING;
-
--- Insertar Proveedores
-INSERT INTO proveedores (nombre, ruc, contacto, telefono, email, direccion, activo, tenant_id, created_at) VALUES
-                                                                                                               ('Droguería Lima SAC', '20123456789', 'Juan Pérez', '01-4567890', 'ventas@droguerialima.com', 'Av. Argentina 1234, Lima', true, 'farmacia-001', NOW()),
-                                                                                                               ('Farmacias Unidas EIRL', '20987654321', 'María González', '01-9876543', 'contacto@farmaciasunidas.com', 'Jr. Los Pinos 567, Lima', true, 'farmacia-001', NOW()),
-                                                                                                               ('Distribuidora MediPharma SA', '20456789123', 'Carlos Rodríguez', '01-2345678', 'info@medipharma.com', 'Av. Colonial 890, Callao', true, 'farmacia-001', NOW()),
-                                                                                                               ('Laboratorios Nacionales', '20789456123', 'Ana Torres', '01-5678901', 'pedidos@labnacionales.pe', 'Av. Industrial 456, Lima', true, 'farmacia-001', NOW()),
-                                                                                                               ('Importadora Salud Global', '20321654987', 'Roberto Silva', '01-8765432', 'ventas@saludglobal.com', 'Av. Javier Prado 2345, San Isidro', true, 'farmacia-001', NOW())
-    ON CONFLICT (ruc) DO NOTHING;
-
--- Insertar Unidad de Medida
+--
+-- -- Insertar Tenant por defecto (para desarrollo)
+-- INSERT INTO tenants (tenant_id, nombre, activo, created_at, updated_at) VALUES
+--     ('farmacia-001', 'Farmacia De Desarrollo', true, NOW(), NOW())
+--     ON CONFLICT (tenant_id) DO NOTHING;
+-- --
+-- -- Insertar Usuarios de prueba
+-- INSERT INTO usuarios (email, contraseña, nombre, tipo_documento, numero_documento, telefono, rol_id, activo, created_at, tenant_id) VALUES
+--                                                                                             ('admin@farmacia.com', '$2a$10$kBzOE9BxR24pAPFizoDGAeY1.b3V2ppwF4609khiWr8j5g9FObZKu', 'Admin Farmacia','DNI','74510635', '985632569', 1, true, NOW(), 'farmacia-001'),
+--                                                                                             ('vendedor@farmacia.com', '$2a$10$/tPqlp3qm0DHuCA94ynqK.JDefr0pnodFTk.HtF19hN.39iaRYQQ6', 'Vendedor Principal','DNI','74510101', '954532002', 2, true, NOW(), 'farmacia-001'),
+--                                                                                             ('gestor@farmacia.com', '$2a$10$0x5YA6SF6aHOLbfG8dsUDe97dTS1d4Xt2/Ne8C.g3dzs6JHGouTOi', 'Gestor Inventario','DNI','72063259', '965410269', 3, true, NOW(), 'farmacia-001'),
+--                                                                                             ('gerente@farmacia.com', '$2a$10$mRFCU9orVZ5B36VIJ.OeG.28hrUK1B7ylh2W1ynOzuzrexETlOqoW', 'Gerente Farmacia','DNI','45310597', '941205059', 4, true, NOW(), 'farmacia-001')
+--     ON CONFLICT (email) DO NOTHING;
+--
+-- -- Insertar Proveedores
+-- INSERT INTO proveedores (nombre, ruc, contacto, telefono, email, direccion, activo, tenant_id, created_at) VALUES
+--                                                                                                                ('Droguería Lima SAC', '20123456789', 'Juan Pérez', '01-4567890', 'ventas@droguerialima.com', 'Av. Argentina 1234, Lima', true, 'farmacia-001', NOW()),
+--                                                                                                                ('Farmacias Unidas EIRL', '20987654321', 'María González', '01-9876543', 'contacto@farmaciasunidas.com', 'Jr. Los Pinos 567, Lima', true, 'farmacia-001', NOW()),
+--                                                                                                                ('Distribuidora MediPharma SA', '20456789123', 'Carlos Rodríguez', '01-2345678', 'info@medipharma.com', 'Av. Colonial 890, Callao', true, 'farmacia-001', NOW()),
+--                                                                                                                ('Laboratorios Nacionales', '20789456123', 'Ana Torres', '01-5678901', 'pedidos@labnacionales.pe', 'Av. Industrial 456, Lima', true, 'farmacia-001', NOW()),
+--                                                                                                                ('Importadora Salud Global', '20321654987', 'Roberto Silva', '01-8765432', 'ventas@saludglobal.com', 'Av. Javier Prado 2345, San Isidro', true, 'farmacia-001', NOW())
+--     ON CONFLICT (ruc) DO NOTHING;
+--
+-- -- Insertar Unidad de Medida
 INSERT INTO unidad_medida (nombre, abreviatura, tenant_id, es_default) VALUES
                                                                            ('Unidad', 'und', NULL, true),
                                                                            ('Kilogramo', 'kg', NULL, true),
@@ -43,32 +43,76 @@ INSERT INTO unidad_medida (nombre, abreviatura, tenant_id, es_default) VALUES
                                                                            ('Cápsula', 'cap', NULL, true),
                                                                            ('Ampolla', 'amp', NULL, true)
     ON CONFLICT (nombre, tenant_id) DO NOTHING;
-
--- Insertar Productos
-INSERT INTO productos (nombre, codigo_barras, categoria, stock_actual, stock_minimo, stock_maximo, costo_unitario, precio_venta, lote, fecha_vencimiento, unidad_medida_id, proveedor_id, activo, tenant_id, created_at) VALUES
-                                                                                                                                                                                                           ('Paracetamol 500mg', '7501234567890', 'Analgésicos', 100, 20, 500, 2.50, 5.99, 'L12345', '2025-12-31',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  1, true, 'farmacia-001', NOW()),
-                                                                                                                                                                                                           ('Ibuprofeno 400mg', '7501234567891', 'Antiinflamatorios', 50, 15, 300, 3.50, 7.99, 'L54321', '2025-10-15',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  2, true, 'farmacia-001', NOW()),
-                                                                                                                                                                                                           ('Amoxicilina 500mg', '7501234567892', 'Antibióticos', 30, 10, 200, 5.00, 12.50, 'L99999', '2026-03-20',(SELECT id FROM unidad_medida WHERE nombre = 'Cápsula' AND tenant_id IS NULL LIMIT 1),  3, true, 'farmacia-001', NOW()),
-                                                                                                                                                                                                           ('Loratadina 10mg', '7501234567893', 'Antihistamínicos', 75, 20, 400, 1.80, 4.50, 'L77777', '2025-08-10',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  1, true, 'farmacia-001', NOW()),
-                                                                                                                                                                                                           ('Vitamina C 1000mg', '7501234567894', 'Vitaminas', 200, 50, 600, 1.20, 3.99, 'L88888', '2026-06-30' ,(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1), 4, true, 'farmacia-001', NOW()),
-                                                                                                                                                                                                           ('Omeprazol 20mg', '7501234567895', 'Gastrointestinales', 40, 10, 250, 4.50, 10.99, 'L11111', '2025-11-25',(SELECT id FROM unidad_medida WHERE nombre = 'Cápsula' AND tenant_id IS NULL LIMIT 1),  2, true, 'farmacia-001', NOW()),
-                                                                                                                                                                                                           ('Metformina 500mg', '7501234567896', 'Endocrinos', 60, 15, 350, 3.00, 8.50, 'L22222', '2026-01-15',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  5, true, 'farmacia-001', NOW()),
-                                                                                                                                                                                                           ('Atorvastatina 10mg', '7501234567897', 'Cardiovasculares', 45, 10, 300, 6.00, 14.99, 'L33333', '2025-09-05',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  3, true, 'farmacia-001', NOW())
-    ON CONFLICT (codigo_barras) DO NOTHING;
-
+--
+-- -- Insertar Productos
+-- INSERT INTO productos (nombre, codigo_barras, categoria, stock_actual, stock_minimo, stock_maximo, costo_unitario, precio_venta, lote, fecha_vencimiento, unidad_medida_id, proveedor_id, activo, tenant_id, created_at) VALUES
+--                                                                                                                                                                                                            ('Paracetamol 500mg', '7501234567890', 'Analgésicos', 100, 20, 500, 2.50, 5.99, 'L12345', '2025-12-31',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  1, true, 'farmacia-001', NOW()),
+--                                                                                                                                                                                                            ('Ibuprofeno 400mg', '7501234567891', 'Antiinflamatorios', 50, 15, 300, 3.50, 7.99, 'L54321', '2025-10-15',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  2, true, 'farmacia-001', NOW()),
+--                                                                                                                                                                                                            ('Amoxicilina 500mg', '7501234567892', 'Antibióticos', 30, 10, 200, 5.00, 12.50, 'L99999', '2026-03-20',(SELECT id FROM unidad_medida WHERE nombre = 'Cápsula' AND tenant_id IS NULL LIMIT 1),  3, true, 'farmacia-001', NOW()),
+--                                                                                                                                                                                                            ('Loratadina 10mg', '7501234567893', 'Antihistamínicos', 75, 20, 400, 1.80, 4.50, 'L77777', '2025-08-10',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  1, true, 'farmacia-001', NOW()),
+--                                                                                                                                                                                                            ('Vitamina C 1000mg', '7501234567894', 'Vitaminas', 200, 50, 600, 1.20, 3.99, 'L88888', '2026-06-30' ,(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1), 4, true, 'farmacia-001', NOW()),
+--                                                                                                                                                                                                            ('Omeprazol 20mg', '7501234567895', 'Gastrointestinales', 40, 10, 250, 4.50, 10.99, 'L11111', '2025-11-25',(SELECT id FROM unidad_medida WHERE nombre = 'Cápsula' AND tenant_id IS NULL LIMIT 1),  2, true, 'farmacia-001', NOW()),
+--                                                                                                                                                                                                            ('Metformina 500mg', '7501234567896', 'Endocrinos', 60, 15, 350, 3.00, 8.50, 'L22222', '2026-01-15',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  5, true, 'farmacia-001', NOW()),
+--                                                                                                                                                                                                            ('Atorvastatina 10mg', '7501234567897', 'Cardiovasculares', 45, 10, 300, 6.00, 14.99, 'L33333', '2025-09-05',(SELECT id FROM unidad_medida WHERE nombre = 'Tableta' AND tenant_id IS NULL LIMIT 1),  3, true, 'farmacia-001', NOW())
+--     ON CONFLICT (codigo_barras) DO NOTHING;
+--
 -- Insertar Permisos
-INSERT INTO permisos (nombre, descripcion, rol_id, created_at) VALUES
-                                                                   ('CREAR_PRODUCTO', 'Permiso para crear productos', 1, NOW()),
-                                                                   ('EDITAR_PRODUCTO', 'Permiso para editar productos', 1, NOW()),
-                                                                   ('ELIMINAR_PRODUCTO', 'Permiso para eliminar productos', 1, NOW()),
-                                                                   ('VER_REPORTES', 'Permiso para ver reportes', 1, NOW()),
-                                                                   ('CREAR_VENTA', 'Permiso para crear ventas', 2, NOW()),
-                                                                   ('VER_INVENTARIO', 'Permiso para ver inventario', 3, NOW()),
-                                                                   ('GESTIONAR_USUARIOS', 'Permiso para gestionar usuarios', 1, NOW()),
-                                                                   ('VER_VENTAS', 'Permiso para ver ventas', 4, NOW())
-    ON CONFLICT (nombre) DO NOTHING;
+INSERT INTO permisos (nombre, descripcion, created_at) VALUES
 
--- Insertar Suscripción para usuario admin (ACTIVA)
-INSERT INTO suscripciones (usuario_principal_id, plan_id, precio_mensual, preapproval_id, estado, fecha_inicio, metodo_pago, ultimos_4_digitos, tenant_id, created_at) VALUES
-    (1, 'PRO', 99.99, 'PRE-001', 'ACTIVA', NOW(), 'TARJETA_CREDITO', '1234', 'farmacia-001', NOW())
-    ON CONFLICT DO NOTHING;
+-- VER
+('VER_REPORTES', 'Permiso para ver reportes', NOW()),
+('VER_INVENTARIO', 'Permiso para ver inventario', NOW()),
+('VER_VENTAS', 'Permiso para ver ventas', NOW()),
+('VER_SUSCRIPCIONES', 'Permiso para ver suscripciones', NOW()),
+('VER_MIS_VENTAS', 'Permiso para ver sus propias ventas', NOW()),
+('VER_DASHBOARD', 'Permiso para ver el dashboard', NOW()),
+('VER_PROVEEDORES', 'Permiso para listar proveedores', NOW()),
+('VER_PRODUCTOS', 'Permiso para listar productos', NOW()),
+('VER_DETALLE_VENTA', 'Permiso para ver el detalle de una venta', NOW()),
+('VER_DETALLE_INVENTARIO', 'Permiso para ver el detalle de un movimiento de inventario', NOW()),
+('VER_USUARIOS', 'Permiso para listar usuarios', NOW()),
+('VER_PERMISOS', 'Permiso para consultar el catálogo de permisos', NOW()),
+('VER_FACTURACION', 'Permiso para acceder al módulo de facturación', NOW()),
+('VER_COMPROBANTE', 'Permiso para ver el detalle de un comprobante', NOW()),
+('VER_OC', 'Permiso para listar órdenes de compra', NOW()),
+('VER_RECEPCIONES', 'Permiso para listar recepciones de mercadería', NOW()),
+
+-- CREAR
+('CREAR_PRODUCTO', 'Permiso para crear productos', NOW()),
+('CREAR_VENTA', 'Permiso para crear ventas', NOW()),
+('CREAR_INVENTARIO', 'Permiso para crear movimientos de inventario', NOW()),
+('CREAR_PROVEEDOR', 'Permiso para crear proveedores', NOW()),
+('CREAR_USUARIO', 'Permiso para crear usuarios', NOW()),
+('CREAR_SUSCRIPCION', 'Permiso para crear suscripciones', NOW()),
+('CREAR_OC', 'Permiso para crear órdenes de compra', NOW()),
+('CREAR_RECEPCION', 'Permiso para crear recepciones de mercadería', NOW()),
+
+-- EDITAR
+('EDITAR_PRODUCTO', 'Permiso para editar productos', NOW()),
+('EDITAR_PROVEEDOR', 'Permiso para editar proveedores', NOW()),
+('EDITAR_USUARIO', 'Permiso para editar usuarios', NOW()),
+('EDITAR_SUSCRIPCION', 'Permiso para editar suscripciones', NOW()),
+('EDITAR_OC', 'Permiso para editar órdenes de compra', NOW()),
+
+-- ELIMINAR
+('ELIMINAR_PRODUCTO', 'Permiso para eliminar productos', NOW()),
+('ELIMINAR_INVENTARIO', 'Permiso para eliminar movimientos de inventario', NOW()),
+('ELIMINAR_VENTA', 'Permiso para eliminar ventas', NOW()),
+('ELIMINAR_PROVEEDOR', 'Permiso para eliminar proveedores', NOW()),
+('ELIMINAR_USUARIO', 'Permiso para eliminar usuarios', NOW()),
+('ELIMINAR_SUSCRIPCION', 'Permiso para eliminar suscripciones', NOW()),
+
+-- CAMBIAR_ESTADO
+('CAMBIAR_ESTADO_USUARIO', 'Permiso para activar/desactivar usuarios', NOW()),
+('CAMBIAR_ESTADO_PROVEEDOR', 'Permiso para activar/desactivar proveedores', NOW()),
+('CAMBIAR_ESTADO_SUSCRIPCION', 'Permiso para activar/cancelar suscripciones', NOW()),
+
+-- OTROS
+('EMITIR_COMPROBANTE', 'Permiso para emitir comprobantes (boleta/factura)', NOW()),
+('ANULAR_COMPROBANTE', 'Permiso para anular comprobantes emitidos', NOW()),
+('CONFIRMAR_RECEPCION', 'Permiso para confirmar recepciones (impacta inventario)', NOW());
+--
+-- -- Insertar Suscripción para usuario admin (ACTIVA)
+-- INSERT INTO suscripciones (usuario_principal_id, plan_id, precio_mensual, preapproval_id, estado, fecha_inicio, metodo_pago, ultimos_4_digitos, tenant_id, created_at) VALUES
+--     (1, 'PRO', 99.99, 'PRE-001', 'ACTIVA', NOW(), 'TARJETA_CREDITO', '1234', 'farmacia-001', NOW())
+--     ON CONFLICT DO NOTHING;

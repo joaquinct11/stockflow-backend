@@ -17,4 +17,5 @@ public class MercadoPagoProperties {
     private String pendingUrl;
     private String notificationUrl;
     private String webhookSecret;
+    private String testPayerEmail;
 }

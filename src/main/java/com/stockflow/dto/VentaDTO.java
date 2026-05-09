@@ -35,6 +35,8 @@ public class VentaDTO {
 
     private String createdAt;
 
+    private Long cajaId;
+
     @NotEmpty(message = "La venta debe tener al menos un detalle")
     @Valid
     private List<DetalleVentaDTO> detalles;

@@ -2,6 +2,7 @@ package com.stockflow.service;
 
 import com.stockflow.dto.MercadoPagoWebhookRequestDTO;
 import com.stockflow.dto.SuscripcionCheckoutResponseDTO;
+import com.stockflow.dto.SuscripcionEstadoResponseDTO;
 
 public interface SuscripcionCheckoutService {
 
@@ -19,4 +20,27 @@ public interface SuscripcionCheckoutService {
                                                    String payerIdentificationType, String payerIdentificationNumber);
 
     void procesarWebhook(MercadoPagoWebhookRequestDTO webhookRequestDTO);
+
+    /**
+     * Retorna el estado actual de suscripción para un tenant/usuario.
+     * Nunca lanza excepción por ausencia de suscripción: en ese caso retorna estado "SIN_SUSCRIPCION".
+     */
+    SuscripcionEstadoResponseDTO obtenerEstadoSuscripcion(String tenantId, Long usuarioId);
+
+    /**
+     * Cancela una suscripción localmente y en Mercado Pago si tiene preapproval_id.
+     * Si la cancelación en MP falla, se registra el error pero la cancelación local se aplica igual.
+     */
+    void cancelarSuscripcion(Long suscripcionId);
+
+    /**
+     * Cancela la suscripción activa del usuario autenticado (identificado por tenantId + usuarioId).
+     */
+    void cancelarMiSuscripcion(String tenantId, Long usuarioId);
+
+    /**
+     * Consulta el estado actual del preapproval directamente en Mercado Pago
+     * y sincroniza el estado local. Útil en la pantalla de retorno tras el pago.
+     */
+    SuscripcionEstadoResponseDTO sincronizarDesdeMP(String tenantId, Long usuarioId);
 }

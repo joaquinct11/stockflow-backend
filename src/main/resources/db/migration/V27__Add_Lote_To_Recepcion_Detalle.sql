@@ -1,0 +1,1 @@
+ALTER TABLE recepcion_detalle ADD COLUMN IF NOT EXISTS lote VARCHAR(100);

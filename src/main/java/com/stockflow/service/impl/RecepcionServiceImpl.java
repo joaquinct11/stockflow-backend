@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -53,7 +54,7 @@ public class RecepcionServiceImpl implements RecepcionService {
     public RecepcionResponseDTO crearRecepcion(RecepcionRequestDTO request,
                                                Long usuarioReceptorId,
                                                String tenantId) {
-        OrdenCompra oc = null;
+        OrdenCompra oc;
         Proveedor proveedor;
 
         if (request.getOcId() != null) {
@@ -62,8 +63,15 @@ public class RecepcionServiceImpl implements RecepcionService {
             if ("CANCELADA".equals(oc.getEstado())) {
                 throw new BadRequestException("No se puede recepcionar una OC cancelada");
             }
+            if ("BORRADOR".equals(oc.getEstado())) {
+                throw new BadRequestException("La OC debe ser enviada antes de recepcionar");
+            }
+            if ("RECIBIDA".equals(oc.getEstado())) {
+                throw new BadRequestException("Esta OC ya fue recibida completamente");
+            }
             proveedor = oc.getProveedor();
         } else {
+            oc = null;
             if (request.getProveedorId() == null) {
                 throw new BadRequestException("Se requiere proveedorId cuando no se indica ocId");
             }
@@ -89,11 +97,17 @@ public class RecepcionServiceImpl implements RecepcionService {
             List<OrdenCompraDetalle> ocDetalles = ocDetalleRepository.findByOrdenCompraId(oc.getId());
 
             List<RecepcionDetalle> detalles = ocDetalles.stream()
-                    .map(ocDet -> RecepcionDetalle.builder()
-                            .recepcion(saved)
-                            .producto(ocDet.getProducto())
-                            .cantidadRecibida(ocDet.getCantidadSolicitada()) // inicia en 0; luego el usuario actualiza en Recepciones
-                            .build())
+                    .map(ocDet -> {
+                        int yaRecibido = ocDetalleRepository.totalRecibidoPorOcYProducto(
+                                oc.getId(), ocDet.getProducto().getId());
+                        int pendiente = Math.max(0, ocDet.getCantidadSolicitada() - yaRecibido);
+                        return RecepcionDetalle.builder()
+                                .recepcion(saved)
+                                .producto(ocDet.getProducto())
+                                .cantidadEsperada(pendiente)
+                                .cantidadRecibida(0)
+                                .build();
+                    })
                     .toList();
 
             detalleRepository.saveAll(detalles);
@@ -161,6 +175,7 @@ public class RecepcionServiceImpl implements RecepcionService {
 
         detalle.setCantidadRecibida(request.getCantidadRecibida());
         detalle.setFechaVencimiento(request.getFechaVencimiento());
+        detalle.setLote(request.getLote());
         RecepcionDetalle saved = detalleRepository.save(detalle);
 
         return toDetalleResponseDTO(saved);
@@ -209,8 +224,21 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         // Generate inventory movements and update product stock
+        List<OrdenCompraDetalle> ocDetalles = recepcion.getOrdenCompra() != null
+                ? ocDetalleRepository.findByOrdenCompraId(recepcion.getOrdenCompra().getId())
+                : List.of();
+
         for (RecepcionDetalle detalle : detalles) {
+            if (detalle.getCantidadRecibida() == null || detalle.getCantidadRecibida() <= 0) continue;
+
             Producto producto = detalle.getProducto();
+
+            BigDecimal costoUnitario = ocDetalles.stream()
+                    .filter(d -> d.getProducto().getId().equals(producto.getId()))
+                    .map(OrdenCompraDetalle::getPrecioUnitario)
+                    .filter(p -> p != null)
+                    .findFirst()
+                    .orElse(producto.getCostoUnitario());
 
             MovimientoInventario mov = MovimientoInventario.builder()
                     .producto(producto)
@@ -222,12 +250,19 @@ public class RecepcionServiceImpl implements RecepcionService {
                     .tenantId(recepcion.getTenantId())
                     .proveedorId(recepcion.getProveedor().getId())
                     .fechaVencimiento(detalle.getFechaVencimiento())
+                    .lote(detalle.getLote())
+                    .costoUnitario(costoUnitario)
                     .build();
 
             movimientoRepository.save(mov);
 
             producto.setStockActual(producto.getStockActual() + detalle.getCantidadRecibida());
+            // Actualizar último costo unitario del producto con el precio de esta recepción
+            producto.setCostoUnitario(costoUnitario);
             productoRepository.save(producto);
+            log.info("📦 Producto #{} '{}': stock +{} → {}, costo actualizado → {}",
+                    producto.getId(), producto.getNombre(),
+                    detalle.getCantidadRecibida(), producto.getStockActual(), costoUnitario);
         }
 
         recepcion.setEstado("CONFIRMADA");
@@ -241,6 +276,46 @@ public class RecepcionServiceImpl implements RecepcionService {
 
         log.info("✅ Recepción #{} confirmada", recepcionId);
         return toResponseDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public void anular(Long id, String tenantId) {
+        Recepcion recepcion = recepcionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if (!recepcion.getTenantId().equals(tenantId)) {
+            throw new BadRequestException("No tienes acceso a esta recepción");
+        }
+
+        if ("CONFIRMADA".equals(recepcion.getEstado())) {
+            throw new BadRequestException("No se puede anular una recepción ya confirmada — el stock ya fue actualizado");
+        }
+
+        recepcion.setEstado("ANULADA");
+        recepcionRepository.save(recepcion);
+        log.info("🚫 Recepción #{} anulada", id);
+    }
+
+    @Override
+    @Transactional
+    public void removeItem(Long recepcionId, Long itemId) {
+        Recepcion recepcion = recepcionRepository.findById(recepcionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if ("CONFIRMADA".equals(recepcion.getEstado())) {
+            throw new BadRequestException("No se pueden eliminar ítems de una recepción ya confirmada");
+        }
+
+        RecepcionDetalle detalle = detalleRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ítem no encontrado"));
+
+        if (!detalle.getRecepcion().getId().equals(recepcionId)) {
+            throw new BadRequestException("El ítem no pertenece a esta recepción");
+        }
+
+        detalleRepository.delete(detalle);
+        log.info("🗑️ Ítem #{} eliminado de recepción #{}", itemId, recepcionId);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -286,8 +361,11 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .id(d.getId())
                 .productoId(d.getProducto().getId())
                 .productoNombre(d.getProducto().getNombre())
+                .codigoBarras(d.getProducto().getCodigoBarras())
+                .cantidadEsperada(d.getCantidadEsperada())
                 .cantidadRecibida(d.getCantidadRecibida())
                 .fechaVencimiento(d.getFechaVencimiento())
+                .lote(d.getLote())
                 .build();
     }
 }

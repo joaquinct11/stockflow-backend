@@ -3,6 +3,7 @@ package com.stockflow.controller;
 import com.stockflow.dto.SuscripcionDTO;
 import com.stockflow.dto.SuscripcionCheckoutRequestDTO;
 import com.stockflow.dto.SuscripcionCheckoutResponseDTO;
+import com.stockflow.dto.SuscripcionEstadoResponseDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.SuscripcionMapper;
@@ -120,13 +121,21 @@ public class SuscripcionController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
     public ResponseEntity<SuscripcionDTO> cancelar(@PathVariable Long id) {
         log.info("🗑️ Cancelando suscripción ID: {}", id);
+        suscripcionCheckoutService.cancelarSuscripcion(id);
         return suscripcionService.obtenerSuscripcionPorId(id)
-                .map(suscripcion -> {
-                    suscripcion.setEstado("CANCELADA");
-                    Suscripcion suscripcionActualizada = suscripcionService.actualizarSuscripcion(id, suscripcion);
-                    return ResponseEntity.ok(suscripcionMapper.toDTO(suscripcionActualizada));
-                })
+                .map(suscripcionMapper::toDTO)
+                .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
+    }
+
+    @PatchMapping("/cancelar")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
+    public ResponseEntity<Void> cancelarMiSuscripcion() {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long usuarioId = TenantContext.getCurrentUserId();
+        log.info("🗑️ Cancelando suscripción para tenant={}, usuario={}", tenantId, usuarioId);
+        suscripcionCheckoutService.cancelarMiSuscripcion(tenantId, usuarioId);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/activar")
@@ -159,5 +168,23 @@ public class SuscripcionController {
                         request.getPlanId(), tenantId, usuarioId,
                         request.getTipoDocumento(), request.getNumeroDocumento())
         );
+    }
+
+    @GetMapping("/estado")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<SuscripcionEstadoResponseDTO> obtenerEstado() {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long usuarioId = TenantContext.getCurrentUserId();
+        log.info("📊 Consultando estado de suscripción para tenant {}, usuario {}", tenantId, usuarioId);
+        return ResponseEntity.ok(suscripcionCheckoutService.obtenerEstadoSuscripcion(tenantId, usuarioId));
+    }
+
+    @PostMapping("/sincronizar")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<SuscripcionEstadoResponseDTO> sincronizar() {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long usuarioId = TenantContext.getCurrentUserId();
+        log.info("🔄 Sincronizando estado desde Mercado Pago para tenant {}, usuario {}", tenantId, usuarioId);
+        return ResponseEntity.ok(suscripcionCheckoutService.sincronizarDesdeMP(tenantId, usuarioId));
     }
 }

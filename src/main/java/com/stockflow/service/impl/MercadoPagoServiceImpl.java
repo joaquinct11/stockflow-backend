@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stockflow.config.properties.MercadoPagoProperties;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.service.MercadoPagoService;
+import com.stockflow.service.model.MercadoPagoAuthorizedPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPaymentInfo;
 import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import com.stockflow.service.model.MercadoPagoPreferenceResponse;
@@ -38,7 +39,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             Map<String, Object> payload = new HashMap<>();
             payload.put("items", List.of(
                     Map.of(
-                            "title", "StockFlow Plan " + planId,
+                            "title", "Fluxus Plan " + planId,
                             "quantity", 1,
                             "currency_id", mercadoPagoProperties.getCurrencyId(),
                             "unit_price", precioMensual
@@ -105,55 +106,27 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         log.info("MP notificationUrl={}", mercadoPagoProperties.getNotificationUrl());
 
         try {
-            Map<String, Object> autoRecurring = new HashMap<>();
-            autoRecurring.put("frequency", 1);
-            autoRecurring.put("frequency_type", "months");
-            autoRecurring.put("transaction_amount", precioMensual);
-            autoRecurring.put("currency_id", mercadoPagoProperties.getCurrencyId());
+            String accessToken = mercadoPagoProperties.getAccessToken();
+            boolean isTestToken = accessToken != null && accessToken.startsWith("TEST-");
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("reason", "StockFlow Plan " + planId);
-            payload.put("payer_email", payerEmail);
-            payload.put("auto_recurring", autoRecurring);
-            payload.put("external_reference", externalReference);
-            payload.put("notification_url", mercadoPagoProperties.getNotificationUrl());
-            payload.put("back_url", mercadoPagoProperties.getSuccessUrl());
-            // status "pending" es requerido para crear la suscripción en estado
-            // "esperando autorización del pagador" y obtener el initPoint correcto.
-            payload.put("status", "pending");
-
-            // Incluir objeto payer con identificación si está disponible.
-            // Esto pre-rellena el formulario de MP y evita que el botón
-            // "Confirmar" quede deshabilitado por datos faltantes del pagador.
-            if (payerIdentificationType != null && !payerIdentificationType.isBlank()
-                    && payerIdentificationNumber != null && !payerIdentificationNumber.isBlank()) {
-                Map<String, Object> identification = new HashMap<>();
-                identification.put("type", payerIdentificationType);
-                identification.put("number", payerIdentificationNumber);
-
-                Map<String, Object> payer = new HashMap<>();
-                payer.put("email", payerEmail);
-                payer.put("identification", identification);
-
-                payload.put("payer", payer);
-                log.info("🪪 Enviando identificación del pagador a MP: tipo={}, numero=****{}",
-                        payerIdentificationType,
-                        payerIdentificationNumber.length() > 4
-                                ? payerIdentificationNumber.substring(payerIdentificationNumber.length() - 4)
-                                : "****");
-            } else {
-                log.warn("⚠️ No se envía identificación del pagador a MP (tipoDocumento/numeroDocumento no disponibles). "
-                        + "El botón 'Confirmar' puede quedar deshabilitado si el perfil del pagador en MP no está verificado.");
-            }
+            Map<String, Object> payload = buildPreapprovalPayload(
+                    planId, precioMensual, externalReference, payerEmail,
+                    payerIdentificationType, payerIdentificationNumber, isTestToken);
 
             String payloadJson = objectMapper.writeValueAsString(payload);
+
+            String tokenPrefix = accessToken != null
+                    ? accessToken.substring(0, Math.min(4, accessToken.length())) + "..."
+                    : "null";
+            log.info("🔑 MP token prefix={}, isTestToken={}", tokenPrefix, isTestToken);
+            log.info("📋 MP external_reference={}, back_url={}", externalReference, mercadoPagoProperties.getSuccessUrl());
             log.info("📤 Payload enviado a MP /preapproval: {}", payloadJson);
 
             log.info("🔄 Creando preapproval MP para plan={}, externalRef={}", planId, externalReference);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/preapproval"))
-                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .header("Authorization", "Bearer " + accessToken)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(payloadJson))
                     .build();
@@ -168,6 +141,10 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             }
 
             Map<String, Object> responseBody = objectMapper.readValue(response.body(), new TypeReference<>() {});
+
+            Object applicationId = responseBody.get("application_id");
+            Object collectorId = responseBody.get("collector_id");
+            log.info("🏷️ MP preapproval creado: application_id={}, collector_id={}", applicationId, collectorId);
 
             return MercadoPagoPreapprovalInfo.builder()
                     .preapprovalId((String) responseBody.get("id"))
@@ -265,6 +242,79 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         }
     }
 
+    Map<String, Object> buildPreapprovalPayload(String planId, BigDecimal precioMensual,
+                                                String externalReference, String payerEmail,
+                                                String payerIdentificationType, String payerIdentificationNumber,
+                                                boolean isTestToken) {
+        Map<String, Object> autoRecurring = new HashMap<>();
+        autoRecurring.put("frequency", 1);
+        autoRecurring.put("frequency_type", "months");
+        autoRecurring.put("transaction_amount", precioMensual);
+        autoRecurring.put("currency_id", mercadoPagoProperties.getCurrencyId());
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("reason", "Fluxus Plan " + planId);
+        payload.put("auto_recurring", autoRecurring);
+        payload.put("external_reference", externalReference);
+        payload.put("notification_url", mercadoPagoProperties.getNotificationUrl());
+        payload.put("back_url", mercadoPagoProperties.getSuccessUrl());
+        // status "pending" es requerido para crear la suscripción en estado
+        // "esperando autorización del pagador" y obtener el initPoint correcto.
+        payload.put("status", "pending");
+
+        String effectivePayerEmail;
+        if (isTestToken) {
+            // En ambiente TEST usar el email de prueba configurable.
+            // MP requiere payer_email incluso en sandbox.
+            String testPayerEmail = mercadoPagoProperties.getTestPayerEmail();
+            if (testPayerEmail == null || testPayerEmail.isBlank()) {
+                throw new BadRequestException(
+                        "Configuración inválida: mercadopago.test-payer-email (MERCADOPAGO_TEST_PAYER_EMAIL) "
+                        + "es requerido cuando se usa un token TEST de Mercado Pago");
+            }
+            if (!testPayerEmail.contains("@")) {
+                throw new BadRequestException(
+                        "Configuración inválida: mercadopago.test-payer-email (MERCADOPAGO_TEST_PAYER_EMAIL) "
+                        + "debe ser un email válido (contener '@')");
+            }
+            effectivePayerEmail = testPayerEmail;
+            String domain = effectivePayerEmail.substring(effectivePayerEmail.indexOf('@'));
+            log.info("🔑 payerEmailMode=CONFIG_TEST_PAYER_EMAIL domain={}", domain);
+        } else {
+            // En PROD, incluir el email del usuario autenticado.
+            effectivePayerEmail = payerEmail;
+            log.info("🔑 payerEmailMode=AUTH_USER_FOR_PROD");
+        }
+
+        payload.put("payer_email", effectivePayerEmail);
+
+        // Incluir objeto payer con identificación si está disponible.
+        // Esto pre-rellena el formulario de MP y evita que el botón
+        // "Confirmar" quede deshabilitado por datos faltantes del pagador.
+        if (payerIdentificationType != null && !payerIdentificationType.isBlank()
+                && payerIdentificationNumber != null && !payerIdentificationNumber.isBlank()) {
+            Map<String, Object> identification = new HashMap<>();
+            identification.put("type", payerIdentificationType);
+            identification.put("number", payerIdentificationNumber);
+
+            Map<String, Object> payer = new HashMap<>();
+            payer.put("email", effectivePayerEmail);
+            payer.put("identification", identification);
+
+            payload.put("payer", payer);
+            log.info("🪪 Enviando identificación del pagador a MP: tipo={}, numero=****{}",
+                    payerIdentificationType,
+                    payerIdentificationNumber.length() > 4
+                            ? payerIdentificationNumber.substring(payerIdentificationNumber.length() - 4)
+                            : "****");
+        } else {
+            log.warn("⚠️ No se envía identificación del pagador a MP (tipoDocumento/numeroDocumento no disponibles). "
+                    + "El botón 'Confirmar' puede quedar deshabilitado si el perfil del pagador en MP no está verificado.");
+        }
+
+        return payload;
+    }
+
     private void validarConfiguracion() {
         if (mercadoPagoProperties.getAccessToken() == null || mercadoPagoProperties.getAccessToken().isBlank()) {
             throw new BadRequestException("Configuración inválida: mercadopago.access-token es requerido");
@@ -297,6 +347,83 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
             // ignore JSON parse errors; fall through to return raw body
         }
         return responseBody;
+    }
+
+    @Override
+    public MercadoPagoAuthorizedPaymentInfo obtenerAuthorizedPayment(String authorizedPaymentId) {
+        validarConfiguracion();
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/authorized_payments/" + authorizedPaymentId))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP GET /authorized_payments/{}: status={}, body={}", authorizedPaymentId, response.statusCode(), response.body());
+
+            if (response.statusCode() >= 400) {
+                log.error("❌ Error consultando authorized_payment {}. status={}, body={}", authorizedPaymentId, response.statusCode(), response.body());
+                throw new BadRequestException("No se pudo consultar el authorized_payment en Mercado Pago. status=" + response.statusCode());
+            }
+
+            Map<String, Object> body = objectMapper.readValue(response.body(), new TypeReference<>() {});
+
+            String preapprovalId = body.get("preapproval_id") != null ? String.valueOf(body.get("preapproval_id")) : null;
+            String status = body.get("status") != null ? String.valueOf(body.get("status")) : null;
+
+            String paymentId = null;
+            String paymentStatus = null;
+            Object paymentObj = body.get("payment");
+            if (paymentObj instanceof Map<?, ?> paymentMap) {
+                if (paymentMap.get("id") != null) paymentId = String.valueOf(paymentMap.get("id"));
+                if (paymentMap.get("status") != null) paymentStatus = String.valueOf(paymentMap.get("status"));
+            }
+
+            return MercadoPagoAuthorizedPaymentInfo.builder()
+                    .authorizedPaymentId(String.valueOf(body.get("id")))
+                    .preapprovalId(preapprovalId)
+                    .status(status)
+                    .paymentId(paymentId)
+                    .paymentStatus(paymentStatus)
+                    .build();
+
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("❌ Error consultando authorized_payment {} en Mercado Pago", authorizedPaymentId, ex);
+            throw new BadRequestException("No se pudo consultar el authorized_payment en Mercado Pago", ex);
+        }
+    }
+
+    @Override
+    public void cancelarPreapproval(String preapprovalId) {
+        validarConfiguracion();
+
+        try {
+            Map<String, Object> payload = Map.of("status", "cancelled");
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(mercadoPagoProperties.getCheckoutBaseUrl() + "/preapproval/" + preapprovalId))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .header("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP PUT /preapproval/{}: status={}", preapprovalId, response.statusCode());
+
+            if (response.statusCode() >= 400) {
+                log.error("❌ Error cancelando preapproval {}. status={}, body={}", preapprovalId, response.statusCode(), response.body());
+                throw new BadRequestException("No se pudo cancelar la suscripción en Mercado Pago. status=" + response.statusCode());
+            }
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("❌ Error cancelando preapproval {} en Mercado Pago", preapprovalId, ex);
+            throw new BadRequestException("No se pudo cancelar la suscripción en Mercado Pago", ex);
+        }
     }
 
     private boolean hasAnyBackUrl() {

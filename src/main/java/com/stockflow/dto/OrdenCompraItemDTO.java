@@ -22,6 +22,8 @@ public class OrdenCompraItemDTO {
 
     private String productoNombre;
 
+    private String codigoBarras;
+
     @NotNull(message = "La cantidad solicitada es requerida")
     @Min(value = 1, message = "La cantidad debe ser mayor a 0")
     private Integer cantidadSolicitada;

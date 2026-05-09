@@ -1,5 +1,6 @@
 package com.stockflow.controller;
 
+import com.stockflow.config.RolePermissionDefaults;
 import com.stockflow.dto.PermisoDTO;
 import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.entity.Permiso;
@@ -32,6 +33,7 @@ public class AdminController {
     private final UsuarioService usuarioService;
     private final UsuarioPermisoService usuarioPermisoService;
     private final UsuarioMapper usuarioMapper;
+    private final RolePermissionDefaults rolePermissionDefaults;
 
     @GetMapping("/permisos")
     @Operation(summary = "Listar todos los permisos", description = "Devuelve el catálogo completo de permisos disponibles")
@@ -71,6 +73,20 @@ public class AdminController {
         usuarioPermisoService.asignarPermisos(id, permisoCodigos, tenantId);
         List<String> asignados = usuarioPermisoService.obtenerPermisosCodigos(id, tenantId);
         return ResponseEntity.ok(asignados);
+    }
+
+    /**
+     * Devuelve los códigos de permisos base (por defecto) para un rol.
+     * El frontend los usa para pre-marcar los checkboxes en la pantalla de gestión de permisos.
+     */
+    @GetMapping("/permisos-defaults/{rolNombre}")
+    @Operation(summary = "Permisos por defecto de un rol")
+    public ResponseEntity<List<String>> obtenerPermisosDefaultRol(@PathVariable String rolNombre) {
+        List<String> defaults = new java.util.ArrayList<>(
+                rolePermissionDefaults.getBasePermissions(rolNombre.toUpperCase())
+        );
+        java.util.Collections.sort(defaults);
+        return ResponseEntity.ok(defaults);
     }
 
     private PermisoDTO toPermisoDTO(Permiso permiso) {

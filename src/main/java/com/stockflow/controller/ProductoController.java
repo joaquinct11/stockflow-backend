@@ -1,6 +1,8 @@
 package com.stockflow.controller;
 
 import com.stockflow.dto.ProductoDTO;
+import com.stockflow.dto.ProductoImportResultDTO;
+import com.stockflow.dto.ProductoImportRowDTO;
 import com.stockflow.entity.Producto;
 import com.stockflow.mapper.ProductoMapper;
 import com.stockflow.service.ProductoService;
@@ -112,5 +114,23 @@ public class ProductoController {
         log.info("🗑️ Eliminando producto ID: {}", id);
         productoService.eliminarProducto(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * POST /api/productos/importar
+     * Importación masiva desde Excel/CSV (parseado en frontend, enviado como JSON).
+     * Crea nuevos productos o actualiza los existentes por codigoBarras.
+     */
+    @PostMapping("/importar")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_PRODUCTO')")
+    public ResponseEntity<ProductoImportResultDTO> importar(
+            @RequestBody List<ProductoImportRowDTO> filas) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📥 Importando {} productos para tenant={}", filas.size(), tenantId);
+        if (filas.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        ProductoImportResultDTO result = productoService.importar(filas, tenantId);
+        return ResponseEntity.ok(result);
     }
 }

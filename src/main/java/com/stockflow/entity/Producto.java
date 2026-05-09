@@ -44,6 +44,10 @@ public class Producto {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal precioVenta;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "categoria_id")
+    private Categoria categoriaRef;
+
     @ManyToOne
     @JoinColumn(name = "unidad_medida_id", nullable = false)
     private UnidadMedida unidadMedida;

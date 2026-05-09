@@ -12,7 +12,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update  # ✅ Actualiza automáticamente en dev
-    show-sql: true      # ✅ Muestra SQL en consola
+    show-sql: false      # ✅ Muestra SQL en consola
 
   flyway:
     enabled: true
@@ -47,16 +47,11 @@ logging:
     com.stockflow: DEBUG
     org.springframework.web: DEBUG
     org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: INFO
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
-
-sendgrid:
-  api-key: ${SENDGRID_API_KEY}
-  from-email: joaquincastillotello2001@gmail.com
-  from-name: StockFlow
   
 springdoc:
   api-docs:

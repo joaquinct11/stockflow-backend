@@ -16,6 +16,9 @@ public class RecepcionDetalleResponseDTO {
     private Long id;
     private Long productoId;
     private String productoNombre;
+    private String codigoBarras;
+    private Integer cantidadEsperada;
     private Integer cantidadRecibida;
     private LocalDate fechaVencimiento;
+    private String lote;
 }
