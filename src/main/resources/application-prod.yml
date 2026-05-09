@@ -32,8 +32,8 @@ jwt:
 # CORS estricto
 cors:
   allowed-origins:
-    - https://www.stockflow.pe
-    - https://stockflow.pe
+    - https://www.fluxus.pe
+    - https://fluxus.pe
 
 # Servidor
 server:
