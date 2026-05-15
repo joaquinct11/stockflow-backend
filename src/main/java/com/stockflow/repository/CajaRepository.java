@@ -12,4 +12,6 @@ public interface CajaRepository extends JpaRepository<Caja, Long> {
     List<Caja> findByTenantIdOrderByFechaAperturaDesc(String tenantId);
     Optional<Caja> findByTenantIdAndUsuarioIdAndEstado(String tenantId, Long usuarioId, String estado);
     Optional<Caja> findFirstByTenantIdAndEstadoOrderByFechaAperturaDesc(String tenantId, String estado);
+
+    long countByTenantId(String tenantId);
 }

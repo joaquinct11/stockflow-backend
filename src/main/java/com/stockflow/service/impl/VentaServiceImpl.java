@@ -10,7 +10,6 @@ import com.stockflow.service.MovimientoInventarioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -27,26 +26,16 @@ public class VentaServiceImpl implements VentaService {
     @Override
     @Transactional
     public Venta crearVenta(Venta venta) {
-//        BigDecimal total = BigDecimal.ZERO;
-
         for (DetalleVenta detalle : venta.getDetalles()) {
             detalle.setVenta(venta);
             detalle.calcularSubtotal();
-//            total = total.add(detalle.getSubtotal());
         }
-
-//        venta.setTotal(total);
         return ventaRepository.save(venta);
     }
 
     @Override
     public Optional<Venta> obtenerVentaPorId(Long id) {
         return ventaRepository.findById(id);
-    }
-
-    @Override
-    public List<Venta> obtenerVentasPorVendedor(Long vendedorId) {
-        return ventaRepository.findByVendedorId(vendedorId);
     }
 
     @Override
@@ -70,12 +59,11 @@ public class VentaServiceImpl implements VentaService {
     }
 
     @Override
-    public void eliminarVenta(Long id) {
-        ventaRepository.deleteById(id);
-    }
-
-    @Override
-    public List<Venta> obtenerTodasVentas() {
-        return ventaRepository.findAll();
+    @Transactional
+    public void actualizarNotaCredito(Long ventaId, Long notaCreditoId) {
+        ventaRepository.findById(ventaId).ifPresent(v -> {
+            v.setNotaCreditoId(notaCreditoId);
+            ventaRepository.save(v);
+        });
     }
 }

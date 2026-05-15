@@ -18,8 +18,6 @@ public class ProductoImportRowDTO {
     /** Opcional — si existe en BD se actualiza; si no, se crea */
     private String codigoBarras;
 
-    private String categoria;
-
     /** Requerido */
     private BigDecimal precioVenta;
 

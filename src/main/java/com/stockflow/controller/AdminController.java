@@ -45,7 +45,7 @@ public class AdminController {
     }
 
     @GetMapping("/usuarios")
-    @Operation(summary = "Listar usuarios del tenant", description = "Devuelve usuarios del tenant actual (campos mínimos)")
+    @Operation(summary = "Listar usuarios del tenant", description = "Devuelve usuarios del tenant actual para gestión de permisos")
     public ResponseEntity<List<UsuarioDTO>> listarUsuarios() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👥 [Admin] Listando usuarios del tenant: {}", tenantId);

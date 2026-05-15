@@ -28,7 +28,7 @@ public class CajaController {
 
     /** GET /cajas/activa — la caja abierta del tenant (compartida, 404 si no hay ninguna) */
     @GetMapping("/activa")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
     public ResponseEntity<CajaDTO> getActiva() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Buscando caja activa para tenant={}", tenantId);
@@ -37,9 +37,9 @@ public class CajaController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** GET /cajas — historial de cajas del tenant (ADMIN/GERENTE) */
+    /** GET /cajas — historial de cajas del tenant */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_REPORTES')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
     public ResponseEntity<List<CajaDTO>> getAll() {
         String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(cajaService.getAll(tenantId));
@@ -47,7 +47,7 @@ public class CajaController {
 
     /** GET /cajas/{id} */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
     public ResponseEntity<CajaDTO> getById(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
         return cajaService.getById(id, tenantId)
@@ -57,7 +57,7 @@ public class CajaController {
 
     /** POST /cajas/abrir */
     @PostMapping("/abrir")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_ABRIR_CAJA')")
     public ResponseEntity<CajaDTO> abrir(@RequestBody AbrirCajaRequestDTO request, Authentication auth) {
         String tenantId = TenantContext.getCurrentTenant();
         Long usuarioId = TenantContext.getCurrentUserId();
@@ -74,7 +74,7 @@ public class CajaController {
 
     /** POST /cajas/{id}/cerrar */
     @PostMapping("/{id}/cerrar")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CERRAR_CAJA')")
     public ResponseEntity<CajaDTO> cerrar(@PathVariable Long id,
                                           @Valid @RequestBody CerrarCajaRequestDTO request) {
         String tenantId = TenantContext.getCurrentTenant();

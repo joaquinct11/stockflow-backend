@@ -26,9 +26,6 @@ public class Producto {
     @Column(unique = true, length = 100)
     private String codigoBarras;
 
-    @Column(length = 100)
-    private String categoria;
-
     @Column(nullable = false)
     private Integer stockActual = 0;
 
@@ -44,7 +41,7 @@ public class Producto {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal precioVenta;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "categoria_id")
     private Categoria categoriaRef;
 
@@ -61,6 +58,4 @@ public class Producto {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
 }

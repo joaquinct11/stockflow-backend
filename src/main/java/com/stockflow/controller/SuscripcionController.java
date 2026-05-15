@@ -99,8 +99,8 @@ public class SuscripcionController {
                 });
 
         // Validar plan
-        if (!suscripcionDTO.getPlanId().matches("FREE|BASICO|PRO")) {
-            throw new BadRequestException("Plan no válido. Use: FREE, BASICO, PRO");
+        if (!suscripcionDTO.getPlanId().matches("BASICO|PRO")) {
+            throw new BadRequestException("Plan no válido. Use: BASICO, PRO");
         }
 
         // Crear suscripción usando mapper

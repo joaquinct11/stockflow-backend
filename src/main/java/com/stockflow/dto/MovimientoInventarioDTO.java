@@ -30,8 +30,6 @@ public class MovimientoInventarioDTO {
     @NotBlank(message = "El tipo de movimiento es requerido")
     private String tipo;
 
-    private Long ventaId;
-
     @NotNull(message = "El usuario es requerido")
     private Long usuarioId;
 

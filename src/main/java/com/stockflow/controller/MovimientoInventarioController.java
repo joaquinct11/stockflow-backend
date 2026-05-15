@@ -49,7 +49,9 @@ public class MovimientoInventarioController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_INVENTARIO')")
     public ResponseEntity<MovimientoInventarioDTO> obtenerPorId(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         return movimientoService.obtenerMovimientoPorId(id)
+                .filter(m -> tenantId.equals(m.getTenantId()))
                 .map(movimientoMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -58,7 +60,12 @@ public class MovimientoInventarioController {
     @GetMapping("/producto/{productoId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorProducto(@PathVariable Long productoId) {
-        log.info("📦 Obteniendo movimientos del producto: {}", productoId);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📦 Obteniendo movimientos del producto: {} para tenant: {}", productoId, tenantId);
+        // Verificar que el producto pertenece al tenant antes de exponer sus movimientos
+        productoService.obtenerProductoPorId(productoId)
+                .filter(p -> tenantId.equals(p.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
         return ResponseEntity.ok(
                 movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorProducto(productoId))
         );
@@ -67,7 +74,12 @@ public class MovimientoInventarioController {
     @GetMapping("/usuario/{usuarioId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorUsuario(@PathVariable Long usuarioId) {
-        log.info("👤 Obteniendo movimientos del usuario: {}", usuarioId);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("👤 Obteniendo movimientos del usuario: {} para tenant: {}", usuarioId, tenantId);
+        // Verificar que el usuario pertenece al tenant antes de exponer sus movimientos
+        usuarioService.obtenerUsuarioPorId(usuarioId)
+                .filter(u -> tenantId.equals(u.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         return ResponseEntity.ok(
                 movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorUsuario(usuarioId))
         );
@@ -93,12 +105,14 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando movimiento de inventario para tenant: {}", tenantId);
 
-        // Validar producto
+        // Validar producto y que pertenece al tenant
         Producto producto = productoService.obtenerProductoPorId(movimientoDTO.getProductoId())
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
 
-        // Validar usuario
+        // Validar usuario y que pertenece al tenant
         Usuario usuario = usuarioService.obtenerUsuarioPorId(movimientoDTO.getUsuarioId())
+                .filter(u -> tenantId.equals(u.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         // Validar tipo de movimiento
@@ -177,8 +191,11 @@ public class MovimientoInventarioController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_INVENTARIO')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("🗑️ Eliminando movimiento ID: {}", id);
-        movimientoService.eliminarMovimiento(id);
+        movimientoService.obtenerMovimientoPorId(id)
+                .filter(m -> tenantId.equals(m.getTenantId()))
+                .ifPresent(m -> movimientoService.eliminarMovimiento(id));
         return ResponseEntity.noContent().build();
     }
 }

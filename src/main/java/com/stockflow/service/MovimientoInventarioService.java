@@ -10,13 +10,9 @@ public interface MovimientoInventarioService {
 
     Optional<MovimientoInventario> obtenerMovimientoPorId(Long id);
 
-    List<MovimientoInventario> obtenerTodosMovimientos();
-
     List<MovimientoInventario> obtenerMovimientosPorProducto(Long productoId);
 
     List<MovimientoInventario> obtenerMovimientosPorUsuario(Long usuarioId);
-
-    List<MovimientoInventario> obtenerMovimientosPorTipo(String tipo);
 
     List<MovimientoInventario> obtenerMovimientosPorTenant(String tenantId);
 

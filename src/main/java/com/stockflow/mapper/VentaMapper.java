@@ -12,6 +12,11 @@ public interface VentaMapper {
     @Mapping(source = "vendedor.id", target = "vendedorId")
     @Mapping(source = "vendedor.nombre", target = "vendedorNombre")
     @Mapping(source = "cajaId", target = "cajaId")
+    @Mapping(source = "notaCreditoId", target = "notaCreditoId")
+    @Mapping(source = "descuentoNotaCredito", target = "descuentoNotaCredito")
+    @Mapping(target = "notaCreditoCodigo", ignore = true)
+    @Mapping(target = "clienteNombre", ignore = true)
+    @Mapping(target = "createdAt", expression = "java(venta.getCreatedAt() != null ? venta.getCreatedAt().toString() : null)")
     VentaDTO toDTO(Venta venta);
 
     @Mapping(target = "id", ignore = true)

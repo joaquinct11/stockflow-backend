@@ -46,6 +46,16 @@ public class Venta {
     @Column(name = "caja_id")
     private Long cajaId;
 
+    @Column(name = "nota_credito_id")
+    private Long notaCreditoId;
+
+    /** Cliente asociado a la venta (opcional — consumidor final si es null). */
+    @Column(name = "cliente_id")
+    private Long clienteId;
+
+    @Column(name = "descuento_nota_credito", precision = 12, scale = 2)
+    private java.math.BigDecimal descuentoNotaCredito;
+
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleVenta> detalles = new ArrayList<>();
 

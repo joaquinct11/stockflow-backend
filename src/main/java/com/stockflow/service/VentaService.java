@@ -12,8 +12,6 @@ public interface VentaService {
 
     Optional<Venta> obtenerVentaPorId(Long id);
 
-    List<Venta> obtenerVentasPorVendedor(Long vendedorId);
-
     List<Venta> obtenerVentasPorVendedorYTenant(Long vendedorId, String tenantId);
 
     List<Venta> obtenerVentasPorTenant(String tenantId);
@@ -22,7 +20,5 @@ public interface VentaService {
 
     List<DetalleVenta> obtenerDetallesVenta(Long ventaId);
 
-    void eliminarVenta(Long id);
-
-    List<Venta> obtenerTodasVentas();
+    void actualizarNotaCredito(Long ventaId, Long notaCreditoId);
 }

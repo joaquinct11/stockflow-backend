@@ -2,7 +2,10 @@ package com.stockflow.repository;
 
 import com.stockflow.entity.Suscripcion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,12 +23,46 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
 
     Optional<Suscripcion> findByTenantIdAndUsuarioPrincipalId(String tenantId, Long usuarioPrincipalId);
 
-    /** Para usuarios no-owner (GERENTE, etc.) que pertenecen al mismo tenant. */
+    /** Suscripción más antigua (para búsquedas históricas). */
     Optional<Suscripcion> findFirstByTenantIdOrderByIdAsc(String tenantId);
+
+    /** Suscripción más reciente — usar para validar plan actual del tenant. */
+    Optional<Suscripcion> findFirstByTenantIdOrderByIdDesc(String tenantId);
 
     Optional<Suscripcion> findFirstByMpPreferenceIdOrderByIdDesc(String mpPreferenceId);
 
     Optional<Suscripcion> findByPreapprovalId(String preapprovalId);
 
     long countByTenantId(String tenantId);
+
+    /**
+     * Suscripciones ACTIVAS sin preapproval (cobro manual) cuya fechaProximoCobro
+     * cae entre dos momentos. Las que tienen preapprovalId se renuevan solas con MP
+     * y no necesitan notificación de vencimiento.
+     */
+    @Query("""
+            SELECT s FROM Suscripcion s
+            WHERE s.estado = 'ACTIVA'
+              AND (s.preapprovalId IS NULL OR s.preapprovalId = '')
+              AND s.fechaProximoCobro IS NOT NULL
+              AND s.fechaProximoCobro BETWEEN :desde AND :hasta
+            """)
+    List<Suscripcion> findActivasManualesPorVencerEntre(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta
+    );
+
+    /**
+     * Trials por vencer — no se renuevan automáticamente, el usuario debe contratar.
+     */
+    @Query("""
+            SELECT s FROM Suscripcion s
+            WHERE s.estado = 'TRIAL'
+              AND s.trialEndDate IS NOT NULL
+              AND s.trialEndDate BETWEEN :desde AND :hasta
+            """)
+    List<Suscripcion> findTrialsPorVencerEntre(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta
+    );
 }

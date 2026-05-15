@@ -119,8 +119,10 @@ public class RecepcionServiceImpl implements RecepcionService {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<RecepcionResponseDTO> obtenerPorId(Long id) {
-        return recepcionRepository.findWithDetallesById(id).map(this::toResponseDTO);
+    public Optional<RecepcionResponseDTO> obtenerPorId(Long id, String tenantId) {
+        return recepcionRepository.findWithDetallesById(id)
+                .filter(r -> tenantId.equals(r.getTenantId()))
+                .map(this::toResponseDTO);
     }
 
     @Override
@@ -133,9 +135,13 @@ public class RecepcionServiceImpl implements RecepcionService {
 
     @Override
     @Transactional
-    public RecepcionDetalleResponseDTO upsertItem(Long recepcionId, RecepcionDetalleRequestDTO request) {
+    public RecepcionDetalleResponseDTO upsertItem(Long recepcionId, RecepcionDetalleRequestDTO request, String tenantId) {
         Recepcion recepcion = recepcionRepository.findById(recepcionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if (!tenantId.equals(recepcion.getTenantId())) {
+            throw new ResourceNotFoundException("Recepción no encontrada");
+        }
 
         if ("CONFIRMADA".equals(recepcion.getEstado())) {
             throw new BadRequestException("No se pueden modificar ítems de una recepción ya confirmada");
@@ -183,9 +189,13 @@ public class RecepcionServiceImpl implements RecepcionService {
 
     @Override
     @Transactional
-    public RecepcionResponseDTO guardarComprobante(Long recepcionId, ComprobanteProveedorDTO dto) {
+    public RecepcionResponseDTO guardarComprobante(Long recepcionId, ComprobanteProveedorDTO dto, String tenantId) {
         Recepcion recepcion = recepcionRepository.findById(recepcionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if (!tenantId.equals(recepcion.getTenantId())) {
+            throw new ResourceNotFoundException("Recepción no encontrada");
+        }
 
         if ("CONFIRMADA".equals(recepcion.getEstado())) {
             throw new BadRequestException("No se puede modificar el comprobante de una recepción confirmada");
@@ -206,9 +216,13 @@ public class RecepcionServiceImpl implements RecepcionService {
 
     @Override
     @Transactional
-    public RecepcionResponseDTO confirmar(Long recepcionId, Long usuarioId) {
+    public RecepcionResponseDTO confirmar(Long recepcionId, Long usuarioId, String tenantId) {
         Recepcion recepcion = recepcionRepository.findById(recepcionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if (!tenantId.equals(recepcion.getTenantId())) {
+            throw new ResourceNotFoundException("Recepción no encontrada");
+        }
 
         // Idempotence guard
         if ("CONFIRMADA".equals(recepcion.getEstado())) {
@@ -299,9 +313,13 @@ public class RecepcionServiceImpl implements RecepcionService {
 
     @Override
     @Transactional
-    public void removeItem(Long recepcionId, Long itemId) {
+    public void removeItem(Long recepcionId, Long itemId, String tenantId) {
         Recepcion recepcion = recepcionRepository.findById(recepcionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recepción no encontrada"));
+
+        if (!tenantId.equals(recepcion.getTenantId())) {
+            throw new ResourceNotFoundException("Recepción no encontrada");
+        }
 
         if ("CONFIRMADA".equals(recepcion.getEstado())) {
             throw new BadRequestException("No se pueden eliminar ítems de una recepción ya confirmada");

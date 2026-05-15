@@ -317,7 +317,14 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
 
     private void validarConfiguracion() {
         if (mercadoPagoProperties.getAccessToken() == null || mercadoPagoProperties.getAccessToken().isBlank()) {
-            throw new BadRequestException("Configuración inválida: mercadopago.access-token es requerido");
+            throw new BadRequestException("Configuración inválida: MERCADOPAGO_ACCESS_TOKEN no está configurado");
+        }
+        String baseUrl = mercadoPagoProperties.getCheckoutBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            throw new BadRequestException("Configuración inválida: MERCADOPAGO_BASE_URL no está configurado (debe ser https://api.mercadopago.com)");
+        }
+        if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+            throw new BadRequestException("Configuración inválida: MERCADOPAGO_BASE_URL debe comenzar con https:// — valor actual: '" + baseUrl + "'");
         }
     }
 

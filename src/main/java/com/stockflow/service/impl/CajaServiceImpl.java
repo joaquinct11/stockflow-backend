@@ -4,11 +4,16 @@ import com.stockflow.dto.AbrirCajaRequestDTO;
 import com.stockflow.dto.CajaDTO;
 import com.stockflow.dto.CerrarCajaRequestDTO;
 import com.stockflow.entity.Caja;
+import com.stockflow.entity.Tenant;
 import com.stockflow.entity.Venta;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.repository.CajaRepository;
+import com.stockflow.repository.TenantRepository;
+import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.CajaService;
+import com.stockflow.service.EmailService;
+import com.stockflow.service.NotificacionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +31,10 @@ public class CajaServiceImpl implements CajaService {
 
     private final CajaRepository cajaRepository;
     private final VentaRepository ventaRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final TenantRepository tenantRepository;
+    private final EmailService emailService;
+    private final NotificacionService notificacionService;
 
     @Override
     public CajaDTO abrir(AbrirCajaRequestDTO request, Long usuarioId, String usuarioNombre, String tenantId) {
@@ -105,7 +114,45 @@ public class CajaServiceImpl implements CajaService {
             caja.setObservaciones(request.getObservaciones());
         }
 
-        return toDTO(cajaRepository.save(caja));
+        CajaDTO resultado = toDTO(cajaRepository.save(caja));
+
+        // Notificar descuadre de caja si aplica
+        if (diferencia.compareTo(BigDecimal.ZERO) != 0) {
+            try {
+                String descMsg = diferencia.compareTo(BigDecimal.ZERO) > 0
+                        ? "Sobrante de S/ " + diferencia.abs().toPlainString()
+                        : "Faltante de S/ " + diferencia.abs().toPlainString();
+                notificacionService.notificarRoles(
+                        tenantId,
+                        List.of("ADMIN", "GERENTE"),
+                        "DESCUADRE_CAJA",
+                        "⚠️ Descuadre en cierre de caja",
+                        String.format("La caja cerrada por %s presenta un %s al momento del cierre.",
+                                caja.getUsuarioNombre(), descMsg),
+                        cajaId, "CAJA");
+            } catch (Exception e) {
+                log.warn("No se pudo crear notificación de descuadre: {}", e.getMessage());
+            }
+        }
+
+        // Enviar resumen de cierre por email a ADMIN y GERENTE del tenant
+        try {
+            String empresaNombre = tenantRepository.findByTenantId(tenantId)
+                    .map(Tenant::getNombre).orElse(tenantId);
+
+            usuarioRepository.findAdminYGerenteByTenant(tenantId).forEach(u ->
+                emailService.enviarResumenCierreCaja(
+                        u.getEmail(), empresaNombre, caja.getUsuarioNombre(),
+                        caja.getMontoApertura(), caja.getTotalEfectivo(),
+                        caja.getTotalTarjeta(), caja.getTotalYapePlin(),
+                        caja.getTotalIngresos(), caja.getMontoContado(),
+                        caja.getDiferencia(), caja.getCantidadVentas())
+            );
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo enviar email de cierre de caja: {}", e.getMessage());
+        }
+
+        return resultado;
     }
 
     @Override
@@ -128,17 +175,54 @@ public class CajaServiceImpl implements CajaService {
     }
 
     private CajaDTO toDTO(Caja c) {
+        // Si la caja está abierta, calcular totales en tiempo real desde las ventas asociadas
+        BigDecimal totalEfectivo = c.getTotalEfectivo();
+        BigDecimal totalTarjeta  = c.getTotalTarjeta();
+        BigDecimal totalYapePlin = c.getTotalYapePlin();
+        BigDecimal totalIngresos = c.getTotalIngresos();
+        Integer cantidadVentas   = c.getCantidadVentas();
+
+        if ("ABIERTA".equals(c.getEstado())) {
+            List<Venta> ventas = ventaRepository.findByCajaIdAndTenantId(c.getId(), c.getTenantId())
+                    .stream()
+                    .filter(v -> !"ANULADA".equals(v.getEstado()))
+                    .toList();
+
+            totalEfectivo = BigDecimal.ZERO;
+            totalTarjeta  = BigDecimal.ZERO;
+            totalYapePlin = BigDecimal.ZERO;
+            totalIngresos = BigDecimal.ZERO;
+
+            for (Venta v : ventas) {
+                BigDecimal t = v.getTotal() != null ? v.getTotal() : BigDecimal.ZERO;
+                totalIngresos = totalIngresos.add(t);
+                if ("EFECTIVO".equalsIgnoreCase(v.getMetodoPago())) {
+                    totalEfectivo = totalEfectivo.add(t);
+                } else if ("TARJETA".equalsIgnoreCase(v.getMetodoPago())) {
+                    totalTarjeta = totalTarjeta.add(t);
+                } else if ("YAPE_PLIN".equalsIgnoreCase(v.getMetodoPago())) {
+                    totalYapePlin = totalYapePlin.add(t);
+                }
+            }
+
+            totalEfectivo = totalEfectivo.setScale(2, RoundingMode.HALF_UP);
+            totalTarjeta  = totalTarjeta.setScale(2, RoundingMode.HALF_UP);
+            totalYapePlin = totalYapePlin.setScale(2, RoundingMode.HALF_UP);
+            totalIngresos = totalIngresos.setScale(2, RoundingMode.HALF_UP);
+            cantidadVentas = ventas.size();
+        }
+
         return CajaDTO.builder()
                 .id(c.getId())
                 .tenantId(c.getTenantId())
                 .usuarioId(c.getUsuarioId())
                 .usuarioNombre(c.getUsuarioNombre())
                 .montoApertura(c.getMontoApertura())
-                .totalEfectivo(c.getTotalEfectivo())
-                .totalTarjeta(c.getTotalTarjeta())
-                .totalYapePlin(c.getTotalYapePlin())
-                .totalIngresos(c.getTotalIngresos())
-                .cantidadVentas(c.getCantidadVentas())
+                .totalEfectivo(totalEfectivo)
+                .totalTarjeta(totalTarjeta)
+                .totalYapePlin(totalYapePlin)
+                .totalIngresos(totalIngresos)
+                .cantidadVentas(cantidadVentas)
                 .montoContado(c.getMontoContado())
                 .diferencia(c.getDiferencia())
                 .estado(c.getEstado())

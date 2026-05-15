@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 import java.util.List;
-import java.time.LocalDateTime;
 
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
@@ -24,16 +23,22 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     Optional<Usuario> findByTokenRecuperacion(String tokenRecuperacion);
 
-    @Query("SELECT u FROM Usuario u WHERE u.deletedAt IS NULL AND u.tenantId = :tenantId AND u.activo = true")
+    Optional<Usuario> findByTokenActivacion(String tokenActivacion);
+
+    /** Devuelve los usuarios ADMIN y GERENTE activos de un tenant (para notificaciones). */
+    @Query("SELECT u FROM Usuario u WHERE u.tenantId = :tenantId AND u.rol.nombre IN ('ADMIN', 'GERENTE') AND u.activo = true")
+    List<Usuario> findAdminYGerenteByTenant(@Param("tenantId") String tenantId);
+
+    @Query("SELECT u FROM Usuario u WHERE u.activo = true AND u.tenantId = :tenantId")
     List<Usuario> findActivosByTenant(@Param("tenantId") String tenantId);
 
     @Transactional
     @Modifying
-    @Query("UPDATE Usuario u SET u.activo = false, u.deletedAt = CURRENT_TIMESTAMP WHERE u.tenantId = :tenantId")
+    @Query("UPDATE Usuario u SET u.activo = false WHERE u.tenantId = :tenantId")
     void desactivarPorTenant(@Param("tenantId") String tenantId);
 
     @Transactional
     @Modifying
-    @Query("UPDATE Usuario u SET u.activo = true, u.deletedAt = NULL WHERE u.tenantId = :tenantId")
+    @Query("UPDATE Usuario u SET u.activo = true WHERE u.tenantId = :tenantId")
     void activarPorTenant(@Param("tenantId") String tenantId);
 }

@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
@@ -106,6 +108,261 @@ public class EmailServiceImpl implements EmailService {
                 "Si tienes preguntas, responde a este correo y te ayudamos con gusto."
         );
         enviar(email, "¡Bienvenido a Fluxus, " + nombreEmpresa + "!", html);
+    }
+
+    // ── Bienvenida usuario nuevo ──────────────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarBienvenidaUsuarioNuevo(String email, String nombre, String tenantId, String token) {
+        log.info("📧 Enviando email de activación a nuevo usuario: {}", email);
+
+        // Resolver nombre de empresa
+        String empresaNombre = tenantRepository.findByTenantId(tenantId)
+                .map(t -> t.getNombre() != null ? t.getNombre() : tenantId)
+                .orElse(tenantId);
+
+        String link = frontendUrl + "/activate?token=" + token;
+        String html = buildHtml(
+                "Activar cuenta",
+                "¡Hola " + nombre + "! Te damos la bienvenida 👋",
+                "El equipo de <b>" + empresaNombre + "</b> acaba de crearte una cuenta en Fluxus.<br>"
+                + "Para comenzar, establece tu contraseña haciendo clic en el botón de abajo.",
+                link,
+                "Activar mi cuenta",
+                "Este enlace expira en <b>48 horas</b>. Si no esperabas este correo, puedes ignorarlo."
+        );
+        enviar(email, "Activa tu cuenta en Fluxus — " + empresaNombre, html);
+    }
+
+    // ── Resumen cierre de caja ────────────────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarResumenCierreCaja(String email, String empresaNombre, String usuarioCierre,
+                                         BigDecimal montoApertura, BigDecimal totalEfectivo,
+                                         BigDecimal totalTarjeta, BigDecimal totalYapePlin,
+                                         BigDecimal totalIngresos, BigDecimal montoContado,
+                                         BigDecimal diferencia, Integer cantidadVentas) {
+        log.info("📧 Enviando resumen de cierre de caja a: {}", email);
+
+        String diferenciaTexto = diferencia == null ? "—"
+                : (diferencia.compareTo(BigDecimal.ZERO) >= 0
+                        ? "+" + String.format("S/ %.2f", diferencia)
+                        : String.format("S/ %.2f", diferencia));
+        String diferenciaColor = diferencia == null ? "#374151"
+                : (diferencia.compareTo(BigDecimal.ZERO) >= 0 ? "#059669" : "#dc2626");
+
+        String html = """
+            <!DOCTYPE html>
+            <html lang="es">
+            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+              <table width="100%%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 16px;">
+                <tr><td align="center">
+                  <table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:580px;">
+
+                    <!-- HEADER -->
+                    <tr>
+                      <td style="background:#4f46e5;padding:24px 36px;">
+                        <p style="margin:0;color:#fff;font-size:20px;font-weight:700;">🏦 %s</p>
+                        <p style="margin:4px 0 0;color:#c7d2fe;font-size:12px;">Resumen de cierre de caja</p>
+                      </td>
+                    </tr>
+
+                    <!-- CUERPO -->
+                    <tr>
+                      <td style="padding:28px 36px 8px;">
+                        <p style="margin:0 0 6px;color:#374151;font-size:14px;">
+                          Cerrada por: <b>%s</b>
+                        </p>
+                        <p style="margin:0;color:#6b7280;font-size:12px;">%s</p>
+                      </td>
+                    </tr>
+
+                    <!-- DESGLOSE -->
+                    <tr>
+                      <td style="padding:16px 36px;">
+                        <table width="100%%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                          <tr style="background:#f9fafb;">
+                            <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;">Concepto</td>
+                            <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;text-align:right;">Monto</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;border-top:1px solid #e5e7eb;">Apertura de caja</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">S/ %.2f</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;border-top:1px solid #e5e7eb;">Efectivo</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">S/ %.2f</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;border-top:1px solid #e5e7eb;">Tarjeta</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">S/ %.2f</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;border-top:1px solid #e5e7eb;">Yape / Plin</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">S/ %.2f</td>
+                          </tr>
+                          <tr style="background:#f0fdf4;">
+                            <td style="padding:12px 16px;font-size:14px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;">Total ingresos</td>
+                            <td style="padding:12px 16px;font-size:14px;font-weight:700;color:#059669;text-align:right;border-top:2px solid #e5e7eb;">S/ %.2f</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;border-top:1px solid #e5e7eb;">Ventas realizadas</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">%d</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;border-top:1px solid #e5e7eb;">Monto contado</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">S/ %.2f</td>
+                          </tr>
+                          <tr style="background:#fafafa;">
+                            <td style="padding:12px 16px;font-size:14px;font-weight:700;color:#111827;border-top:2px solid #e5e7eb;">Diferencia</td>
+                            <td style="padding:12px 16px;font-size:14px;font-weight:700;text-align:right;border-top:2px solid #e5e7eb;color:%s;">%s</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- FOOTER -->
+                    <tr>
+                      <td style="padding:16px 36px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+                        <p style="margin:0;color:#9ca3af;font-size:11px;">%s &middot; Powered by Fluxus</p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """.formatted(
+                empresaNombre,
+                usuarioCierre,
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                montoApertura != null ? montoApertura : BigDecimal.ZERO,
+                totalEfectivo != null ? totalEfectivo : BigDecimal.ZERO,
+                totalTarjeta != null ? totalTarjeta : BigDecimal.ZERO,
+                totalYapePlin != null ? totalYapePlin : BigDecimal.ZERO,
+                totalIngresos != null ? totalIngresos : BigDecimal.ZERO,
+                cantidadVentas != null ? cantidadVentas : 0,
+                montoContado != null ? montoContado : BigDecimal.ZERO,
+                diferenciaColor, diferenciaTexto,
+                empresaNombre
+        );
+
+        enviar(email, "Resumen de cierre de caja — " + empresaNombre, html);
+    }
+
+    // ── Email suscripción ─────────────────────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarEmailSuscripcion(String email, String nombre, String estado, String planId) {
+        log.info("📧 Enviando email de suscripción ({}) a: {}", estado, email);
+
+        String plan = "PRO".equalsIgnoreCase(planId) ? "Pro" : "Básico";
+
+        String tag, titulo, cuerpo, btnUrl, btnTexto, nota;
+
+        switch (estado) {
+            case "ACTIVA" -> {
+                tag     = "Suscripción activada ✅";
+                titulo  = "¡Tu suscripción está activa!";
+                cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
+                        + "Tu pago fue procesado correctamente. Tu plan <b>" + plan + "</b> ya está activo.<br>"
+                        + "Disfruta de todas las funcionalidades de Fluxus.";
+                btnUrl  = frontendUrl + "/dashboard";
+                btnTexto = "Ir a mi panel";
+                nota    = "Si tienes preguntas sobre tu suscripción, responde a este correo.";
+            }
+            case "SUSPENDIDA" -> {
+                tag     = "Pago rechazado ❌";
+                titulo  = "No pudimos procesar tu pago";
+                cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
+                        + "El pago de tu plan <b>" + plan + "</b> fue rechazado o no pudo procesarse.<br>"
+                        + "Intenta con otro método de pago para mantener el acceso a Fluxus.";
+                btnUrl  = frontendUrl + "/checkout?plan=" + planId;
+                btnTexto = "Reintentar pago";
+                nota    = "Si el problema persiste, contacta a tu banco o escríbenos.";
+            }
+            case "CANCELADA" -> {
+                tag     = "Suscripción cancelada";
+                titulo  = "Tu suscripción ha sido cancelada";
+                cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
+                        + "Tu plan <b>" + plan + "</b> en Fluxus ha sido cancelado.<br>"
+                        + "Puedes volver a suscribirte en cualquier momento.";
+                btnUrl  = frontendUrl + "/checkout";
+                btnTexto = "Reactivar suscripción";
+                nota    = "¡Te esperamos de vuelta cuando quieras!";
+            }
+            default -> {
+                log.info("ℹ️ Estado '{}' no requiere email de suscripción", estado);
+                return;
+            }
+        }
+
+        String html = buildHtml(tag, titulo, cuerpo, btnUrl, btnTexto, nota);
+        String asunto = switch (estado) {
+            case "ACTIVA"     -> "✅ Suscripción activa — Plan " + plan + " · Fluxus";
+            case "SUSPENDIDA" -> "❌ Pago rechazado — Fluxus";
+            case "CANCELADA"  -> "Tu suscripción fue cancelada — Fluxus";
+            default           -> "Actualización de tu suscripción — Fluxus";
+        };
+        enviar(email, asunto, html);
+    }
+
+    // ── Trial por vencer ──────────────────────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarEmailTrialPorVencer(String email, String nombre, int diasRestantes, LocalDate fechaVencimiento) {
+        log.info("📧 Enviando aviso de trial por vencer ({} días) a: {}", diasRestantes, email);
+
+        String diasTexto  = diasRestantes == 1 ? "mañana" : "en " + diasRestantes + " días";
+        String fechaTexto = fechaVencimiento.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+        String html = buildHtml(
+                "Tu período de prueba está por vencer",
+                "⏳ Tu prueba gratuita vence " + diasTexto,
+                "Hola <b>" + nombre + "</b>,<br><br>"
+                + "Tu período de prueba en Fluxus vence el <b>" + fechaTexto + "</b>.<br>"
+                + "Suscríbete ahora para seguir gestionando tu negocio sin interrupciones: "
+                + "inventario, ventas, compras y mucho más.",
+                frontendUrl + "/dashboard/suscripciones",
+                "Ver planes y suscribirme",
+                "Si ya te suscribiste, ignora este correo. ¿Tienes dudas? Responde a este mensaje y te ayudamos."
+        );
+
+        String asunto = diasRestantes == 1
+                ? "⏳ Tu prueba vence mañana — Fluxus"
+                : "⏳ Tu prueba vence en " + diasRestantes + " días — Fluxus";
+
+        enviar(email, asunto, html);
+    }
+
+    // ── Confirmación cambio de contraseña ─────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarConfirmacionCambioContraseña(String email, String nombre) {
+        log.info("📧 Enviando confirmación de cambio de contraseña a: {}", email);
+
+        String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy 'a las' HH:mm"));
+
+        String html = buildHtml(
+                "Cambio de contraseña",
+                "Tu contraseña fue cambiada",
+                "Hola <b>" + nombre + "</b>,<br><br>"
+                + "Te confirmamos que la contraseña de tu cuenta en Fluxus fue cambiada exitosamente el <b>" + fecha + "</b>.<br><br>"
+                + "Si fuiste tú, no necesitas hacer nada más.<br>"
+                + "Si <b>no reconoces este cambio</b>, restablece tu contraseña de inmediato.",
+                frontendUrl + "/forgot-password",
+                "No fui yo — restablecer contraseña",
+                "Por tu seguridad, todos tus dispositivos fueron desconectados. Inicia sesión nuevamente."
+        );
+
+        enviar(email, "Cambio de contraseña en tu cuenta — Fluxus", html);
     }
 
     // ── OC al proveedor ───────────────────────────────────────────────────────

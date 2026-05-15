@@ -51,7 +51,9 @@ public class ProveedorController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<ProveedorDTO> obtenerPorId(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         return proveedorService.obtenerProveedorPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(proveedorMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -60,7 +62,9 @@ public class ProveedorController {
     @GetMapping("/ruc/{ruc}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<ProveedorDTO> obtenerPorRuc(@PathVariable String ruc) {
+        String tenantId = TenantContext.getCurrentTenant();
         return proveedorService.obtenerProveedorPorRuc(ruc)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(proveedorMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -69,8 +73,13 @@ public class ProveedorController {
     @GetMapping("/buscar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
     public ResponseEntity<List<ProveedorDTO>> buscarPorNombre(@RequestParam String nombre) {
+        String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(
-                proveedorMapper.toDTOList(proveedorService.buscarProveedoresPorNombre(nombre))
+                proveedorMapper.toDTOList(
+                        proveedorService.buscarProveedoresPorNombre(nombre).stream()
+                                .filter(p -> tenantId.equals(p.getTenantId()))
+                                .toList()
+                )
         );
     }
 
@@ -97,9 +106,11 @@ public class ProveedorController {
     public ResponseEntity<ProveedorDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProveedorDTO proveedorDTO) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("✏️ Actualizando proveedor ID: {}", id);
 
         return proveedorService.obtenerProveedorPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(proveedorExistente -> {
                     proveedorMapper.updateEntityFromDTO(proveedorDTO, proveedorExistente);
                     Proveedor proveedorActualizado = proveedorService.actualizarProveedor(id, proveedorExistente);
@@ -111,8 +122,10 @@ public class ProveedorController {
     @PatchMapping("/{id}/activar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> activar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("✅ Activando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(proveedor -> {
                     Proveedor proveedorActivado = proveedorService.activarProveedor(id);
                     return ResponseEntity.ok(proveedorMapper.toDTO(proveedorActivado));
@@ -123,8 +136,10 @@ public class ProveedorController {
     @PatchMapping("/{id}/desactivar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_PROVEEDOR')")
     public ResponseEntity<ProveedorDTO> desactivar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("🔒 Desactivando proveedor ID: {}", id);
         return proveedorService.obtenerProveedorPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(proveedor -> {
                     Proveedor proveedorDesactivado = proveedorService.desactivarProveedor(id);
                     return ResponseEntity.ok(proveedorMapper.toDTO(proveedorDesactivado));
@@ -135,8 +150,12 @@ public class ProveedorController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_PROVEEDOR')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("🗑️ Eliminando proveedor ID: {}", id);
-        proveedorService.eliminarProveedor(id);
+        // Verificar pertenencia al tenant antes de eliminar
+        proveedorService.obtenerProveedorPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
+                .ifPresent(p -> proveedorService.eliminarProveedor(id));
         return ResponseEntity.noContent().build();
     }
 }

@@ -33,7 +33,8 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
     private final SuscripcionRepository suscripcionRepository;
     private final UsuarioService usuarioService;
     private final MercadoPagoService mercadoPagoService;
-    private final WebhookLogRepository webhookLogRepository; // NUEVO
+    private final WebhookLogRepository webhookLogRepository;
+    private final com.stockflow.service.EmailService emailService;
 
     @Override
     @Transactional
@@ -209,6 +210,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcion.setEstado("CANCELADA");
         suscripcion.setFechaCancelacion(LocalDateTime.now());
         suscripcionRepository.save(suscripcion);
+        enviarEmailSuscripcionSiAplica(suscripcion, "CANCELADA");
         log.info("✅ Suscripción {} cancelada para tenant={}", suscripcionId, suscripcion.getTenantId());
     }
 
@@ -228,6 +230,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcion.setEstado("CANCELADA");
         suscripcion.setFechaCancelacion(LocalDateTime.now());
         suscripcionRepository.save(suscripcion);
+        enviarEmailSuscripcionSiAplica(suscripcion, "CANCELADA");
         log.info("✅ Suscripción cancelada para tenant={}, usuario={}", tenantId, usuarioId);
     }
 
@@ -254,6 +257,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 suscripcion.setFechaInicio(now);
             }
             suscripcion.setFechaProximoCobro(now.plusMonths(1));
+            suscripcion.setEnPeriodoPrueba(false);  // ya pagó — salir del trial
         } else if ("CANCELADA".equals(nuevoEstado) && suscripcion.getFechaCancelacion() == null) {
             suscripcion.setFechaCancelacion(LocalDateTime.now());
         }
@@ -338,6 +342,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 suscripcion.setFechaInicio(now);
             }
             suscripcion.setFechaProximoCobro(now.plusMonths(1));
+            suscripcion.setEnPeriodoPrueba(false);  // ya pagó — salir del trial
             log.info("✅ Suscripción {} activada por preapproval webhook MP (status={})", suscripcion.getId(), estadoMp);
         } else if ("CANCELADA".equals(nuevoEstado)) {
             suscripcion.setFechaCancelacion(LocalDateTime.now());
@@ -347,6 +352,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         suscripcionRepository.save(suscripcion);
+        enviarEmailSuscripcionSiAplica(suscripcion, nuevoEstado);
     }
 
     private void procesarWebhookAuthorizedPayment(String authorizedPaymentId) {
@@ -386,6 +392,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 suscripcion.setFechaInicio(now);
             }
             suscripcion.setFechaProximoCobro(now.plusMonths(1));
+            suscripcion.setEnPeriodoPrueba(false);  // ya pagó — salir del trial
             log.info("✅ Suscripción {} activada por authorized_payment (status={}, paymentStatus={})",
                     suscripcion.getId(), status, paymentStatus);
         } else if ("refunded".equalsIgnoreCase(status) || "cancelled".equalsIgnoreCase(status)
@@ -399,6 +406,11 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         suscripcionRepository.save(suscripcion);
+
+        String estadoEmail = pagoAprobado ? "ACTIVA"
+                : ("refunded".equalsIgnoreCase(status) || "cancelled".equalsIgnoreCase(status)
+                        || "rejected".equalsIgnoreCase(paymentStatus)) ? "SUSPENDIDA" : null;
+        if (estadoEmail != null) enviarEmailSuscripcionSiAplica(suscripcion, estadoEmail);
     }
 
     private void procesarWebhookPago(String paymentId) {
@@ -436,6 +448,12 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         suscripcionRepository.save(suscripcion);
+
+        if ("approved".equalsIgnoreCase(payment.getStatus())) {
+            enviarEmailSuscripcionSiAplica(suscripcion, "ACTIVA");
+        } else if ("rejected".equalsIgnoreCase(payment.getStatus()) || "cancelled".equalsIgnoreCase(payment.getStatus())) {
+            enviarEmailSuscripcionSiAplica(suscripcion, "SUSPENDIDA");
+        }
     }
 
     @Override
@@ -515,6 +533,21 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
             throw new BadRequestException("External reference inválida para Mercado Pago: " + externalReference, ex);
         }
         return suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
+    }
+
+    /** Envía email al usuario principal de la suscripción según el estado. Solo ACTIVA, SUSPENDIDA y CANCELADA. */
+    private void enviarEmailSuscripcionSiAplica(Suscripcion suscripcion, String estado) {
+        if (suscripcion.getUsuarioPrincipal() == null) return;
+        try {
+            emailService.enviarEmailSuscripcion(
+                    suscripcion.getUsuarioPrincipal().getEmail(),
+                    suscripcion.getUsuarioPrincipal().getNombre(),
+                    estado,
+                    suscripcion.getPlanId()
+            );
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo enviar email de suscripción ({}): {}", estado, e.getMessage());
+        }
     }
 }
 

@@ -10,11 +10,16 @@ import com.stockflow.entity.Rol;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Tenant;
 import com.stockflow.entity.Usuario;
+import com.stockflow.dto.CambiarPasswordDTO;
+import com.stockflow.dto.ForgotPasswordDTO;
+import com.stockflow.dto.ResetPasswordDTO;
+import com.stockflow.dto.UsuarioProfileDTO;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.UnauthorizedException;
 import com.stockflow.repository.RolRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.config.properties.JwtProperties;
 import com.stockflow.service.*;
 import com.stockflow.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -22,15 +27,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.stockflow.dto.CambiarPasswordDTO;
-import com.stockflow.dto.ForgotPasswordDTO;
-import com.stockflow.dto.ResetPasswordDTO;
-import com.stockflow.dto.UsuarioProfileDTO;
-import com.stockflow.exception.BadRequestException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Slf4j
@@ -42,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
     private final RolRepository rolRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final JwtProperties jwtProperties;
     private final RefreshTokenService refreshTokenService;
     private final TenantService tenantService;
     private final SuscripcionService suscripcionService;
@@ -112,7 +112,7 @@ public class AuthServiceImpl implements AuthService {
                 .nombre(usuario.getNombre())
                 .rol(usuario.getRol().getNombre())
                 .tenantId(usuario.getTenantId())
-                .expiresIn(900)
+                .expiresIn((int) (jwtProperties.getExpiration() / 1000))
                 .suscripcion(suscripcionDTO)
                 .build();
     }
@@ -143,7 +143,6 @@ public class AuthServiceImpl implements AuthService {
                 .rol(rolAdmin)
                 .activo(true)
                 .tenantId(tenant.getTenantId())
-                .fechaCreacion(LocalDateTime.now())
                 .ultimoLogin(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
                 .tipoDocumento(request.getTipoDocumento())
@@ -209,7 +208,7 @@ public class AuthServiceImpl implements AuthService {
                 .nombre(usuarioCreado.getNombre())
                 .rol(usuarioCreado.getRol().getNombre())
                 .tenantId(tenant.getTenantId())
-                .expiresIn(900)
+                .expiresIn((int) (jwtProperties.getExpiration() / 1000))
                 .suscripcion(mapToSuscripcionDTO(suscripcionCreada))
                 .build();
     }
@@ -255,7 +254,7 @@ public class AuthServiceImpl implements AuthService {
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken.getToken())
                 .tipo("Bearer")
-                .expiresIn(900)
+                .expiresIn((int) (jwtProperties.getExpiration() / 1000))
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
                 .nombre(usuario.getNombre())
@@ -272,16 +271,6 @@ public class AuthServiceImpl implements AuthService {
         log.info("✅ Refresh token revocado (logout)");
     }
 
-//    private String generarPreapprovalId() {
-//        LocalDateTime ahora = LocalDateTime.now();
-//        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
-//        String fecha = ahora.format(formatter);
-//
-//        Random random = new Random();
-//        int numero = random.nextInt(999999);
-//
-//        return String.format("PRE-%s-%06d", fecha, numero);
-//    }
 
     private BigDecimal obtenerPrecioPlan(String planId) {
         return switch (planId) {
@@ -365,6 +354,13 @@ public class AuthServiceImpl implements AuthService {
         // Revocar todos los refresh tokens
         refreshTokenService.revocarTodosLosTokensDelUsuario(usuarioId);
 
+        // Email de confirmación de seguridad (asíncrono — no bloquea la respuesta)
+        try {
+            emailService.enviarConfirmacionCambioContraseña(usuario.getEmail(), usuario.getNombre());
+        } catch (Exception e) {
+            log.warn("No se pudo enviar email de confirmación de cambio de contraseña: {}", e.getMessage());
+        }
+
         log.info("✅ Contraseña cambiada exitosamente");
     }
 
@@ -372,11 +368,14 @@ public class AuthServiceImpl implements AuthService {
     public void solicitarRecuperacionContraseña(ForgotPasswordDTO dto) {
         log.info("📧 Solicitud de recuperación de contraseña: {}", dto.getEmail());
 
-        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail())
-                .orElseThrow(() -> new BadRequestException("Email no registrado"));
+        // Respuesta genérica aunque el email no exista — evita enumeración de emails
+        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail()).orElse(null);
+        if (usuario == null) {
+            log.info("📧 Email no registrado (respuesta silenciosa): {}", dto.getEmail());
+            return;  // No lanzar error — el frontend mostrará el mismo mensaje de éxito
+        }
 
-        // Generar token
-        String token = generarTokenRecuperacion();
+        String token = UUID.randomUUID().toString();
         LocalDateTime expiracion = LocalDateTime.now().plusHours(1);
 
         usuario.setTokenRecuperacion(token);
@@ -428,11 +427,43 @@ public class AuthServiceImpl implements AuthService {
         // Revocar todos los refresh tokens
         refreshTokenService.revocarTodosLosTokensDelUsuario(usuario.getId());
 
+        // Email de confirmación de seguridad
+        try {
+            emailService.enviarConfirmacionCambioContraseña(usuario.getEmail(), usuario.getNombre());
+        } catch (Exception e) {
+            log.warn("No se pudo enviar email de confirmación de reset de contraseña: {}", e.getMessage());
+        }
+
         log.info("✅ Contraseña reseteada exitosamente");
     }
 
-    // Método helper para generar token
-    private String generarTokenRecuperacion() {
-        return UUID.randomUUID().toString();
+    @Override
+    @Transactional
+    public void activarCuenta(ResetPasswordDTO dto) {
+        log.info("🔐 Activando cuenta con token de activación");
+
+        if (!dto.getNuevaContraseña().equals(dto.getConfirmarContraseña())) {
+            throw new BadRequestException("Las contraseñas no coinciden");
+        }
+        if (dto.getNuevaContraseña().length() < 6) {
+            throw new BadRequestException("La contraseña debe tener al menos 6 caracteres");
+        }
+
+        Usuario usuario = usuarioRepository.findByTokenActivacion(dto.getToken())
+                .orElseThrow(() -> new BadRequestException("Token de activación inválido o ya utilizado"));
+
+        if (usuario.getTokenActivacionExpira() == null ||
+                usuario.getTokenActivacionExpira().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("El token de activación ha expirado. Solicita al administrador que te reenvíe el link.");
+        }
+
+        usuario.setContraseña(passwordEncoder.encode(dto.getNuevaContraseña()));
+        usuario.setTokenActivacion(null);
+        usuario.setTokenActivacionExpira(null);
+        usuarioRepository.save(usuario);
+
+        log.info("✅ Cuenta activada exitosamente para: {}", usuario.getEmail());
     }
+
 }
+

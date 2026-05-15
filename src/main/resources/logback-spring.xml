@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!--
+        ═══════════════════════════════════════════════════════════════
+        STOCKFLOW — Configuración de Logging por entorno
+        ═══════════════════════════════════════════════════════════════
+
+        MDC keys disponibles en todos los logs:
+          requestId  → ID único por request (generado en RequestLoggingFilter)
+          tenantId   → Tenant del usuario autenticado (desde JwtAuthenticationFilter)
+          userId     → ID del usuario autenticado
+
+        Entornos:
+          dev / local → Consola con color, texto legible, DEBUG habilitado
+          uat         → Consola + archivo JSON rotativo, nivel INFO
+          prod        → Consola + archivo JSON rotativo, nivel INFO (WARN para libs externas)
+    -->
+
+    <!-- ──────────────────────────────────────────────────────────────
+         PROPIEDADES COMUNES
+    ────────────────────────────────────────────────────────────────── -->
+    <springProperty scope="context" name="appName"  source="spring.application.name" defaultValue="stockflow"/>
+    <springProperty scope="context" name="profile"  source="spring.profiles.active"  defaultValue="default"/>
+
+    <!-- ──────────────────────────────────────────────────────────────
+         APPENDER: Consola con color (dev / local)
+         Formato: HH:mm:ss.SSS LEVEL [reqId] [tenant] Logger - Mensaje
+    ────────────────────────────────────────────────────────────────── -->
+    <appender name="CONSOLE_DEV" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%boldCyan(%X{requestId:-no-req })] [%boldYellow(%X{tenantId:--       })] %cyan(%-36logger{36}) - %msg%n%ex</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ──────────────────────────────────────────────────────────────
+         APPENDER: Consola JSON (uat / prod)
+         Una línea JSON por evento — compatible con Loki, CloudWatch, Datadog.
+    ────────────────────────────────────────────────────────────────── -->
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"app":"${appName}","env":"${profile}"}</customFields>
+            <fieldNames>
+                <timestamp>timestamp</timestamp>
+                <message>message</message>
+                <logger>logger</logger>
+                <thread>thread</thread>
+                <levelValue>[ignore]</levelValue>
+            </fieldNames>
+            <!-- Incluir MDC automáticamente (requestId, tenantId, userId) -->
+            <includeMdc>true</includeMdc>
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerCause>20</maxDepthPerCause>
+                <shortenedClassNameLength>20</shortenedClassNameLength>
+                <exclude>sun\.reflect\..*</exclude>
+                <exclude>java\.lang\.reflect\..*</exclude>
+            </throwableConverter>
+        </encoder>
+    </appender>
+
+    <!-- ──────────────────────────────────────────────────────────────
+         APPENDER: Archivo JSON rotativo — UAT
+    ────────────────────────────────────────────────────────────────── -->
+    <appender name="FILE_UAT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/stockflow-uat.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/stockflow-uat.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"app":"${appName}","env":"uat"}</customFields>
+            <includeMdc>true</includeMdc>
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerCause>20</maxDepthPerCause>
+            </throwableConverter>
+        </encoder>
+    </appender>
+
+    <!-- ──────────────────────────────────────────────────────────────
+         APPENDER: Archivo JSON rotativo — PROD
+    ────────────────────────────────────────────────────────────────── -->
+    <appender name="FILE_PROD" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/stockflow-prod.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/stockflow-prod.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"app":"${appName}","env":"prod"}</customFields>
+            <includeMdc>true</includeMdc>
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerCause>20</maxDepthPerCause>
+            </throwableConverter>
+        </encoder>
+    </appender>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         PERFIL: dev / local
+         Console con color. DEBUG para código propio, INFO para el resto.
+    ══════════════════════════════════════════════════════════════════ -->
+    <springProfile name="dev,local">
+        <logger name="com.stockflow"                                    level="DEBUG"/>
+        <logger name="org.springframework.web"                          level="DEBUG"/>
+        <logger name="org.springframework.security"                     level="INFO"/>
+        <logger name="org.hibernate.SQL"                                level="INFO"/>
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder"   level="TRACE"/>
+        <logger name="org.flywaydb"                                     level="INFO"/>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_DEV"/>
+        </root>
+    </springProfile>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         PERFIL: uat
+         JSON en consola + archivo. INFO para código propio y Spring.
+    ══════════════════════════════════════════════════════════════════ -->
+    <springProfile name="uat">
+        <logger name="com.stockflow"            level="INFO"/>
+        <logger name="org.springframework.web"  level="INFO"/>
+        <logger name="org.springframework.security" level="WARN"/>
+        <logger name="org.hibernate"            level="WARN"/>
+        <logger name="org.flywaydb"             level="INFO"/>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="FILE_UAT"/>
+        </root>
+    </springProfile>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         PERFIL: prod
+         JSON en consola + archivo. Libs externas en WARN, app en INFO.
+    ══════════════════════════════════════════════════════════════════ -->
+    <springProfile name="prod">
+        <logger name="com.stockflow"            level="INFO"/>
+        <logger name="org.springframework"      level="WARN"/>
+        <logger name="org.hibernate"            level="WARN"/>
+        <logger name="org.flywaydb"             level="WARN"/>
+        <logger name="com.mercadopago"          level="WARN"/>
+
+        <root level="WARN">
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="FILE_PROD"/>
+        </root>
+    </springProfile>
+
+</configuration>
