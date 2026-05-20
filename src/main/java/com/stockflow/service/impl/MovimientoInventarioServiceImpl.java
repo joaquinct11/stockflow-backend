@@ -1,7 +1,6 @@
 package com.stockflow.service.impl;
 
 import com.stockflow.entity.MovimientoInventario;
-import com.stockflow.entity.Suscripcion;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import lombok.RequiredArgsConstructor;
@@ -26,11 +25,6 @@ public class MovimientoInventarioServiceImpl implements MovimientoInventarioServ
     }
 
     @Override
-    public List<MovimientoInventario> obtenerTodosMovimientos() {
-        return movimientoRepository.findAll();
-    }
-
-    @Override
     public List<MovimientoInventario> obtenerMovimientosPorProducto(Long productoId) {
         return movimientoRepository.findByProductoId(productoId);
     }
@@ -38,11 +32,6 @@ public class MovimientoInventarioServiceImpl implements MovimientoInventarioServ
     @Override
     public List<MovimientoInventario> obtenerMovimientosPorUsuario(Long usuarioId) {
         return movimientoRepository.findByUsuarioId(usuarioId);
-    }
-
-    @Override
-    public List<MovimientoInventario> obtenerMovimientosPorTipo(String tipo) {
-        return movimientoRepository.findByTipo(tipo);
     }
 
     @Override

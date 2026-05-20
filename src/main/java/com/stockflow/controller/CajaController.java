@@ -3,6 +3,8 @@ package com.stockflow.controller;
 import com.stockflow.dto.AbrirCajaRequestDTO;
 import com.stockflow.dto.CajaDTO;
 import com.stockflow.dto.CerrarCajaRequestDTO;
+import com.stockflow.dto.RegistrarRetiroRequestDTO;
+import com.stockflow.dto.RetiroCajaDTO;
 import com.stockflow.service.CajaService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
@@ -28,7 +30,7 @@ public class CajaController {
 
     /** GET /cajas/activa — la caja abierta del tenant (compartida, 404 si no hay ninguna) */
     @GetMapping("/activa")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
     public ResponseEntity<CajaDTO> getActiva() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Buscando caja activa para tenant={}", tenantId);
@@ -37,9 +39,9 @@ public class CajaController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** GET /cajas — historial de cajas del tenant (ADMIN/GERENTE) */
+    /** GET /cajas — historial de cajas del tenant */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_REPORTES')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
     public ResponseEntity<List<CajaDTO>> getAll() {
         String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(cajaService.getAll(tenantId));
@@ -47,7 +49,7 @@ public class CajaController {
 
     /** GET /cajas/{id} */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
     public ResponseEntity<CajaDTO> getById(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
         return cajaService.getById(id, tenantId)
@@ -57,7 +59,7 @@ public class CajaController {
 
     /** POST /cajas/abrir */
     @PostMapping("/abrir")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_ABRIR_CAJA')")
     public ResponseEntity<CajaDTO> abrir(@RequestBody AbrirCajaRequestDTO request, Authentication auth) {
         String tenantId = TenantContext.getCurrentTenant();
         Long usuarioId = TenantContext.getCurrentUserId();
@@ -74,12 +76,29 @@ public class CajaController {
 
     /** POST /cajas/{id}/cerrar */
     @PostMapping("/{id}/cerrar")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_CERRAR_CAJA')")
     public ResponseEntity<CajaDTO> cerrar(@PathVariable Long id,
                                           @Valid @RequestBody CerrarCajaRequestDTO request) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔒 Cerrando caja ID={} tenant={}", id, tenantId);
         CajaDTO caja = cajaService.cerrar(id, request, tenantId);
         return ResponseEntity.ok(caja);
+    }
+
+    /** POST /cajas/{id}/retiro — registrar un retiro parcial de efectivo */
+    @PostMapping("/{id}/retiro")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_ABRIR_CAJA')")
+    public ResponseEntity<RetiroCajaDTO> registrarRetiro(@PathVariable Long id,
+                                                          @Valid @RequestBody RegistrarRetiroRequestDTO request,
+                                                          Authentication auth) {
+        String tenantId  = TenantContext.getCurrentTenant();
+        Long   usuarioId = TenantContext.getCurrentUserId();
+        String nombre    = usuarioService.obtenerUsuarioPorId(usuarioId)
+                .map(u -> u.getNombre())
+                .orElse(auth.getName());
+
+        log.info("💸 Retiro parcial caja ID={} monto={} tenant={}", id, request.getMonto(), tenantId);
+        RetiroCajaDTO retiro = cajaService.registrarRetiro(id, request, usuarioId, nombre, tenantId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(retiro);
     }
 }

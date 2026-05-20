@@ -33,18 +33,20 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
     private final SuscripcionRepository suscripcionRepository;
     private final UsuarioService usuarioService;
     private final MercadoPagoService mercadoPagoService;
-    private final WebhookLogRepository webhookLogRepository; // NUEVO
+    private final WebhookLogRepository webhookLogRepository;
+    private final com.stockflow.service.EmailService emailService;
+    private final com.stockflow.config.properties.MercadoPagoProperties mercadoPagoProperties;
 
     @Override
     @Transactional
     public SuscripcionCheckoutResponseDTO iniciarCheckout(String planId, String tenantId, Long usuarioId,
                                                           String payerIdentificationType, String payerIdentificationNumber) {
         // Validar que el plan sea válido
-        if (!"BASICO".equals(planId) && !"PRO".equals(planId)) {
-            throw new BadRequestException("Plan inválido. Solo se permiten: BASICO, PRO");
+        if (!"BASICO".equals(planId)) {
+            throw new BadRequestException("Plan inválido. Solo se permite: BASICO");
         }
 
-        BigDecimal precioPlan = obtenerPrecioPlanPagado(planId);
+        BigDecimal precioPlan = mercadoPagoProperties.getPrecioBasico();
         Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
@@ -52,15 +54,31 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
             throw new BadRequestException("Usuario no pertenece al tenant actual");
         }
 
-        // Validar que el usuario no tenga una suscripción activa de otro plan
+        // Validar suscripción existente
         Optional<Suscripcion> suscripcionExistente = suscripcionRepository
                 .findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
 
-        if (suscripcionExistente.isPresent() &&
-                "ACTIVA".equals(suscripcionExistente.get().getEstado()) &&
-                !planId.equals(suscripcionExistente.get().getPlanId())) {
-            throw new BadRequestException(
-                    "Ya tiene una suscripción activa. Cancele primero su plan actual.");
+        if (suscripcionExistente.isPresent()) {
+            Suscripcion existente = suscripcionExistente.get();
+            String estadoExistente = existente.getEstado();
+
+            // Bloquear si ya está activa (mismo plan o diferente)
+            if ("ACTIVA".equals(estadoExistente)) {
+                throw new BadRequestException(
+                        "Ya tiene una suscripción activa del plan " + existente.getPlanId()
+                        + ". Cancele primero su plan actual para suscribirse a otro.");
+            }
+
+            // Si ya está PENDIENTE, cancelar el preapproval anterior en MP antes de crear uno nuevo
+            // (evita acumulación de preapprovals huérfanos que cobrarían al usuario)
+            if ("PENDIENTE".equals(estadoExistente) && existente.getPreapprovalId() != null
+                    && !existente.getPreapprovalId().isBlank()) {
+                log.info("🔄 Cancelando preapproval anterior huérfano {} para tenant={} antes de crear nuevo",
+                        existente.getPreapprovalId(), tenantId);
+                cancelarPreapprovalEnMP(existente);
+                // Limpiar también la preferencia de prorrateo si había un upgrade pendiente
+                existente.setMpPreferenceId(null);
+            }
         }
 
         // Persistir identificación si se envió
@@ -96,12 +114,28 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 .tenantId(tenantId)
                 .build());
 
+        // Si el trial sigue vigente Y nunca hubo un pago confirmado, NO bloquear al usuario.
+        // Cubre dos casos:
+        //   1. estado=TRIAL  → primera vez que hace checkout
+        //   2. estado=PENDIENTE + trialEndDate vigente + sin mpPaymentId
+        //      → hizo checkout antes, retrocedió sin pagar, lo vuelve a intentar
+        // En ambos casos solo guardamos el preapprovalId y esperamos el webhook de MP.
+        boolean enTrialVigente = suscripcion.getTrialEndDate() != null
+                && suscripcion.getTrialEndDate().isAfter(LocalDateTime.now())
+                && (suscripcion.getMpPaymentId() == null
+                    || suscripcion.getMpPaymentId().isBlank());
+
         suscripcion.setPlanId(planId);
         suscripcion.setPrecioMensual(precioPlan);
         suscripcion.setMetodoPago("MERCADOPAGO");
-        suscripcion.setEstado("PENDIENTE");
+        if (enTrialVigente) {
+            // Restaurar a TRIAL para que el usuario siga con acceso mientras no pague
+            suscripcion.setEstado("TRIAL");
+        } else {
+            // Trial vencido o ya hubo un pago: bloquear hasta que MP confirme
+            suscripcion.setEstado("PENDIENTE");
+        }
         suscripcion.setPreapprovalId(preapproval.getPreapprovalId());
-//        suscripcion.setFechaUltimaActualizacion(LocalDateTime.now()); // NUEVO
 
         suscripcionRepository.save(suscripcion);
 
@@ -209,6 +243,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcion.setEstado("CANCELADA");
         suscripcion.setFechaCancelacion(LocalDateTime.now());
         suscripcionRepository.save(suscripcion);
+        enviarEmailSuscripcionSiAplica(suscripcion, "CANCELADA");
         log.info("✅ Suscripción {} cancelada para tenant={}", suscripcionId, suscripcion.getTenantId());
     }
 
@@ -228,6 +263,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         suscripcion.setEstado("CANCELADA");
         suscripcion.setFechaCancelacion(LocalDateTime.now());
         suscripcionRepository.save(suscripcion);
+        enviarEmailSuscripcionSiAplica(suscripcion, "CANCELADA");
         log.info("✅ Suscripción cancelada para tenant={}, usuario={}", tenantId, usuarioId);
     }
 
@@ -245,15 +281,69 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.obtenerPreapproval(suscripcion.getPreapprovalId());
         String nuevoEstado = mapearEstadoPreapproval(preapproval.getStatus());
 
-        suscripcion.setEstado(nuevoEstado);
-        if ("ACTIVA".equals(nuevoEstado)) {
-            LocalDateTime now = LocalDateTime.now();
-            suscripcion.setCurrentPeriodStart(now);
-            suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
-            if (suscripcion.getFechaInicio() == null) {
-                suscripcion.setFechaInicio(now);
+        // ── Si la suscripción ya está ACTIVA y el preapproval sigue "pending" ────
+        //    Ocurre en upgrades donde el pago del prorrateo activó la suscripción
+        //    pero el usuario aún no autorizó el preapproval PRO.
+        //
+        //    • Período vigente  → mantener ACTIVA sin degradar (el usuario todavía
+        //      tiene tiempo de autorizar el preapproval y el cobro recurrente).
+        //    • Período vencido  → el cobro del siguiente mes nunca ocurrió porque
+        //      el preapproval nunca fue autorizado → SUSPENDER.
+        if ("PENDIENTE".equals(nuevoEstado) && "ACTIVA".equals(suscripcion.getEstado())) {
+            LocalDateTime ahora = LocalDateTime.now();
+            boolean periodoVigente = suscripcion.getCurrentPeriodEnd() == null
+                    || suscripcion.getCurrentPeriodEnd().isAfter(ahora);
+
+            if (periodoVigente) {
+                log.info("ℹ️ Preapproval pending pero suscripción ACTIVA con período vigente hasta {} — manteniendo estado",
+                        suscripcion.getCurrentPeriodEnd());
+                return buildEstadoResponse(suscripcion);
             }
-            suscripcion.setFechaProximoCobro(now.plusMonths(1));
+
+            // Período vencido y preapproval aún pending → no hubo cobro mensual
+            // El preapproval PRO nunca fue autorizado por el usuario
+            log.warn("⚠️ Período vencido ({}) y preapproval aún pending — suspendiendo plan={} tenant={}",
+                    suscripcion.getCurrentPeriodEnd(), suscripcion.getPlanId(), tenantId);
+            nuevoEstado = "SUSPENDIDA";
+            // Continúa al bloque save() más abajo
+        }
+
+        // Si el preapproval está "pending" pero el trial sigue vigente y nunca hubo
+        // un pago confirmado: NO degradar al usuario — mantener TRIAL con acceso completo.
+        // Esto cubre el caso: usuario hace checkout, va a MP, retrocede sin pagar → sincronizar
+        // no debe bloquearlo porque su trial aún no expiró.
+        if ("PENDIENTE".equals(nuevoEstado)
+                && suscripcion.getTrialEndDate() != null
+                && suscripcion.getTrialEndDate().isAfter(LocalDateTime.now())
+                && (suscripcion.getMpPaymentId() == null || suscripcion.getMpPaymentId().isBlank())) {
+            log.info("ℹ️ Preapproval pending pero trial vigente hasta {} — manteniendo TRIAL para tenant={}",
+                    suscripcion.getTrialEndDate(), tenantId);
+            suscripcion.setEstado("TRIAL");
+            suscripcionRepository.save(suscripcion);
+            return buildEstadoResponse(suscripcion);
+        }
+
+        String estadoAnterior = suscripcion.getEstado();
+        suscripcion.setEstado(nuevoEstado);
+
+        if ("ACTIVA".equals(nuevoEstado)) {
+            // Solo actualizar fechas de período si es una NUEVA activación (no si ya estaba ACTIVA).
+            // Si ya está ACTIVA con período vigente, no resetear las fechas — evita que el usuario
+            // extienda su suscripción gratis llamando a sincronizar repetidas veces.
+            if (!"ACTIVA".equals(estadoAnterior)) {
+                LocalDateTime now = LocalDateTime.now();
+                suscripcion.setCurrentPeriodStart(now);
+                suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
+                if (suscripcion.getFechaInicio() == null) {
+                    suscripcion.setFechaInicio(now);
+                }
+                suscripcion.setFechaProximoCobro(now.plusMonths(1));
+                suscripcion.setEnPeriodoPrueba(false);
+                log.info("✅ Nueva activación detectada por sync: período establecido hasta {}",
+                        suscripcion.getCurrentPeriodEnd());
+            } else {
+                log.info("ℹ️ Suscripción ya ACTIVA — fechas de período conservadas (no se resetean)");
+            }
         } else if ("CANCELADA".equals(nuevoEstado) && suscripcion.getFechaCancelacion() == null) {
             suscripcion.setFechaCancelacion(LocalDateTime.now());
         }
@@ -262,15 +352,19 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         log.info("🔄 Suscripción sincronizada desde MP para tenant={}, usuario={}: estado MP={} → local={}",
                 tenantId, usuarioId, preapproval.getStatus(), nuevoEstado);
 
-        return SuscripcionEstadoResponseDTO.builder()
-                .estado(suscripcion.getEstado())
-                .planId(suscripcion.getPlanId())
-                .preapprovalId(suscripcion.getPreapprovalId())
-                .mpPaymentId(suscripcion.getMpPaymentId())
-                .fechaProximoCobro(suscripcion.getFechaProximoCobro())
-                .build();
+        return buildEstadoResponse(suscripcion);
     }
 
+    /**
+     * Cancela el preapproval en Mercado Pago.
+     *
+     * IMPORTANTE: Si la cancelación en MP falla, se lanza excepción para detener
+     * el flujo. Esto evita el caso crítico donde la suscripción queda CANCELADA
+     * localmente pero MP sigue cobrando mensualmente al usuario.
+     *
+     * Única excepción: si el preapproval ya estaba cancelado/no existe en MP
+     * (error 404), se considera éxito porque el objetivo (no cobrar) ya se cumplió.
+     */
     private void cancelarPreapprovalEnMP(Suscripcion suscripcion) {
         if (suscripcion.getPreapprovalId() == null || suscripcion.getPreapprovalId().isBlank()) {
             return;
@@ -278,9 +372,25 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         try {
             mercadoPagoService.cancelarPreapproval(suscripcion.getPreapprovalId());
             log.info("✅ Preapproval {} cancelado en MP", suscripcion.getPreapprovalId());
-        } catch (Exception e) {
-            log.error("❌ Error cancelando preapproval {} en MP (cancelación local se aplica igual)",
+        } catch (BadRequestException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            // Si MP responde 404, el preapproval ya no existe → ok, no hay riesgo de cobro
+            if (msg.contains("404")) {
+                log.warn("⚠️ Preapproval {} no encontrado en MP (ya cancelado o inexistente) — continuando",
+                        suscripcion.getPreapprovalId());
+                return;
+            }
+            // Cualquier otro error de MP: NO continuar con la cancelación local.
+            // El usuario podría seguir siendo cobrado si ignoramos este error.
+            log.error("❌ Error cancelando preapproval {} en MP — cancelación local BLOQUEADA para proteger al usuario",
                     suscripcion.getPreapprovalId(), e);
+            throw new BadRequestException(
+                    "No se pudo cancelar la suscripción en Mercado Pago. " +
+                    "Intente nuevamente o contacte a soporte. Detalle: " + msg);
+        } catch (Exception e) {
+            log.error("❌ Error inesperado cancelando preapproval {} en MP", suscripcion.getPreapprovalId(), e);
+            throw new BadRequestException(
+                    "Error de comunicación con Mercado Pago al cancelar. Intente nuevamente.");
         }
     }
 
@@ -305,14 +415,6 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         registrarWebhook(webhookId, tipo, estado);
     }
 
-    BigDecimal obtenerPrecioPlanPagado(String planId) {
-        return switch (planId) {
-            case "BASICO" -> new BigDecimal("49.99");
-            case "PRO" -> new BigDecimal("99.99");
-            default -> throw new BadRequestException("Solo se permite checkout para planes pagos: BASICO o PRO");
-        };
-    }
-
     private void procesarWebhookPreapproval(String preapprovalId) {
         log.info("🔔 Procesando webhook preapproval: {}", preapprovalId);
         MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.obtenerPreapproval(preapprovalId);
@@ -326,19 +428,29 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
 
         String estadoMp = preapproval.getStatus();
         String nuevoEstado = mapearEstadoPreapproval(estadoMp);
+        String estadoAnteriorPreapproval = suscripcion.getEstado();
 
         suscripcion.setEstado(nuevoEstado);
         suscripcion.setPreapprovalId(preapprovalId);
 
         if ("ACTIVA".equals(nuevoEstado)) {
-            LocalDateTime now = LocalDateTime.now();
-            suscripcion.setCurrentPeriodStart(now);
-            suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
-            if (suscripcion.getFechaInicio() == null) {
-                suscripcion.setFechaInicio(now);
+            // Solo actualizar fechas si es una NUEVA activación.
+            // Si ya estaba ACTIVA (ej. prorrateo del upgrade ya la activó), conservar las fechas
+            // para no extender el período gratis ni generar inconsistencias de facturación.
+            if (!"ACTIVA".equals(estadoAnteriorPreapproval)) {
+                LocalDateTime now = LocalDateTime.now();
+                suscripcion.setCurrentPeriodStart(now);
+                suscripcion.setCurrentPeriodEnd(now.plusMonths(1));
+                if (suscripcion.getFechaInicio() == null) {
+                    suscripcion.setFechaInicio(now);
+                }
+                suscripcion.setFechaProximoCobro(now.plusMonths(1));
+                suscripcion.setEnPeriodoPrueba(false);
+                log.info("✅ Suscripción {} activada por preapproval webhook MP (status={})", suscripcion.getId(), estadoMp);
+            } else {
+                log.info("ℹ️ Preapproval webhook MP: suscripción {} ya estaba ACTIVA — fechas conservadas (status={})",
+                        suscripcion.getId(), estadoMp);
             }
-            suscripcion.setFechaProximoCobro(now.plusMonths(1));
-            log.info("✅ Suscripción {} activada por preapproval webhook MP (status={})", suscripcion.getId(), estadoMp);
         } else if ("CANCELADA".equals(nuevoEstado)) {
             suscripcion.setFechaCancelacion(LocalDateTime.now());
             log.info("❌ Suscripción {} cancelada por preapproval webhook MP (status={})", suscripcion.getId(), estadoMp);
@@ -347,6 +459,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         suscripcionRepository.save(suscripcion);
+        enviarEmailSuscripcionSiAplica(suscripcion, nuevoEstado);
     }
 
     private void procesarWebhookAuthorizedPayment(String authorizedPaymentId) {
@@ -386,6 +499,7 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 suscripcion.setFechaInicio(now);
             }
             suscripcion.setFechaProximoCobro(now.plusMonths(1));
+            suscripcion.setEnPeriodoPrueba(false);  // ya pagó — salir del trial
             log.info("✅ Suscripción {} activada por authorized_payment (status={}, paymentStatus={})",
                     suscripcion.getId(), status, paymentStatus);
         } else if ("refunded".equalsIgnoreCase(status) || "cancelled".equalsIgnoreCase(status)
@@ -399,6 +513,11 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         suscripcionRepository.save(suscripcion);
+
+        String estadoEmail = pagoAprobado ? "ACTIVA"
+                : ("refunded".equalsIgnoreCase(status) || "cancelled".equalsIgnoreCase(status)
+                        || "rejected".equalsIgnoreCase(paymentStatus)) ? "SUSPENDIDA" : null;
+        if (estadoEmail != null) enviarEmailSuscripcionSiAplica(suscripcion, estadoEmail);
     }
 
     private void procesarWebhookPago(String paymentId) {
@@ -426,7 +545,12 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 suscripcion.setFechaInicio(now);
             }
             suscripcion.setFechaProximoCobro(now.plusMonths(1));
-            log.info("✅ Suscripción {} activada por webhook pago MP", suscripcion.getId());
+            suscripcion.setEnPeriodoPrueba(false);
+            // Si era un upgrade, limpiar preferenceId ya consumido
+            if (suscripcion.getMpPreferenceId() != null) {
+                suscripcion.setMpPreferenceId(null);
+            }
+            log.info("✅ Suscripción {} activada por webhook pago MP (plan={})", suscripcion.getId(), suscripcion.getPlanId());
         } else if ("rejected".equalsIgnoreCase(payment.getStatus()) || "cancelled".equalsIgnoreCase(payment.getStatus())) {
             suscripcion.setEstado("SUSPENDIDA");
             log.warn("⚠️ Suscripción {} suspendida por estado de pago: {}", suscripcion.getId(), payment.getStatus());
@@ -436,6 +560,12 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
         }
 
         suscripcionRepository.save(suscripcion);
+
+        if ("approved".equalsIgnoreCase(payment.getStatus())) {
+            enviarEmailSuscripcionSiAplica(suscripcion, "ACTIVA");
+        } else if ("rejected".equalsIgnoreCase(payment.getStatus()) || "cancelled".equalsIgnoreCase(payment.getStatus())) {
+            enviarEmailSuscripcionSiAplica(suscripcion, "SUSPENDIDA");
+        }
     }
 
     @Override
@@ -446,7 +576,9 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                 .findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
 
         if (optSuscripcion.isEmpty()) {
-            optSuscripcion = suscripcionRepository.findFirstByTenantIdOrderByIdAsc(tenantId);
+            // Para usuarios no-propietarios (ej. GERENTE), devolver la suscripción MÁS RECIENTE
+            // del tenant (no la más antigua, que podría estar CANCELADA o ser de un plan viejo).
+            optSuscripcion = suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId);
         }
 
         if (optSuscripcion.isEmpty()) {
@@ -456,12 +588,17 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
                     .build();
         }
         Suscripcion s = optSuscripcion.get();
+        return buildEstadoResponse(s);
+    }
+
+    private SuscripcionEstadoResponseDTO buildEstadoResponse(Suscripcion s) {
         return SuscripcionEstadoResponseDTO.builder()
                 .estado(s.getEstado())
                 .planId(s.getPlanId())
                 .preapprovalId(s.getPreapprovalId())
                 .mpPaymentId(s.getMpPaymentId())
                 .fechaProximoCobro(s.getFechaProximoCobro())
+                .precioMensual(s.getPrecioMensual())
                 .build();
     }
 
@@ -515,6 +652,21 @@ public class SuscripcionCheckoutServiceImpl implements SuscripcionCheckoutServic
             throw new BadRequestException("External reference inválida para Mercado Pago: " + externalReference, ex);
         }
         return suscripcionRepository.findByTenantIdAndUsuarioPrincipalId(tenantId, usuarioId);
+    }
+
+    /** Envía email al usuario principal de la suscripción según el estado. Solo ACTIVA, SUSPENDIDA y CANCELADA. */
+    private void enviarEmailSuscripcionSiAplica(Suscripcion suscripcion, String estado) {
+        if (suscripcion.getUsuarioPrincipal() == null) return;
+        try {
+            emailService.enviarEmailSuscripcion(
+                    suscripcion.getUsuarioPrincipal().getEmail(),
+                    suscripcion.getUsuarioPrincipal().getNombre(),
+                    estado,
+                    suscripcion.getPlanId()
+            );
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo enviar email de suscripción ({}): {}", estado, e.getMessage());
+        }
     }
 }
 

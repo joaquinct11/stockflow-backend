@@ -18,7 +18,6 @@ public interface UsuarioMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "rol", ignore = true)
-    @Mapping(target = "fechaCreacion", expression = "java(java.time.LocalDateTime.now())")
     @Mapping(target = "activo", defaultValue = "true")
     @Mapping(source = "tipoDocumento",   target = "tipoDocumento")
     @Mapping(source = "numeroDocumento", target = "numeroDocumento")
@@ -29,7 +28,6 @@ public interface UsuarioMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "rol", ignore = true)
-    @Mapping(target = "fechaCreacion", ignore = true)
     @Mapping(target = "contraseña", ignore = true)
     void updateEntityFromDTO(UsuarioDTO dto, @MappingTarget Usuario usuario);
 }

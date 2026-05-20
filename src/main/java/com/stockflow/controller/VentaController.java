@@ -1,13 +1,17 @@
 package com.stockflow.controller;
 
 import com.stockflow.dto.ComprobanteDTO;
+import com.stockflow.dto.ValidarNotaCreditoResponseDTO;
 import com.stockflow.dto.VentaDTO;
 import com.stockflow.dto.DetalleVentaDTO;
 import com.stockflow.entity.*;
+import com.stockflow.entity.NotaCredito;
 import com.stockflow.mapper.VentaMapper;
 import com.stockflow.mapper.DetalleVentaMapper;
 import com.stockflow.service.ComprobanteService;
 import com.stockflow.service.MovimientoInventarioService;
+import com.stockflow.service.NotaCreditoService;
+import com.stockflow.service.NotificacionService;
 import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
@@ -43,6 +47,8 @@ public class VentaController {
     private final DetalleVentaMapper detalleVentaMapper;
     private final MovimientoInventarioService movimientoService;
     private final ComprobanteService comprobanteService;
+    private final NotaCreditoService notaCreditoService;
+    private final NotificacionService notificacionService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
@@ -62,7 +68,9 @@ public class VentaController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<VentaDTO> obtenerPorId(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         return ventaService.obtenerVentaPorId(id)
+                .filter(v -> tenantId.equals(v.getTenantId()))
                 .map(ventaMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -122,7 +130,13 @@ public class VentaController {
     @GetMapping("/{ventaId}/detalles")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<List<DetalleVentaDTO>> obtenerDetalles(@PathVariable Long ventaId) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("📋 Obteniendo detalles de venta: {}", ventaId);
+        // Verificar que la venta pertenezca al tenant antes de devolver detalles
+        boolean pertenece = ventaService.obtenerVentaPorId(ventaId)
+                .map(v -> tenantId.equals(v.getTenantId()))
+                .orElse(false);
+        if (!pertenece) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(
                 detalleVentaMapper.toDTOList(ventaService.obtenerDetallesVenta(ventaId))
         );
@@ -153,6 +167,10 @@ public class VentaController {
                     Producto producto = productoService.obtenerProductoPorId(detalleDTO.getProductoId())
                             .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + detalleDTO.getProductoId()));
 
+                    // Validar que el producto pertenezca al tenant actual (aislamiento multi-tenant)
+                    if (!tenantId.equals(producto.getTenantId())) {
+                        throw new BadRequestException("Producto no encontrado: " + detalleDTO.getProductoId());
+                    }
                     if (producto.getStockActual() < detalleDTO.getCantidad()) {
                         throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
                     }
@@ -180,19 +198,44 @@ public class VentaController {
 
         log.info("📊 Base imponible: {}, IGV incluido: {}, Total: {}", baseImponible, igvVenta, totalVenta);
 
+        // Aplicar descuento de nota de credito si se proporciona
+        BigDecimal descuentoNc = BigDecimal.ZERO;
+        Long notaCreditoId = null;
+        if (ventaDTO.getNotaCreditoCodigo() != null && !ventaDTO.getNotaCreditoCodigo().isBlank()) {
+            ValidarNotaCreditoResponseDTO validacion = notaCreditoService.validar(
+                    ventaDTO.getNotaCreditoCodigo(), tenantId);
+            if (!validacion.isValida()) {
+                throw new BadRequestException("Nota de credito no valida: " + validacion.getMensaje());
+            }
+            descuentoNc = validacion.getMontoTotal().min(totalVenta);
+        }
+        BigDecimal totalConDescuento = totalVenta.subtract(descuentoNc).max(BigDecimal.ZERO);
+
         Venta venta = Venta.builder()
                 .vendedor(vendedor)
-                .total(totalVenta) // ✅ precio ya incluye IGV, no se multiplica
+                .total(totalConDescuento)
                 .metodoPago(ventaDTO.getMetodoPago())
                 .estado(ventaDTO.getEstado())
                 .tenantId(tenantId)
                 .detalles(detalles)
                 .createdAt(LocalDateTime.now())
                 .cajaId(ventaDTO.getCajaId())
+                .clienteId(ventaDTO.getClienteId())
+                .descuentoNotaCredito(descuentoNc.compareTo(BigDecimal.ZERO) > 0 ? descuentoNc : null)
                 .build();
 
         // 3) Persistir venta primero (para tener ID y usarlo como referencia)
         Venta ventaCreada = ventaService.crearVenta(venta);
+
+        // Aplicar nota de credito una vez tenemos el ID de la venta
+        if (ventaDTO.getNotaCreditoCodigo() != null && !ventaDTO.getNotaCreditoCodigo().isBlank()
+                && descuentoNc.compareTo(BigDecimal.ZERO) > 0) {
+            NotaCredito ncAplicada = notaCreditoService.aplicar(
+                    ventaDTO.getNotaCreditoCodigo(), ventaCreada.getId(), tenantId);
+            ventaCreada.setNotaCreditoId(ncAplicada.getId());
+            ventaService.actualizarNotaCredito(ventaCreada.getId(), ncAplicada.getId());
+            log.info("Nota de credito {} aplicada a venta {}", ventaDTO.getNotaCreditoCodigo(), ventaCreada.getId());
+        }
         log.info("✅ Venta creada exitosamente: ID {}", ventaCreada.getId());
 
         // 4) Por cada detalle: descontar stock + crear movimiento SALIDA
@@ -221,12 +264,76 @@ public class VentaController {
                 .body(ventaMapper.toDTO(ventaCreada));
     }
 
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_VENTA')")
-    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        log.info("🗑️ Eliminando venta ID: {}", id);
-        ventaService.eliminarVenta(id);
-        return ResponseEntity.noContent().build();
+    @PatchMapping("/{id}/anular")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_ELIMINAR_VENTA')")
+    @Transactional
+    public ResponseEntity<VentaDTO> anular(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long usuarioId = TenantContext.getCurrentUserId();
+        log.info("🚫 Anulando venta ID: {} (tenant={})", id, tenantId);
+
+        // 1. Obtener venta y validar
+        Venta venta = ventaService.obtenerVentaPorId(id)
+                .filter(v -> tenantId.equals(v.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada"));
+
+        if ("ANULADA".equals(venta.getEstado())) {
+            throw new BadRequestException("La venta ya está anulada");
+        }
+        if ("DEVUELTA".equals(venta.getEstado()) || "DEVUELTA_PARCIAL".equals(venta.getEstado())) {
+            throw new BadRequestException("No se puede anular una venta que ya tiene devoluciones registradas");
+        }
+
+        // 2. Obtener usuario que anula
+        Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        // 3. Reponer stock + crear movimiento ANULACION por cada producto
+        for (DetalleVenta detalle : venta.getDetalles()) {
+            Producto producto = detalle.getProducto();
+            producto.setStockActual(producto.getStockActual() + detalle.getCantidad());
+            productoService.actualizarProducto(producto.getId(), producto);
+
+            MovimientoInventario mov = MovimientoInventario.builder()
+                    .producto(producto)
+                    .usuario(usuario)
+                    .tipo("AJUSTE")
+                    .cantidad(detalle.getCantidad())
+                    .descripcion("Anulación venta #" + venta.getId())
+                    .referencia("ANUL-" + venta.getId())
+                    .tenantId(tenantId)
+                    .build();
+            movimientoService.crearMovimiento(mov);
+
+            log.info("📦 Stock repuesto: +{} de {} por anulación venta {}",
+                    detalle.getCantidad(), producto.getNombre(), venta.getId());
+        }
+
+        // 4. Si se usó una NC en esta venta, restaurarla a PENDIENTE
+        if (venta.getNotaCreditoId() != null) {
+            notaCreditoService.restaurarPorVentaAnulada(venta.getNotaCreditoId(), tenantId);
+            venta.setNotaCreditoId(null);
+            venta.setDescuentoNotaCredito(null);
+        }
+
+        // 5. Marcar venta como ANULADA
+        venta.setEstado("ANULADA");
+        ventaService.crearVenta(venta);
+
+        // Notificar anulación a ADMIN y GERENTE
+        try {
+            notificacionService.notificarRoles(tenantId, List.of("ADMIN", "GERENTE"),
+                    "VENTA_ANULADA",
+                    "🚫 Venta anulada",
+                    String.format("La venta #%d por S/ %.2f fue anulada. Stock repuesto automáticamente.",
+                            id, venta.getTotal()),
+                    id, "VENTA");
+        } catch (Exception e) {
+            log.warn("No se pudo crear notificación de venta anulada: {}", e.getMessage());
+        }
+
+        log.info("✅ Venta {} anulada — stock repuesto, kardex actualizado", id);
+        return ResponseEntity.ok(ventaMapper.toDTO(venta));
     }
 
     /**

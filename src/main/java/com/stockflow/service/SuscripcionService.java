@@ -10,21 +10,12 @@ public interface SuscripcionService {
 
     Optional<Suscripcion> obtenerSuscripcionPorId(Long id);
 
-    List<Suscripcion> obtenerTodasSuscripciones();
-
     Optional<Suscripcion> obtenerSuscripcionPorUsuario(Long usuarioId);
-
-    List<Suscripcion> obtenerSuscripcionesPorEstado(String estado);
-
-    Suscripcion actualizarSuscripcion(Long id, Suscripcion suscripcion);
 
     Suscripcion activarSuscripcion(Long id);
 
-    Suscripcion cancelarSuscripcion(Long id);  // ✅ NUEVO
-
     void eliminarSuscripcion(Long id);
 
-    // ✅ NUEVOS: Métodos para filtrar por tenant
     List<Suscripcion> obtenerSuscripcionesPorTenant(String tenantId);
 
     List<Suscripcion> obtenerSuscripcionesPorEstadoYTenant(String estado, String tenantId);

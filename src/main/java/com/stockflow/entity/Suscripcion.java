@@ -42,9 +42,6 @@ public class Suscripcion {
     @Column(name = "fecha_proximo_cobro")
     private LocalDateTime fechaProximoCobro;
 
-    @Column(name = "intentos_fallidos")
-    private Integer intentosFallidos = 0;
-
     @Column(name = "fecha_cancelacion")
     private LocalDateTime fechaCancelacion;
 
@@ -75,21 +72,26 @@ public class Suscripcion {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-
     @Column(name = "trial_end_date")
     private LocalDateTime trialEndDate;
 
     @Column(name = "en_periodo_prueba", nullable = false)
     private Boolean enPeriodoPrueba = false;
 
+    /**
+     * Plan al que se debe bajar cuando venza el período actual.
+     * null = sin downgrade programado.
+     * "BASICO" = el usuario pidió bajar a Básico; se efectúa al vencer currentPeriodEnd.
+     * Mientras tiene valor, el preapproval PRO ya fue cancelado en MP pero el acceso PRO
+     * se mantiene hasta currentPeriodEnd (el usuario pagó ese período).
+     */
+    @Column(name = "pending_downgrade_plan", length = 50)
+    private String pendingDowngradePlan;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();
-        if (createdAt == null) {
-            createdAt = now;
-        }
+        if (createdAt == null) createdAt = now;
         updatedAt = now;
     }
 

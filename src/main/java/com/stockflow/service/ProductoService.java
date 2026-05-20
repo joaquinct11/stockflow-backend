@@ -14,7 +14,7 @@ public interface ProductoService {
 
     Optional<Producto> obtenerProductoPorCodigoBarras(String codigoBarras);
 
-    List<Producto> buscarProductosPorNombre(String nombre);
+    List<Producto> buscarProductosPorNombre(String nombre, String tenantId);
 
     List<Producto> obtenerProductosPorTenant(String tenantId);
 

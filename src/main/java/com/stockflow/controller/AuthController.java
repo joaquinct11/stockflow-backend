@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +20,6 @@ import com.stockflow.util.TenantContext;
 
 import java.util.Map;
 
-@Slf4j
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -33,7 +31,6 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(summary = "Login", description = "Autentica un usuario y devuelve access token y refresh token")
     public ResponseEntity<JwtResponseDTO> login(@Valid @RequestBody LoginDTO loginDTO) {
-        log.info("🔐 Login: {}", loginDTO.getEmail());
         JwtResponseDTO response = authService.login(loginDTO);
         return ResponseEntity.ok(response);
     }
@@ -42,7 +39,6 @@ public class AuthController {
     @Operation(summary = "Registro completo",
             description = "Registra una nueva farmacia (tenant) con su usuario admin y suscripción")
     public ResponseEntity<JwtResponseDTO> register(@Valid @RequestBody RegistrationRequestDTO request) {
-        log.info("📝 Nuevo registro de farmacia: {}", request.getNombreFarmacia());
         JwtResponseDTO response = authService.registrar(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -50,7 +46,6 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "Renovar tokens", description = "Genera nuevos access y refresh tokens usando un refresh token válido")
     public ResponseEntity<JwtResponseDTO> refresh(@Valid @RequestBody RefreshTokenRequestDTO request) {
-        log.info("🔄 Renovando tokens");
         JwtResponseDTO response = authService.refresh(request.getRefreshToken());
         return ResponseEntity.ok(response);
     }
@@ -58,7 +53,6 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "Logout", description = "Revoca el refresh token del usuario")
     public ResponseEntity<Map<String, String>> logout(@Valid @RequestBody RefreshTokenRequestDTO request) {
-        log.info("👋 Logout del usuario");
         authService.logout(request.getRefreshToken());
         return ResponseEntity.ok(Map.of("mensaje", "Sesión cerrada exitosamente"));
     }
@@ -94,5 +88,14 @@ public class AuthController {
             @Valid @RequestBody ResetPasswordDTO dto) {
         authService.resetearContraseña(dto);
         return ResponseEntity.ok(Map.of("mensaje", "Contraseña reseteada exitosamente"));
+    }
+
+    @PostMapping("/activate-account")
+    @Operation(summary = "Activar cuenta de usuario nuevo",
+               description = "Permite al usuario nuevo establecer su contraseña usando el token del email de bienvenida")
+    public ResponseEntity<Map<String, String>> activarCuenta(
+            @Valid @RequestBody ResetPasswordDTO dto) {
+        authService.activarCuenta(dto);
+        return ResponseEntity.ok(Map.of("mensaje", "Cuenta activada exitosamente. Ya puedes iniciar sesión."));
     }
 }

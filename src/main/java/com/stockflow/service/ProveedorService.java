@@ -10,10 +10,6 @@ public interface ProveedorService {
 
     Optional<Proveedor> obtenerProveedorPorId(Long id);
 
-    List<Proveedor> obtenerTodosProveedores();
-
-    List<Proveedor> obtenerProveedoresActivos();
-
     Optional<Proveedor> obtenerProveedorPorRuc(String ruc);
 
     List<Proveedor> buscarProveedoresPorNombre(String nombre);
@@ -26,8 +22,7 @@ public interface ProveedorService {
 
     void eliminarProveedor(Long id);
 
-    // ✅ NUEVOS: Filtrar por tenant
     List<Proveedor> obtenerProveedoresPorTenant(String tenantId);
 
-    List<Proveedor> obtenerProveedoresActivosPorTenant(String tenantId);  // ✅ ESTE ES EL QUE FALTA
+    List<Proveedor> obtenerProveedoresActivosPorTenant(String tenantId);
 }

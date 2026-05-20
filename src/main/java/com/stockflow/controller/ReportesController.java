@@ -235,6 +235,57 @@ public class ReportesController {
         return ResponseEntity.ok(reportesService.comprasPorProveedor(tenantId, desde, hasta, limit));
     }
 
+    // ── Financiero ────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/reportes/financiero?desde&hasta
+     * Estado de resultados: Ingresos → Costo ventas → Utilidad bruta → Gastos → Utilidad neta.
+     */
+    @GetMapping("/financiero")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
+    public ResponseEntity<FinancieroDTO> getFinanciero(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+
+        validarRango(desde, hasta);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("💰 Financiero: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
+        return ResponseEntity.ok(reportesService.getFinanciero(tenantId, desde, hasta));
+    }
+
+    // ── Vencimientos en riesgo ────────────────────────────────────────────────
+
+    /**
+     * GET /api/reportes/inventario/vencimientos
+     * Capital en riesgo de vencimiento, agrupado por urgencia (vencido / 7d / 30d / 90d).
+     */
+    @GetMapping("/inventario/vencimientos")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
+    public ResponseEntity<VencimientosRiesgoDTO> getVencimientosRiesgo() {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("⚠️ Vencimientos riesgo: tenant={}", tenantId);
+        return ResponseEntity.ok(reportesService.getVencimientosRiesgo(tenantId));
+    }
+
+    // ── Top clientes ──────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/reportes/clientes?desde&hasta&limit=20
+     * Top clientes del período ordenados por monto comprado descendente.
+     */
+    @GetMapping("/clientes")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
+    public ResponseEntity<List<ClienteReporteDTO>> getTopClientes(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(defaultValue = "20") int limit) {
+
+        validarRango(desde, hasta);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("👤 Top clientes: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
+        return ResponseEntity.ok(reportesService.getTopClientes(tenantId, desde, hasta, limit));
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private void validarRango(LocalDate desde, LocalDate hasta) {

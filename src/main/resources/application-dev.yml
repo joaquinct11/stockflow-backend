@@ -1,58 +1,32 @@
-# ========================================
-# DESARROLLO (LOCAL)
-# ========================================
+# ============================================================
+# PERFIL DEV — solo sobreescribe lo que difiere del base
+# ============================================================
 
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/stockflows}
-    username: ${DB_USER:stockflow_user}
-    password: ${DB_PASSWORD:stockflow_password}
+    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USERNAME}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD}}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update  # ✅ Actualiza automáticamente en dev
-    show-sql: false      # ✅ Muestra SQL en consola
+      ddl-auto: update
+    show-sql: false
 
   flyway:
     enabled: true
-    clean-disabled: false  # ✅ Permite limpiar BD en dev
+    clean-disabled: false
 
   devtools:
     restart:
       enabled: true
 
-# JWT (dev - menos seguro pero fácil de recordar)
-jwt:
-  secret: ${JWT_SECRET}
-
-# CORS permisivo
-cors:
-  allowed-origins:
-    - http://localhost:5173
-    - http://localhost:3000
-    - http://127.0.0.1:5173
-
-# Servidor
 server:
-  port: 8080
   error:
     include-message: always
     include-stacktrace: always
 
-# Logging detallado
-logging:
-  level:
-    root: INFO
-    com.stockflow: DEBUG
-    org.springframework.web: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: INFO
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
-app:
-  frontend-url: ${FRONTEND_URL:http://localhost:5173}
-  
 springdoc:
   api-docs:
     path: /api-docs

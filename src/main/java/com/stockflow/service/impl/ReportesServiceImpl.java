@@ -1,7 +1,9 @@
 package com.stockflow.service.impl;
 
 import com.stockflow.dto.reportes.*;
+import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
+import com.stockflow.repository.GastoRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.RecepcionRepository;
@@ -20,7 +22,9 @@ import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -28,10 +32,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReportesServiceImpl implements ReportesService {
 
-    private final ProductoRepository productoRepository;
+    private final ProductoRepository             productoRepository;
     private final MovimientoInventarioRepository movimientoRepository;
-    private final RecepcionRepository recepcionRepository;
-    private final VentaRepository ventaRepository;
+    private final RecepcionRepository            recepcionRepository;
+    private final VentaRepository                ventaRepository;
+    private final GastoRepository                gastoRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -336,6 +341,204 @@ public class ReportesServiceImpl implements ReportesService {
                         .unidadesRecibidas(((Number) row[3]).longValue())
                         .montoEstimado((BigDecimal) row[4])
                         .build())
+                .collect(Collectors.toList());
+    }
+
+    // ── Financiero (P&L) ──────────────────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public FinancieroDTO getFinanciero(String tenantId, LocalDate desde, LocalDate hasta) {
+        log.info("💰 Financiero tenant={} rango=[{}, {}]", tenantId, desde, hasta);
+
+        LocalDateTime inicio = desde.atStartOfDay();
+        LocalDateTime fin    = hasta.atTime(LocalTime.MAX);
+
+        // Ingresos
+        long       ventasCount    = ventaRepository.countByTenantIdAndPeriodo(tenantId, inicio, fin);
+        BigDecimal ingresosVentas = ventaRepository.sumTotalByTenantIdAndPeriodo(tenantId, inicio, fin);
+        if (ingresosVentas == null) ingresosVentas = BigDecimal.ZERO;
+
+        // Costo de ventas
+        BigDecimal costoVentas = ventaRepository.sumCostoVentasByTenantIdAndPeriodo(tenantId, inicio, fin);
+        if (costoVentas == null) costoVentas = BigDecimal.ZERO;
+
+        // Utilidad bruta
+        BigDecimal utilidadBruta = ingresosVentas.subtract(costoVentas);
+        BigDecimal margenBruto   = ingresosVentas.compareTo(BigDecimal.ZERO) > 0
+                ? utilidadBruta.multiply(BigDecimal.valueOf(100))
+                               .divide(ingresosVentas, 2, RoundingMode.HALF_UP)
+                : null;
+
+        // Gastos operativos del período
+        List<com.stockflow.entity.Gasto> gastos = gastoRepository
+                .findByTenantIdAndFechaGastoBetween(tenantId, desde, hasta);
+
+        BigDecimal gastosTotales = gastos.stream()
+                .map(com.stockflow.entity.Gasto::getMonto)
+                .filter(m -> m != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long gastosCount = gastos.size();
+
+        // Gastos por categoría
+        Map<String, List<com.stockflow.entity.Gasto>> porCategoria = gastos.stream()
+                .collect(Collectors.groupingBy(g -> g.getCategoria() != null ? g.getCategoria() : "OTROS"));
+
+        List<GastoCategoriaDTO> gastosPorCategoria = porCategoria.entrySet().stream()
+                .map(e -> {
+                    BigDecimal montoCateg = e.getValue().stream()
+                            .map(com.stockflow.entity.Gasto::getMonto)
+                            .filter(m -> m != null)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal pct = gastosTotales.compareTo(BigDecimal.ZERO) > 0
+                            ? montoCateg.multiply(BigDecimal.valueOf(100))
+                                        .divide(gastosTotales, 2, RoundingMode.HALF_UP)
+                            : BigDecimal.ZERO;
+                    return GastoCategoriaDTO.builder()
+                            .categoria(e.getKey())
+                            .monto(montoCateg)
+                            .porcentaje(pct)
+                            .count((long) e.getValue().size())
+                            .build();
+                })
+                .sorted(Comparator.comparing(GastoCategoriaDTO::getMonto).reversed())
+                .collect(Collectors.toList());
+
+        // Utilidad neta
+        BigDecimal utilidadNeta = utilidadBruta.subtract(gastosTotales);
+        BigDecimal margenNeto   = ingresosVentas.compareTo(BigDecimal.ZERO) > 0
+                ? utilidadNeta.multiply(BigDecimal.valueOf(100))
+                              .divide(ingresosVentas, 2, RoundingMode.HALF_UP)
+                : null;
+
+        return FinancieroDTO.builder()
+                .desde(desde)
+                .hasta(hasta)
+                .ingresosVentas(ingresosVentas)
+                .ventasCount(ventasCount)
+                .costoVentas(costoVentas)
+                .utilidadBruta(utilidadBruta)
+                .margenBruto(margenBruto)
+                .gastosTotales(gastosTotales)
+                .gastosCount(gastosCount)
+                .gastosPorCategoria(gastosPorCategoria)
+                .utilidadNeta(utilidadNeta)
+                .margenNeto(margenNeto)
+                .build();
+    }
+
+    // ── Vencimientos en riesgo ────────────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public VencimientosRiesgoDTO getVencimientosRiesgo(String tenantId) {
+        log.info("⚠️ Vencimientos en riesgo tenant={}", tenantId);
+
+        LocalDate hoy = LocalDate.now();
+
+        List<MovimientoInventario> movimientos =
+                movimientoRepository.findEntradasConVencimientoPorTenant(tenantId);
+
+        BigDecimal capitalVencido  = BigDecimal.ZERO;
+        BigDecimal capitalRiesgo7d = BigDecimal.ZERO;
+        BigDecimal capitalRiesgo30d = BigDecimal.ZERO;
+        BigDecimal capitalRiesgo90d = BigDecimal.ZERO;
+        long lotesVencidos = 0, lotes7d = 0, lotes30d = 0, lotes90d = 0;
+
+        List<LoteRiesgoDetalleDTO> detalles = new ArrayList<>();
+
+        for (MovimientoInventario m : movimientos) {
+            long diasRestantes = ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento());
+            BigDecimal costo   = m.getProducto().getCostoUnitario() != null
+                    ? m.getProducto().getCostoUnitario() : BigDecimal.ZERO;
+            BigDecimal valor   = costo.multiply(BigDecimal.valueOf(m.getCantidad() != null ? m.getCantidad() : 0));
+
+            LoteRiesgoDetalleDTO detalle = LoteRiesgoDetalleDTO.builder()
+                    .productoId(m.getProducto().getId())
+                    .productoNombre(m.getProducto().getNombre())
+                    .lote(m.getLote())
+                    .fechaVencimiento(m.getFechaVencimiento())
+                    .diasRestantes(diasRestantes)
+                    .cantidad(m.getCantidad())
+                    .costoUnitario(costo)
+                    .valorRiesgo(valor)
+                    .build();
+            detalles.add(detalle);
+
+            if (diasRestantes < 0) {
+                capitalVencido = capitalVencido.add(valor);
+                lotesVencidos++;
+            } else if (diasRestantes <= 7) {
+                capitalRiesgo7d = capitalRiesgo7d.add(valor);
+                lotes7d++;
+            } else if (diasRestantes <= 30) {
+                capitalRiesgo30d = capitalRiesgo30d.add(valor);
+                lotes30d++;
+            } else if (diasRestantes <= 90) {
+                capitalRiesgo90d = capitalRiesgo90d.add(valor);
+                lotes90d++;
+            }
+        }
+
+        // Los 15 más urgentes: primero los vencidos (diasRestantes ASC) luego próximos
+        List<LoteRiesgoDetalleDTO> urgentes = detalles.stream()
+                .filter(d -> d.getDiasRestantes() <= 90)
+                .sorted(Comparator.comparing(LoteRiesgoDetalleDTO::getDiasRestantes))
+                .limit(15)
+                .collect(Collectors.toList());
+
+        BigDecimal totalCritico = capitalVencido.add(capitalRiesgo7d).add(capitalRiesgo30d);
+
+        return VencimientosRiesgoDTO.builder()
+                .capitalVencido(capitalVencido)
+                .lotesVencidos(lotesVencidos)
+                .capitalRiesgo7d(capitalRiesgo7d)
+                .lotesRiesgo7d(lotes7d)
+                .capitalRiesgo30d(capitalRiesgo30d)
+                .lotesRiesgo30d(lotes30d)
+                .capitalRiesgo90d(capitalRiesgo90d)
+                .lotesRiesgo90d(lotes90d)
+                .totalCapitalCritico(totalCritico)
+                .lotesUrgentes(urgentes)
+                .build();
+    }
+
+    // ── Top clientes ──────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClienteReporteDTO> getTopClientes(String tenantId, LocalDate desde, LocalDate hasta, int limit) {
+        log.info("👤 Top clientes tenant={} rango=[{}, {}]", tenantId, desde, hasta);
+
+        LocalDateTime inicio = desde.atStartOfDay();
+        LocalDateTime fin    = hasta.atTime(LocalTime.MAX);
+
+        List<Object[]> raw = ventaRepository.findTopClientesPorGasto(tenantId, inicio, fin);
+
+        return raw.stream()
+                .limit(limit)
+                .map(row -> {
+                    long  count     = ((Number) row[2]).longValue();
+                    BigDecimal total = toBigDecimal(row[3]);
+                    BigDecimal ticket = count > 0
+                            ? total.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP)
+                            : BigDecimal.ZERO;
+                    LocalDateTime ultima = null;
+                    if (row[4] instanceof java.sql.Timestamp ts) {
+                        ultima = ts.toLocalDateTime();
+                    } else if (row[4] instanceof LocalDateTime ldt) {
+                        ultima = ldt;
+                    }
+                    return ClienteReporteDTO.builder()
+                            .clienteId(((Number) row[0]).longValue())
+                            .clienteNombre((String) row[1])
+                            .ventasCount(count)
+                            .totalComprado(total)
+                            .ticketPromedio(ticket)
+                            .ultimaCompra(ultima)
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 

@@ -37,6 +37,18 @@ public class VentaDTO {
 
     private Long cajaId;
 
+    private String notaCreditoCodigo;
+
+    private BigDecimal descuentoNotaCredito;
+
+    private Long notaCreditoId;
+
+    /** ID del cliente registrado (null = consumidor final). */
+    private Long clienteId;
+
+    /** Nombre del cliente para mostrar en la respuesta. */
+    private String clienteNombre;
+
     @NotEmpty(message = "La venta debe tener al menos un detalle")
     @Valid
     private List<DetalleVentaDTO> detalles;

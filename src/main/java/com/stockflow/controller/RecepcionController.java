@@ -54,7 +54,8 @@ public class RecepcionController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_RECEPCIONES') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<RecepcionResponseDTO> obtenerPorId(@PathVariable Long id) {
-        return recepcionService.obtenerPorId(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return recepcionService.obtenerPorId(id, tenantId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -67,8 +68,9 @@ public class RecepcionController {
     public ResponseEntity<RecepcionDetalleResponseDTO> upsertItem(
             @PathVariable Long id,
             @Valid @RequestBody RecepcionDetalleRequestDTO request) {
-        log.info("📝 Upsert item recepción id={}", id);
-        return ResponseEntity.ok(recepcionService.upsertItem(id, request));
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📝 Upsert item recepción id={} tenant={}", id, tenantId);
+        return ResponseEntity.ok(recepcionService.upsertItem(id, request, tenantId));
     }
 
     /**
@@ -79,8 +81,9 @@ public class RecepcionController {
     public ResponseEntity<RecepcionResponseDTO> guardarComprobante(
             @PathVariable Long id,
             @Valid @RequestBody ComprobanteProveedorDTO dto) {
-        log.info("🧾 Guardando comprobante recepción id={}", id);
-        return ResponseEntity.ok(recepcionService.guardarComprobante(id, dto));
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("🧾 Guardando comprobante recepción id={} tenant={}", id, tenantId);
+        return ResponseEntity.ok(recepcionService.guardarComprobante(id, dto, tenantId));
     }
 
     /**
@@ -90,8 +93,9 @@ public class RecepcionController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CONFIRMAR_RECEPCION')")
     public ResponseEntity<RecepcionResponseDTO> confirmar(@PathVariable Long id) {
         Long usuarioId = TenantContext.getCurrentUserId();
-        log.info("✅ Confirmando recepción id={}", id);
-        return ResponseEntity.ok(recepcionService.confirmar(id, usuarioId));
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("✅ Confirmando recepción id={} tenant={}", id, tenantId);
+        return ResponseEntity.ok(recepcionService.confirmar(id, usuarioId, tenantId));
     }
 
     /**
@@ -101,7 +105,7 @@ public class RecepcionController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<Void> anular(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("🚫 Anulando recepción id={}", id);
+        log.info("🚫 Anulando recepción id={} tenant={}", id, tenantId);
         recepcionService.anular(id, tenantId);
         return ResponseEntity.noContent().build();
     }
@@ -112,8 +116,9 @@ public class RecepcionController {
     @DeleteMapping("/{id}/items/{itemId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<Void> removeItem(@PathVariable Long id, @PathVariable Long itemId) {
-        log.info("🗑️ Eliminando item id={} de recepción id={}", itemId, id);
-        recepcionService.removeItem(id, itemId);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("🗑️ Eliminando item id={} de recepción id={} tenant={}", itemId, id, tenantId);
+        recepcionService.removeItem(id, itemId, tenantId);
         return ResponseEntity.noContent().build();
     }
 }

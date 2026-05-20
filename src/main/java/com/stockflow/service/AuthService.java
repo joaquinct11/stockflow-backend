@@ -19,4 +19,7 @@ public interface AuthService {
     void cambiarContraseña(Long usuarioId, CambiarPasswordDTO dto);
     void solicitarRecuperacionContraseña(ForgotPasswordDTO dto);
     void resetearContraseña(ResetPasswordDTO dto);
+
+    /** Activa la cuenta de un usuario nuevo usando el token recibido por email. */
+    void activarCuenta(ResetPasswordDTO dto);
 }

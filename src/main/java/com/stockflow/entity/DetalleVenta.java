@@ -36,8 +36,8 @@ public class DetalleVenta {
     @Column(name = "subtotal", nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
 
-    @PostPersist
-    @PostUpdate
+    @PrePersist
+    @PreUpdate
     public void calcularSubtotal() {
         if (this.cantidad != null && this.precioUnitario != null) {
             this.subtotal = this.precioUnitario.multiply(new BigDecimal(this.cantidad));

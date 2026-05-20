@@ -7,6 +7,7 @@ import com.stockflow.dto.SuscripcionEstadoResponseDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.SuscripcionMapper;
+import com.stockflow.scheduler.NotificacionScheduler;
 import com.stockflow.service.SuscripcionCheckoutService;
 import com.stockflow.service.SuscripcionService;
 import com.stockflow.service.UsuarioService;
@@ -15,6 +16,7 @@ import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.exception.BadRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,6 +34,10 @@ public class SuscripcionController {
     private final UsuarioService usuarioService;
     private final SuscripcionMapper suscripcionMapper;
     private final SuscripcionCheckoutService suscripcionCheckoutService;
+    private final NotificacionScheduler notificacionScheduler;
+
+    @Value("${spring.profiles.active:prod}")
+    private String activeProfile;
 
     /**
      * ✅ ACTUALIZADO: Obtiene suscripciones del tenant actual
@@ -99,8 +105,8 @@ public class SuscripcionController {
                 });
 
         // Validar plan
-        if (!suscripcionDTO.getPlanId().matches("FREE|BASICO|PRO")) {
-            throw new BadRequestException("Plan no válido. Use: FREE, BASICO, PRO");
+        if (!"BASICO".equals(suscripcionDTO.getPlanId())) {
+            throw new BadRequestException("Plan no válido. Use: BASICO");
         }
 
         // Crear suscripción usando mapper
@@ -186,5 +192,68 @@ public class SuscripcionController {
         Long usuarioId = TenantContext.getCurrentUserId();
         log.info("🔄 Sincronizando estado desde Mercado Pago para tenant {}, usuario {}", tenantId, usuarioId);
         return ResponseEntity.ok(suscripcionCheckoutService.sincronizarDesdeMP(tenantId, usuarioId));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ENDPOINTS SOLO PARA DESARROLLO — no exponer en producción
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * POST /suscripciones/dev/forzar-scheduler-cobros
+     *
+     * Ejecuta manualmente el scheduler de verificación de cobros MP.
+     * Úsalo así para probar el flujo de cobro automático en dev:
+     *
+     *   1. UPDATE suscripciones SET current_period_end = NOW() - INTERVAL '3 days',
+     *                                fecha_proximo_cobro = NOW() - INTERVAL '3 days'
+     *      WHERE id = <tu_id>;
+     *   2. POST /suscripciones/dev/forzar-scheduler-cobros
+     *   3. Verifica en los logs y en BD el resultado.
+     */
+    @PostMapping("/dev/forzar-scheduler-cobros")
+    @PreAuthorize("hasRole('ADMIN')")
+    @org.springframework.context.annotation.Profile("dev")  // No registrado en prod/uat
+    public ResponseEntity<String> forzarSchedulerCobros() {
+        if (!"dev".equals(activeProfile)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Este endpoint solo está disponible en perfil dev");
+        }
+        log.warn("🧪 [DEV] Forzando ejecución manual del scheduler de cobros MP...");
+        notificacionScheduler.verificarCobrosMensualesMP();
+        return ResponseEntity.ok("Scheduler ejecutado. Revisa los logs del backend.");
+    }
+
+    /**
+     * POST /suscripciones/dev/simular-webhook-pago
+     *
+     * Simula el webhook subscription_authorized_payment que MP envía
+     * cuando cobra mensualmente. Requiere el ID del authorized_payment real de MP
+     * (lo puedes buscar en el panel de MP sandbox o via API).
+     *
+     * Body: { "authorizedPaymentId": "123456789" }
+     */
+    @PostMapping("/dev/simular-webhook-pago")
+    @PreAuthorize("hasRole('ADMIN')")
+    @org.springframework.context.annotation.Profile("dev")  // No registrado en prod/uat
+    public ResponseEntity<String> simularWebhookPago(@RequestBody java.util.Map<String, String> body) {
+        if (!"dev".equals(activeProfile)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Este endpoint solo está disponible en perfil dev");
+        }
+        String authorizedPaymentId = body.get("authorizedPaymentId");
+        if (authorizedPaymentId == null || authorizedPaymentId.isBlank()) {
+            return ResponseEntity.badRequest().body("Falta 'authorizedPaymentId' en el body");
+        }
+        log.warn("🧪 [DEV] Simulando webhook authorized_payment id={}", authorizedPaymentId);
+
+        com.stockflow.dto.MercadoPagoWebhookRequestDTO webhook = new com.stockflow.dto.MercadoPagoWebhookRequestDTO();
+        webhook.setType("subscription_authorized_payment");
+        com.stockflow.dto.MercadoPagoWebhookRequestDTO.DataPayload data =
+                new com.stockflow.dto.MercadoPagoWebhookRequestDTO.DataPayload();
+        data.setId(authorizedPaymentId);
+        webhook.setData(data);
+
+        suscripcionCheckoutService.procesarWebhook(webhook);
+        return ResponseEntity.ok("Webhook procesado. Revisa los logs y la BD.");
     }
 }

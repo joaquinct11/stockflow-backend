@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,38 +32,8 @@ public class SuscripcionServiceImpl implements SuscripcionService {
     }
 
     @Override
-    public List<Suscripcion> obtenerTodasSuscripciones() {
-        return suscripcionRepository.findAll();
-    }
-
-    @Override
     public Optional<Suscripcion> obtenerSuscripcionPorUsuario(Long usuarioId) {
         return suscripcionRepository.findByUsuarioPrincipalId(usuarioId);
-    }
-
-    @Override
-    public List<Suscripcion> obtenerSuscripcionesPorEstado(String estado) {
-        return suscripcionRepository.findByEstado(estado);
-    }
-
-    @Override
-    public Suscripcion actualizarSuscripcion(Long id, Suscripcion suscripcion) {
-        log.info("✏️ Actualizando suscripción ID: {}", id);
-
-        return suscripcionRepository.findById(id)
-                .map(suscripcionExistente -> {
-                    suscripcionExistente.setPlanId(suscripcion.getPlanId());
-                    suscripcionExistente.setPrecioMensual(suscripcion.getPrecioMensual());
-                    suscripcionExistente.setEstado(suscripcion.getEstado());
-                    suscripcionExistente.setMetodoPago(suscripcion.getMetodoPago());
-                    suscripcionExistente.setUltimos4Digitos(suscripcion.getUltimos4Digitos());
-                    suscripcionExistente.setMpPreferenceId(suscripcion.getMpPreferenceId());
-                    suscripcionExistente.setMpPaymentId(suscripcion.getMpPaymentId());
-                    suscripcionExistente.setCurrentPeriodStart(suscripcion.getCurrentPeriodStart());
-                    suscripcionExistente.setCurrentPeriodEnd(suscripcion.getCurrentPeriodEnd());
-                    return suscripcionRepository.save(suscripcionExistente);
-                })
-                .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
     }
 
     @Override
@@ -76,7 +45,6 @@ public class SuscripcionServiceImpl implements SuscripcionService {
 
         // Cambiar el estado a ACTIVA
         suscripcion.setEstado("ACTIVA");
-        suscripcion.setDeletedAt(null);
         suscripcion.setFechaCancelacion(null);
 
         // Guardar en la base de datos
@@ -84,25 +52,6 @@ public class SuscripcionServiceImpl implements SuscripcionService {
         log.info("✅ Suscripción activada exitosamente: ID {}", suscripcionActivada.getId());
 
         return suscripcionActivada;
-    }
-
-    @Override
-    public Suscripcion cancelarSuscripcion(Long id) {
-        log.warn("❌ Cancelando suscripción con ID: {}", id);
-
-        Suscripcion suscripcion = suscripcionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada con ID: " + id));
-
-        // Cambiar el estado a CANCELADA
-        suscripcion.setEstado("CANCELADA");
-        suscripcion.setFechaCancelacion(LocalDateTime.now());
-        suscripcion.setDeletedAt(LocalDateTime.now());
-
-        // Guardar en la base de datos
-        Suscripcion suscripcionCancelada = suscripcionRepository.save(suscripcion);
-        log.warn("❌ Suscripción cancelada: ID {}", suscripcionCancelada.getId());
-
-        return suscripcionCancelada;
     }
 
     @Override

@@ -42,7 +42,9 @@ public class ProductoController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<ProductoDTO> obtenerPorId(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         return productoService.obtenerProductoPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -60,8 +62,9 @@ public class ProductoController {
     @GetMapping("/buscar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<List<ProductoDTO>> buscarPorNombre(@RequestParam String nombre) {
+        String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(
-                productoMapper.toDTOList(productoService.buscarProductosPorNombre(nombre))
+                productoMapper.toDTOList(productoService.buscarProductosPorNombre(nombre, tenantId))
         );
     }
 
@@ -97,9 +100,11 @@ public class ProductoController {
     public ResponseEntity<ProductoDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProductoDTO productoDTO) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("✏️ Actualizando producto ID: {}", id);
 
         return productoService.obtenerProductoPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoExistente -> {
                     productoMapper.updateEntityFromDTO(productoDTO, productoExistente);
                     Producto productoActualizado = productoService.actualizarProducto(id, productoExistente);
@@ -111,7 +116,13 @@ public class ProductoController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_PRODUCTO')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("🗑️ Eliminando producto ID: {}", id);
+        // Verificar que el producto pertenezca al tenant antes de eliminar
+        boolean pertenece = productoService.obtenerProductoPorId(id)
+                .map(p -> tenantId.equals(p.getTenantId()))
+                .orElse(false);
+        if (!pertenece) return ResponseEntity.notFound().build();
         productoService.eliminarProducto(id);
         return ResponseEntity.noContent().build();
     }

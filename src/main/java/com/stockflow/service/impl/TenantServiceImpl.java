@@ -2,7 +2,12 @@ package com.stockflow.service.impl;
 
 import com.stockflow.dto.DatosEliminacionDTO;
 import com.stockflow.entity.Tenant;
-import com.stockflow.repository.*;
+import com.stockflow.repository.TenantRepository;
+import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.VentaRepository;
+import com.stockflow.repository.ProveedorRepository;
+import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.service.TenantService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -99,7 +104,16 @@ public class TenantServiceImpl implements TenantService {
                 "DELETE FROM detalles_venta WHERE venta_id IN " +
                 "(SELECT id FROM ventas WHERE tenant_id = :t)", tenantId);
 
+            // ── 3b. Devoluciones y notas de credito (antes de ventas) ─────────
+            nativeDelete(
+                "DELETE FROM devolucion_detalle WHERE devolucion_id IN " +
+                "(SELECT id FROM devoluciones WHERE tenant_id = :t)", tenantId);
+            nativeDelete("DELETE FROM devoluciones WHERE tenant_id = :t", tenantId);
+
             // ── 4. Ventas y cajas (ventas referencia cajas → ventas primero) ──
+            // Primero limpiar FK de ventas hacia notas_credito
+            nativeDelete("UPDATE ventas SET nota_credito_id = NULL WHERE tenant_id = :t", tenantId);
+            nativeDelete("DELETE FROM notas_credito WHERE tenant_id = :t", tenantId);
             nativeDelete("DELETE FROM ventas WHERE tenant_id = :t", tenantId);
             nativeDelete("DELETE FROM cajas WHERE tenant_id = :t", tenantId);
 
