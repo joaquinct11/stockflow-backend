@@ -81,17 +81,4 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
             @Param("hasta") LocalDateTime hasta
     );
 
-    /**
-     * Suscripciones ACTIVAS con downgrade programado cuyo período ya venció.
-     * El scheduler las procesa: notifica al usuario y pone en SUSPENDIDA hasta que
-     * el usuario complete el checkout de BÁSICO.
-     */
-    @Query("""
-            SELECT s FROM Suscripcion s
-            WHERE s.estado = 'ACTIVA'
-              AND s.pendingDowngradePlan IS NOT NULL
-              AND s.currentPeriodEnd IS NOT NULL
-              AND s.currentPeriodEnd < :ahora
-            """)
-    List<Suscripcion> findActivasConDowngradeVencido(@Param("ahora") LocalDateTime ahora);
 }
