@@ -120,7 +120,7 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
                     : "null";
             log.info("🔑 MP token prefix={}, isTestToken={}", tokenPrefix, isTestToken);
             log.info("📋 MP external_reference={}, back_url={}", externalReference, mercadoPagoProperties.getSuccessUrl());
-            log.info("📤 Payload enviado a MP /preapproval: {}", payloadJson);
+            log.debug("📤 Payload enviado a MP /preapproval: {}", payloadJson);
 
             log.info("🔄 Creando preapproval MP para plan={}, externalRef={}", planId, externalReference);
 
@@ -430,6 +430,136 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         } catch (Exception ex) {
             log.error("❌ Error cancelando preapproval {} en Mercado Pago", preapprovalId, ex);
             throw new BadRequestException("No se pudo cancelar la suscripción en Mercado Pago", ex);
+        }
+    }
+
+    @Override
+    public MercadoPagoPaymentInfo buscarPagoPorPreferencia(String preferenceId) {
+        validarConfiguracion();
+        try {
+            // GET /v1/payments/search?preference_id=XXX&sort=date_created&criteria=desc&limit=5
+            String url = mercadoPagoProperties.getCheckoutBaseUrl()
+                    + "/v1/payments/search?preference_id=" + preferenceId
+                    + "&sort=date_created&criteria=desc&limit=5";
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP GET /v1/payments/search?preference_id={}: status={}", preferenceId, response.statusCode());
+
+            if (response.statusCode() >= 400) {
+                log.warn("⚠️ No se pudo buscar pagos por preferencia {}. status={}", preferenceId, response.statusCode());
+                return null;
+            }
+
+            Map<String, Object> body = objectMapper.readValue(response.body(), new TypeReference<>() {});
+            Object resultsObj = body.get("results");
+            if (!(resultsObj instanceof List<?> results) || results.isEmpty()) {
+                log.info("ℹ️ No se encontraron pagos para preference_id={}", preferenceId);
+                return null;
+            }
+
+            // Buscar el primer pago aprobado
+            for (Object item : results) {
+                if (!(item instanceof Map<?, ?> paymentMap)) continue;
+                String status = paymentMap.get("status") != null ? String.valueOf(paymentMap.get("status")) : null;
+                if (!"approved".equalsIgnoreCase(status)) continue;
+
+                String paymentId = paymentMap.get("id") != null ? String.valueOf(paymentMap.get("id")) : null;
+                String extRef = paymentMap.get("external_reference") != null
+                        ? String.valueOf(paymentMap.get("external_reference")) : null;
+
+                String lastFour = null;
+                Object cardObj = paymentMap.get("card");
+                if (cardObj instanceof Map<?, ?> cardMap && cardMap.get("last_four_digits") != null) {
+                    lastFour = String.valueOf(cardMap.get("last_four_digits"));
+                }
+
+                log.info("✅ Pago aprobado encontrado para preference_id={}: paymentId={}", preferenceId, paymentId);
+                return MercadoPagoPaymentInfo.builder()
+                        .paymentId(paymentId)
+                        .status(status)
+                        .preferenceId(preferenceId)
+                        .externalReference(extRef)
+                        .lastFourDigits(lastFour)
+                        .build();
+            }
+
+            log.info("ℹ️ Ningún pago aprobado encontrado para preference_id={}", preferenceId);
+            return null;
+
+        } catch (Exception ex) {
+            log.warn("⚠️ Error buscando pagos por preferencia {} en MP: {}", preferenceId, ex.getMessage());
+            return null; // no lanzar excepción — es solo un check adicional
+        }
+    }
+
+    @Override
+    public MercadoPagoPaymentInfo buscarPagoAprobadoPorExternalReference(String externalReference) {
+        validarConfiguracion();
+        try {
+            String url = mercadoPagoProperties.getCheckoutBaseUrl()
+                    + "/v1/payments/search?external_reference=" + java.net.URLEncoder.encode(externalReference, java.nio.charset.StandardCharsets.UTF_8)
+                    + "&sort=date_created&criteria=desc&limit=10";
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + mercadoPagoProperties.getAccessToken())
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Respuesta MP GET /v1/payments/search?external_reference={}: status={}", externalReference, response.statusCode());
+
+            if (response.statusCode() >= 400) {
+                log.warn("⚠️ No se pudo buscar pagos por external_reference {}. status={}", externalReference, response.statusCode());
+                return null;
+            }
+
+            Map<String, Object> body = objectMapper.readValue(response.body(), new TypeReference<>() {});
+            Object resultsObj = body.get("results");
+            if (!(resultsObj instanceof List<?> results) || results.isEmpty()) {
+                log.info("ℹ️ No se encontraron pagos para external_reference={}", externalReference);
+                return null;
+            }
+
+            for (Object item : results) {
+                if (!(item instanceof Map<?, ?> paymentMap)) continue;
+                String status = paymentMap.get("status") != null ? String.valueOf(paymentMap.get("status")) : null;
+                if (!"approved".equalsIgnoreCase(status)) continue;
+
+                String paymentId = paymentMap.get("id") != null ? String.valueOf(paymentMap.get("id")) : null;
+                String prefId = null;
+                Object orderObj = paymentMap.get("order");
+                if (orderObj instanceof Map<?, ?> orderMap && orderMap.get("id") != null) {
+                    prefId = String.valueOf(orderMap.get("id"));
+                }
+                String lastFour = null;
+                Object cardObj = paymentMap.get("card");
+                if (cardObj instanceof Map<?, ?> cardMap && cardMap.get("last_four_digits") != null) {
+                    lastFour = String.valueOf(cardMap.get("last_four_digits"));
+                }
+
+                log.info("✅ Pago aprobado encontrado por external_reference={}: paymentId={}", externalReference, paymentId);
+                return MercadoPagoPaymentInfo.builder()
+                        .paymentId(paymentId)
+                        .status(status)
+                        .preferenceId(prefId)
+                        .externalReference(externalReference)
+                        .lastFourDigits(lastFour)
+                        .build();
+            }
+
+            log.info("ℹ️ Ningún pago aprobado encontrado para external_reference={}", externalReference);
+            return null;
+
+        } catch (Exception ex) {
+            log.warn("⚠️ Error buscando pagos por external_reference {} en MP: {}", externalReference, ex.getMessage());
+            return null;
         }
     }
 

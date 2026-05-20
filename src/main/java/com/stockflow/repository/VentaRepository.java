@@ -169,4 +169,16 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     );
 
     List<Venta> findByCajaIdAndTenantId(Long cajaId, String tenantId);
+
+    // ── Top clientes por monto comprado ──
+
+    @Query(value = "SELECT v.cliente_id, c.nombre, COUNT(v.id), SUM(v.total), MAX(v.created_at) " +
+                   "FROM ventas v " +
+                   "JOIN clientes c ON c.id = v.cliente_id " +
+                   "WHERE v.tenant_id = ?1 AND v.created_at BETWEEN ?2 AND ?3 " +
+                   "  AND v.cliente_id IS NOT NULL " +
+                   "GROUP BY v.cliente_id, c.nombre " +
+                   "ORDER BY SUM(v.total) DESC",
+           nativeQuery = true)
+    List<Object[]> findTopClientesPorGasto(String tenantId, LocalDateTime inicio, LocalDateTime fin);
 }

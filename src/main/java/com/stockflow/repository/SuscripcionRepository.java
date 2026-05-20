@@ -53,6 +53,21 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
     );
 
     /**
+     * Suscripciones ACTIVAS con preapproval de MP cuyo período ya venció.
+     * Usada por el scheduler para detectar casos donde el cobro automático no ocurrió
+     * (ej. usuario que pagó el prorrateo de upgrade pero nunca autorizó el preapproval PRO).
+     * Pasar vencidasAntes = now - 2 días para dar un margen de gracia.
+     */
+    @Query("""
+            SELECT s FROM Suscripcion s
+            WHERE s.estado = 'ACTIVA'
+              AND s.preapprovalId IS NOT NULL AND s.preapprovalId <> ''
+              AND s.currentPeriodEnd IS NOT NULL
+              AND s.currentPeriodEnd < :vencidasAntes
+            """)
+    List<Suscripcion> findActivasConPreapprovalVencidas(@Param("vencidasAntes") LocalDateTime vencidasAntes);
+
+    /**
      * Trials por vencer — no se renuevan automáticamente, el usuario debe contratar.
      */
     @Query("""
@@ -65,4 +80,18 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
             @Param("desde") LocalDateTime desde,
             @Param("hasta") LocalDateTime hasta
     );
+
+    /**
+     * Suscripciones ACTIVAS con downgrade programado cuyo período ya venció.
+     * El scheduler las procesa: notifica al usuario y pone en SUSPENDIDA hasta que
+     * el usuario complete el checkout de BÁSICO.
+     */
+    @Query("""
+            SELECT s FROM Suscripcion s
+            WHERE s.estado = 'ACTIVA'
+              AND s.pendingDowngradePlan IS NOT NULL
+              AND s.currentPeriodEnd IS NOT NULL
+              AND s.currentPeriodEnd < :ahora
+            """)
+    List<Suscripcion> findActivasConDowngradeVencido(@Param("ahora") LocalDateTime ahora);
 }

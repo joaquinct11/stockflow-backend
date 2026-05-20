@@ -48,6 +48,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
     private final RolePermissionDefaults rolePermissionDefaults;
+    private final com.stockflow.config.properties.MercadoPagoProperties mercadoPagoProperties;
 
     @Override
     @Transactional
@@ -273,11 +274,10 @@ public class AuthServiceImpl implements AuthService {
 
 
     private BigDecimal obtenerPrecioPlan(String planId) {
-        return switch (planId) {
-            case "BASICO" -> new BigDecimal("49.99");
-            case "PRO" -> new BigDecimal("99.99");
-            default -> throw new BadRequestException("Plan inválido: " + planId);
-        };
+        if (!"BASICO".equals(planId)) {
+            throw new BadRequestException("Plan inválido: " + planId + ". Solo se permite: BASICO");
+        }
+        return mercadoPagoProperties.getPrecioBasico();
     }
 
     private SuscripcionDTO mapToSuscripcionDTO(Suscripcion suscripcion) {

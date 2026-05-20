@@ -20,7 +20,10 @@ public interface ClienteMapper {
 
     List<ClienteDTO> toDTOList(List<Cliente> clientes);
 
-    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "id",        ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "tenantId",  ignore = true)
+    @Mapping(target = "activo",    ignore = true)
+    @Mapping(target = "deletedAt", ignore = true)
     void updateEntityFromDTO(ClienteDTO dto, @MappingTarget Cliente cliente);
 }

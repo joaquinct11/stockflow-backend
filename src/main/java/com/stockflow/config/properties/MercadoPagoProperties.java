@@ -18,4 +18,7 @@ public class MercadoPagoProperties {
     private String notificationUrl;
     private String webhookSecret;
     private String testPayerEmail;
+
+    /** Precio del plan en la moneda configurada (currencyId). */
+    private java.math.BigDecimal precioBasico = new java.math.BigDecimal("150.00");
 }

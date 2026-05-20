@@ -61,4 +61,21 @@ public interface ReportesService {
 
     /** Compras (recepciones confirmadas) agrupadas por proveedor. */
     List<CompraProveedorDTO> comprasPorProveedor(String tenantId, LocalDate desde, LocalDate hasta, int limit);
+
+    /**
+     * Estado de resultados del período:
+     * Ingresos → Costo de ventas → Utilidad bruta → Gastos operativos → Utilidad neta.
+     */
+    FinancieroDTO getFinanciero(String tenantId, LocalDate desde, LocalDate hasta);
+
+    /**
+     * Capital en riesgo de vencimiento, agrupado por urgencia (vencido / 7d / 30d / 90d).
+     * No depende de rango: evalúa todos los lotes activos del tenant.
+     */
+    VencimientosRiesgoDTO getVencimientosRiesgo(String tenantId);
+
+    /**
+     * Top clientes del período ordenados por monto comprado descendente.
+     */
+    List<ClienteReporteDTO> getTopClientes(String tenantId, LocalDate desde, LocalDate hasta, int limit);
 }

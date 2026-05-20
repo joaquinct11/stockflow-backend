@@ -3,6 +3,8 @@ package com.stockflow.controller;
 import com.stockflow.dto.AbrirCajaRequestDTO;
 import com.stockflow.dto.CajaDTO;
 import com.stockflow.dto.CerrarCajaRequestDTO;
+import com.stockflow.dto.RegistrarRetiroRequestDTO;
+import com.stockflow.dto.RetiroCajaDTO;
 import com.stockflow.service.CajaService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
@@ -81,5 +83,22 @@ public class CajaController {
         log.info("🔒 Cerrando caja ID={} tenant={}", id, tenantId);
         CajaDTO caja = cajaService.cerrar(id, request, tenantId);
         return ResponseEntity.ok(caja);
+    }
+
+    /** POST /cajas/{id}/retiro — registrar un retiro parcial de efectivo */
+    @PostMapping("/{id}/retiro")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_ABRIR_CAJA')")
+    public ResponseEntity<RetiroCajaDTO> registrarRetiro(@PathVariable Long id,
+                                                          @Valid @RequestBody RegistrarRetiroRequestDTO request,
+                                                          Authentication auth) {
+        String tenantId  = TenantContext.getCurrentTenant();
+        Long   usuarioId = TenantContext.getCurrentUserId();
+        String nombre    = usuarioService.obtenerUsuarioPorId(usuarioId)
+                .map(u -> u.getNombre())
+                .orElse(auth.getName());
+
+        log.info("💸 Retiro parcial caja ID={} monto={} tenant={}", id, request.getMonto(), tenantId);
+        RetiroCajaDTO retiro = cajaService.registrarRetiro(id, request, usuarioId, nombre, tenantId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(retiro);
     }
 }

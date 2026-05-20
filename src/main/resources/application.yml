@@ -72,6 +72,7 @@ mercadopago:
   success-url: ${MERCADOPAGO_SUCCESS_URL}
   failure-url: ${MERCADOPAGO_FAILURE_URL}
   pending-url: ${MERCADOPAGO_PENDING_URL}
+  precio-basico: ${MERCADOPAGO_PRECIO_BASICO}
 
 # ── Webhook ──────────────────────────────────────────────────
 webhook:
@@ -86,4 +87,4 @@ resend:
 
 # ── App ──────────────────────────────────────────────────────
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  frontend-url: ${FRONTEND_URL}  # OBLIGATORIO: URL pública del frontend (ej: https://fluxus.pe)

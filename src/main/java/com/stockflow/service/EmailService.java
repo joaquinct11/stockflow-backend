@@ -35,7 +35,8 @@ public interface EmailService {
                                   BigDecimal montoApertura, BigDecimal totalEfectivo,
                                   BigDecimal totalTarjeta, BigDecimal totalYapePlin,
                                   BigDecimal totalIngresos, BigDecimal montoContado,
-                                  BigDecimal diferencia, Integer cantidadVentas);
+                                  BigDecimal diferencia, Integer cantidadVentas,
+                                  BigDecimal totalRetiros, Integer cantidadRetiros);
 
     /**
      * Notificación de cambio de estado de suscripción.

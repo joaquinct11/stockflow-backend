@@ -78,6 +78,16 @@ public class Suscripcion {
     @Column(name = "en_periodo_prueba", nullable = false)
     private Boolean enPeriodoPrueba = false;
 
+    /**
+     * Plan al que se debe bajar cuando venza el período actual.
+     * null = sin downgrade programado.
+     * "BASICO" = el usuario pidió bajar a Básico; se efectúa al vencer currentPeriodEnd.
+     * Mientras tiene valor, el preapproval PRO ya fue cancelado en MP pero el acceso PRO
+     * se mantiene hasta currentPeriodEnd (el usuario pagó ese período).
+     */
+    @Column(name = "pending_downgrade_plan", length = 50)
+    private String pendingDowngradePlan;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();

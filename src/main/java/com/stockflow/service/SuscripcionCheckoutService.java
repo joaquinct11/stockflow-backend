@@ -9,7 +9,7 @@ public interface SuscripcionCheckoutService {
     /**
      * Inicia el checkout de Mercado Pago Suscripciones (preapproval).
      *
-     * @param planId                   identificador del plan (BASICO, PRO)
+     * @param planId                   identificador del plan (solo BASICO)
      * @param tenantId                 tenant del usuario autenticado
      * @param usuarioId                ID del usuario autenticado
      * @param payerIdentificationType  tipo de documento del pagador (DNI, CE, RUC, PASAPORTE)

@@ -21,4 +21,17 @@ public interface MercadoPagoService {
     void cancelarPreapproval(String preapprovalId);
 
     MercadoPagoAuthorizedPaymentInfo obtenerAuthorizedPayment(String authorizedPaymentId);
+
+    /**
+     * Busca el pago aprobado más reciente asociado a una preferencia (checkout básico/upgrade).
+     * Devuelve null si no hay ningún pago aprobado.
+     */
+    MercadoPagoPaymentInfo buscarPagoPorPreferencia(String preferenceId);
+
+    /**
+     * Busca el pago aprobado más reciente con el external_reference dado.
+     * Útil como fallback cuando no se guardó el preferenceId.
+     * Devuelve null si no hay ningún pago aprobado.
+     */
+    MercadoPagoPaymentInfo buscarPagoAprobadoPorExternalReference(String externalReference);
 }

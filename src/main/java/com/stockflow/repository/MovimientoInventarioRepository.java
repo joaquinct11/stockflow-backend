@@ -86,6 +86,28 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("hasta")    LocalDate hasta
     );
 
+    // ── Lotes con fecha de vencimiento (para pestaña Lotes en Inventario) ──
+
+    /**
+     * Devuelve todos los movimientos de ENTRADA con fechaVencimiento para un tenant,
+     * ordenados de más próximo a vencer al más lejano.
+     * Usa JOIN FETCH para evitar N+1 al acceder a producto.
+     * El mapeo a LoteVencimientoDTO y el cálculo de diasRestantes
+     * se realizan en el controller.
+     */
+    @Query("""
+            SELECT m FROM MovimientoInventario m
+            JOIN FETCH m.producto p
+            WHERE m.tenantId = :tenantId
+              AND m.tipo = 'ENTRADA'
+              AND m.fechaVencimiento IS NOT NULL
+              AND p.activo = true
+            ORDER BY m.fechaVencimiento ASC
+            """)
+    List<MovimientoInventario> findEntradasConVencimientoPorTenant(
+            @Param("tenantId") String tenantId
+    );
+
     // ── Salidas por producto en rango (para cálculo de cobertura) ──
 
     @Query("SELECT m.producto.id, m.producto.nombre, m.producto.stockActual, SUM(m.cantidad) " +

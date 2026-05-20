@@ -143,7 +143,8 @@ public class EmailServiceImpl implements EmailService {
                                          BigDecimal montoApertura, BigDecimal totalEfectivo,
                                          BigDecimal totalTarjeta, BigDecimal totalYapePlin,
                                          BigDecimal totalIngresos, BigDecimal montoContado,
-                                         BigDecimal diferencia, Integer cantidadVentas) {
+                                         BigDecimal diferencia, Integer cantidadVentas,
+                                         BigDecimal totalRetiros, Integer cantidadRetiros) {
         log.info("📧 Enviando resumen de cierre de caja a: {}", email);
 
         String diferenciaTexto = diferencia == null ? "—"
@@ -213,6 +214,10 @@ public class EmailServiceImpl implements EmailService {
                             <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">%d</td>
                           </tr>
                           <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#ea580c;border-top:1px solid #e5e7eb;">Retiros parciales (%d)</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#ea580c;text-align:right;border-top:1px solid #e5e7eb;">-S/ %.2f</td>
+                          </tr>
+                          <tr>
                             <td style="padding:10px 16px;font-size:14px;color:#374151;border-top:1px solid #e5e7eb;">Monto contado</td>
                             <td style="padding:10px 16px;font-size:14px;color:#374151;text-align:right;border-top:1px solid #e5e7eb;">S/ %.2f</td>
                           </tr>
@@ -246,6 +251,8 @@ public class EmailServiceImpl implements EmailService {
                 totalYapePlin != null ? totalYapePlin : BigDecimal.ZERO,
                 totalIngresos != null ? totalIngresos : BigDecimal.ZERO,
                 cantidadVentas != null ? cantidadVentas : 0,
+                cantidadRetiros != null ? cantidadRetiros : 0,
+                totalRetiros != null ? totalRetiros : BigDecimal.ZERO,
                 montoContado != null ? montoContado : BigDecimal.ZERO,
                 diferenciaColor, diferenciaTexto,
                 empresaNombre
@@ -296,6 +303,27 @@ public class EmailServiceImpl implements EmailService {
                 btnTexto = "Reactivar suscripción";
                 nota    = "¡Te esperamos de vuelta cuando quieras!";
             }
+            case "DOWNGRADE_PROGRAMADO" -> {
+                tag     = "Cambio de plan programado 📅";
+                titulo  = "Tu cambio a plan Básico está programado";
+                cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
+                        + "Confirmamos que programaste el cambio de tu plan <b>Pro</b> a <b>Básico</b>.<br>"
+                        + "Seguirás con acceso completo al plan <b>Pro</b> hasta que venza tu período actual.<br>"
+                        + "Al vencer, tu suscripción pasará automáticamente a plan <b>Básico</b>.";
+                btnUrl  = frontendUrl + "/dashboard/suscripciones";
+                btnTexto = "Ver mi suscripción";
+                nota    = "¿Cambiaste de opinión? Puedes cancelar este cambio desde tu panel de suscripción antes de que venza el período.";
+            }
+            case "DOWNGRADE_EFECTUADO" -> {
+                tag     = "Plan actualizado";
+                titulo  = "Tu plan cambió a Básico";
+                cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
+                        + "Tu período Pro venció y tu plan ahora es <b>Básico</b>.<br>"
+                        + "Para continuar usando Fluxus activa tu plan Básico haciendo clic en el botón.";
+                btnUrl  = frontendUrl + "/checkout?plan=BASICO";
+                btnTexto = "Activar plan Básico";
+                nota    = "¿Quieres volver a Pro? Puedes hacer el upgrade en cualquier momento desde tu panel.";
+            }
             default -> {
                 log.info("ℹ️ Estado '{}' no requiere email de suscripción", estado);
                 return;
@@ -304,10 +332,12 @@ public class EmailServiceImpl implements EmailService {
 
         String html = buildHtml(tag, titulo, cuerpo, btnUrl, btnTexto, nota);
         String asunto = switch (estado) {
-            case "ACTIVA"     -> "✅ Suscripción activa — Plan " + plan + " · Fluxus";
-            case "SUSPENDIDA" -> "❌ Pago rechazado — Fluxus";
-            case "CANCELADA"  -> "Tu suscripción fue cancelada — Fluxus";
-            default           -> "Actualización de tu suscripción — Fluxus";
+            case "ACTIVA"               -> "✅ Suscripción activa — Plan " + plan + " · Fluxus";
+            case "SUSPENDIDA"           -> "❌ Pago rechazado — Fluxus";
+            case "CANCELADA"            -> "Tu suscripción fue cancelada — Fluxus";
+            case "DOWNGRADE_PROGRAMADO" -> "📅 Cambio a plan Básico programado — Fluxus";
+            case "DOWNGRADE_EFECTUADO"  -> "Tu plan cambió a Básico — Fluxus";
+            default                     -> "Actualización de tu suscripción — Fluxus";
         };
         enviar(email, asunto, html);
     }

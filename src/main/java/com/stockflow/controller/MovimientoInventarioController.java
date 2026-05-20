@@ -1,10 +1,12 @@
 package com.stockflow.controller;
 
+import com.stockflow.dto.LoteVencimientoDTO;
 import com.stockflow.dto.MovimientoInventarioDTO;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.MovimientoInventarioMapper;
+import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
@@ -19,7 +21,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -27,10 +32,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MovimientoInventarioController {
 
-    private final MovimientoInventarioService movimientoService;
-    private final ProductoService productoService;
-    private final UsuarioService usuarioService;
-    private final MovimientoInventarioMapper movimientoMapper;
+    private final MovimientoInventarioService        movimientoService;
+    private final MovimientoInventarioRepository     movimientoRepository;
+    private final ProductoService                    productoService;
+    private final UsuarioService                     usuarioService;
+    private final MovimientoInventarioMapper         movimientoMapper;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -186,6 +192,35 @@ public class MovimientoInventarioController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(movimientoMapper.toDTO(movimientoCreado));
+    }
+
+    /**
+     * Devuelve todos los lotes con fecha de vencimiento del tenant,
+     * ordenados de más próximo a vencer al más lejano.
+     * diasRestantes es negativo cuando el lote ya está vencido.
+     */
+    @GetMapping("/lotes")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    public ResponseEntity<List<LoteVencimientoDTO>> getLotes() {
+        String tenantId = TenantContext.getCurrentTenant();
+        LocalDate hoy = LocalDate.now();
+
+        List<LoteVencimientoDTO> lotes = movimientoRepository
+                .findEntradasConVencimientoPorTenant(tenantId)
+                .stream()
+                .map(m -> LoteVencimientoDTO.builder()
+                        .movimientoId(m.getId())
+                        .productoId(m.getProducto().getId())
+                        .productoNombre(m.getProducto().getNombre())
+                        .codigoBarras(m.getProducto().getCodigoBarras())
+                        .lote(m.getLote())
+                        .fechaVencimiento(m.getFechaVencimiento())
+                        .cantidad(m.getCantidad())
+                        .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
+                        .build())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(lotes);
     }
 
     @DeleteMapping("/{id}")
