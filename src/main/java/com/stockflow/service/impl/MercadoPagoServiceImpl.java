@@ -262,10 +262,16 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         // "esperando autorización del pagador" y obtener el initPoint correcto.
         payload.put("status", "pending");
 
-        String effectivePayerEmail;
+        // NO enviamos payer_email al crear el preapproval en PROD.
+        // Cuando payer_email == collector_email, MP asigna un payer_id distinto
+        // al collector_id (separación interna buyer/seller) y bloquea el botón
+        // "Confirmar" aunque el usuario logueado sea el mismo. Sin payer_email
+        // el preapproval queda "abierto": cualquier cuenta MP autenticada puede
+        // confirmarlo. En PROD real esto es seguro porque el init_point sólo se
+        // entrega al usuario autenticado en la sesión de Fluxus.
+        // En sandbox (token TEST) sí es necesario el payer_email para que MP
+        // pueda usar los usuarios de prueba predefinidos.
         if (isTestToken) {
-            // En ambiente TEST usar el email de prueba configurable.
-            // MP requiere payer_email incluso en sandbox.
             String testPayerEmail = mercadoPagoProperties.getTestPayerEmail();
             if (testPayerEmail == null || testPayerEmail.isBlank()) {
                 throw new BadRequestException(
@@ -277,23 +283,12 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
                         "Configuración inválida: mercadopago.test-payer-email (MERCADOPAGO_TEST_PAYER_EMAIL) "
                         + "debe ser un email válido (contener '@')");
             }
-            effectivePayerEmail = testPayerEmail;
-            String domain = effectivePayerEmail.substring(effectivePayerEmail.indexOf('@'));
-            log.info("🔑 payerEmailMode=CONFIG_TEST_PAYER_EMAIL domain={}", domain);
+            payload.put("payer_email", testPayerEmail);
+            String domain = testPayerEmail.substring(testPayerEmail.indexOf('@'));
+            log.info("🔑 payerEmailMode=TEST_PAYER_EMAIL domain={}", domain);
         } else {
-            // En PROD, incluir el email del usuario autenticado.
-            effectivePayerEmail = payerEmail;
-            log.info("🔑 payerEmailMode=AUTH_USER_FOR_PROD");
+            log.info("🔑 payerEmailMode=OMITTED_PROD (preapproval abierto — cualquier cuenta MP puede confirmar)");
         }
-
-        payload.put("payer_email", effectivePayerEmail);
-        // NO enviamos el objeto payer.identification al crear el preapproval.
-        // Enviarlo fija payer_id al account MP que tiene ese DNI registrado,
-        // lo que bloquea el botón "Confirmar" cuando el usuario logueado en MP
-        // es el mismo collector (vendor). El DNI lo ingresa el usuario en el
-        // formulario de MP durante el checkout.
-        log.info("🪪 payer_email enviado a MP: {}",
-                effectivePayerEmail.substring(0, Math.min(3, effectivePayerEmail.length())) + "***");
 
         return payload;
     }
