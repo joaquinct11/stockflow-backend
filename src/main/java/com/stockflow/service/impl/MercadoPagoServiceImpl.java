@@ -287,30 +287,13 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         }
 
         payload.put("payer_email", effectivePayerEmail);
-
-        // Incluir objeto payer con identificación si está disponible.
-        // Esto pre-rellena el formulario de MP y evita que el botón
-        // "Confirmar" quede deshabilitado por datos faltantes del pagador.
-        if (payerIdentificationType != null && !payerIdentificationType.isBlank()
-                && payerIdentificationNumber != null && !payerIdentificationNumber.isBlank()) {
-            Map<String, Object> identification = new HashMap<>();
-            identification.put("type", payerIdentificationType);
-            identification.put("number", payerIdentificationNumber);
-
-            Map<String, Object> payer = new HashMap<>();
-            payer.put("email", effectivePayerEmail);
-            payer.put("identification", identification);
-
-            payload.put("payer", payer);
-            log.info("🪪 Enviando identificación del pagador a MP: tipo={}, numero=****{}",
-                    payerIdentificationType,
-                    payerIdentificationNumber.length() > 4
-                            ? payerIdentificationNumber.substring(payerIdentificationNumber.length() - 4)
-                            : "****");
-        } else {
-            log.warn("⚠️ No se envía identificación del pagador a MP (tipoDocumento/numeroDocumento no disponibles). "
-                    + "El botón 'Confirmar' puede quedar deshabilitado si el perfil del pagador en MP no está verificado.");
-        }
+        // NO enviamos el objeto payer.identification al crear el preapproval.
+        // Enviarlo fija payer_id al account MP que tiene ese DNI registrado,
+        // lo que bloquea el botón "Confirmar" cuando el usuario logueado en MP
+        // es el mismo collector (vendor). El DNI lo ingresa el usuario en el
+        // formulario de MP durante el checkout.
+        log.info("🪪 payer_email enviado a MP: {}",
+                effectivePayerEmail.substring(0, Math.min(3, effectivePayerEmail.length())) + "***");
 
         return payload;
     }
