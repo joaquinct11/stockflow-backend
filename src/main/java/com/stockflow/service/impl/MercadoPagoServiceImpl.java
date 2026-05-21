@@ -262,15 +262,6 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
         // "esperando autorización del pagador" y obtener el initPoint correcto.
         payload.put("status", "pending");
 
-        // NO enviamos payer_email al crear el preapproval en PROD.
-        // Cuando payer_email == collector_email, MP asigna un payer_id distinto
-        // al collector_id (separación interna buyer/seller) y bloquea el botón
-        // "Confirmar" aunque el usuario logueado sea el mismo. Sin payer_email
-        // el preapproval queda "abierto": cualquier cuenta MP autenticada puede
-        // confirmarlo. En PROD real esto es seguro porque el init_point sólo se
-        // entrega al usuario autenticado en la sesión de Fluxus.
-        // En sandbox (token TEST) sí es necesario el payer_email para que MP
-        // pueda usar los usuarios de prueba predefinidos.
         if (isTestToken) {
             String testPayerEmail = mercadoPagoProperties.getTestPayerEmail();
             if (testPayerEmail == null || testPayerEmail.isBlank()) {
@@ -284,10 +275,10 @@ public class MercadoPagoServiceImpl implements MercadoPagoService {
                         + "debe ser un email válido (contener '@')");
             }
             payload.put("payer_email", testPayerEmail);
-            String domain = testPayerEmail.substring(testPayerEmail.indexOf('@'));
-            log.info("🔑 payerEmailMode=TEST_PAYER_EMAIL domain={}", domain);
+            log.info("🔑 payerEmailMode=TEST domain={}", testPayerEmail.substring(testPayerEmail.indexOf('@')));
         } else {
-            log.info("🔑 payerEmailMode=OMITTED_PROD (preapproval abierto — cualquier cuenta MP puede confirmar)");
+            payload.put("payer_email", payerEmail);
+            log.info("🔑 payerEmailMode=PROD email={}***", payerEmail.substring(0, Math.min(3, payerEmail.length())));
         }
 
         return payload;
