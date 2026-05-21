@@ -54,3 +54,8 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+resend:
+  api-key: ${RESEND_API_KEY}
+  from-email: ${RESEND_FROM_EMAIL}
+  from-name: ${RESEND_FROM_NAME:Fluxus}
