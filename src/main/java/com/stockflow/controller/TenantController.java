@@ -62,6 +62,16 @@ public class TenantController {
         if (dto.getLogoBase64() != null) {
             tenant.setLogoBase64(dto.getLogoBase64().isBlank() ? null : dto.getLogoBase64());
         }
+        // OSE URL: null = mantener; "" = borrar; valor = actualizar
+        if (dto.getOseUrl() != null) {
+            tenant.setOseUrl(dto.getOseUrl().isBlank() ? null : dto.getOseUrl().trim());
+        }
+        // OSE Token: solo se actualiza si el frontend manda un valor no vacío.
+        // El frontend nunca pre-carga el token (seguridad), así que siempre llega ""
+        // cuando el usuario no escribe nada → en ese caso conservamos el existente.
+        if (dto.getOseToken() != null && !dto.getOseToken().isBlank()) {
+            tenant.setOseToken(dto.getOseToken().trim());
+        }
 
         Tenant saved = tenantRepository.save(tenant);
         log.info("✅ Config del negocio actualizada para tenant={}", tenantId);
@@ -69,6 +79,16 @@ public class TenantController {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Devuelve "••••••{últimos 6 chars}" si el token tiene contenido,
+     * null si no está configurado.
+     */
+    private String maskToken(String token) {
+        if (token == null || token.isBlank()) return null;
+        int show = Math.min(6, token.length());
+        return "••••••" + token.substring(token.length() - show);
+    }
 
     private TenantConfigDTO toDTO(Tenant t) {
         return TenantConfigDTO.builder()
@@ -83,8 +103,12 @@ public class TenantController {
                 .moneda(t.getMoneda() != null ? t.getMoneda() : "S/.")
                 .igvPorcentaje(t.getIgvPorcentaje() != null ? t.getIgvPorcentaje() : 18.0)
                 .piePaginaPdf(t.getPiePaginaPdf())
-                .serieBoleta(t.getSerieBoleta() != null ? t.getSerieBoleta() : "B001")
-                .serieFactura(t.getSerieFactura() != null ? t.getSerieFactura() : "F001")
+                .serieBoleta(t.getSerieBoleta() != null ? t.getSerieBoleta() : "BBB1")
+                .serieFactura(t.getSerieFactura() != null ? t.getSerieFactura() : "FFF1")
+                .oseUrl(t.getOseUrl())
+                // Enmascaramos el token: devolvemos solo los últimos 6 caracteres para
+                // que la UI sepa que ya está configurado sin exponer el valor completo.
+                .oseToken(maskToken(t.getOseToken()))
                 .build();
     }
 }

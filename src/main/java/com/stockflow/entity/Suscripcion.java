@@ -51,12 +51,6 @@ public class Suscripcion {
     @Column(name = "ultimos_4_digitos", length = 4)
     private String ultimos4Digitos;
 
-    @Column(name = "mp_preference_id", length = 255)
-    private String mpPreferenceId;
-
-    @Column(name = "mp_payment_id", length = 255)
-    private String mpPaymentId;
-
     @Column(name = "current_period_start")
     private LocalDateTime currentPeriodStart;
 
@@ -74,9 +68,6 @@ public class Suscripcion {
 
     @Column(name = "trial_end_date")
     private LocalDateTime trialEndDate;
-
-    @Column(name = "en_periodo_prueba", nullable = false)
-    private Boolean enPeriodoPrueba = false;
 
     @PrePersist
     public void prePersist() {

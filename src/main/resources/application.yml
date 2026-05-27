@@ -8,6 +8,11 @@ spring:
   application:
     name: Fluxus
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
   jpa:
     show-sql: false
     hibernate:
@@ -33,6 +38,8 @@ server:
   port: 8080
   servlet:
     context-path: /api
+  tomcat:
+    max-http-form-post-size: 10MB
 
 # ── JWT ──────────────────────────────────────────────────────
 jwt:
@@ -62,18 +69,6 @@ management:
     health:
       show-details: always
 
-# ── MercadoPago ──────────────────────────────────────────────
-mercadopago:
-  access-token: ${MERCADOPAGO_ACCESS_TOKEN}
-  webhook-secret: ${MERCADOPAGO_WEBHOOK_SECRET}
-  currency-id: ${MERCADOPAGO_CURRENCY_ID}
-  checkout-base-url: ${MERCADOPAGO_BASE_URL}
-  notification-url: ${MERCADOPAGO_NOTIFICATION_URL}
-  success-url: ${MERCADOPAGO_SUCCESS_URL}
-  failure-url: ${MERCADOPAGO_FAILURE_URL}
-  pending-url: ${MERCADOPAGO_PENDING_URL}
-  precio-basico: ${MERCADOPAGO_PRECIO_BASICO}
-
 # ── Webhook ──────────────────────────────────────────────────
 webhook:
   max-retries: 3
@@ -84,6 +79,16 @@ resend:
   api-key:    ${RESEND_API_KEY}
   from-email: ${RESEND_FROM_EMAIL}
   from-name:  ${RESEND_FROM_NAME}
+
+# ── Culqi ────────────────────────────────────────────────────
+culqi:
+  secret-key:     ${CULQI_SECRET_KEY}
+  public-key:     ${CULQI_PUBLIC_KEY}
+  base-url:       https://api.culqi.com/v2
+  plan-id-basico: ${CULQI_PLAN_ID_BASICO:}        # vacío hasta crear el plan con POST /api/culqi/admin/crear-plan
+  precio-basico:  ${CULQI_PRECIO_BASICO:}
+  rsa-public-key: ${CULQI_RSA_PUBLIC_KEY:}   # Culqi Panel → Desarrollo → RSA Keys → llave pública
+  rsa-id:         ${CULQI_RSA_ID:}           # Culqi Panel → Desarrollo → RSA Keys → columna ID (UUID)
 
 # ── App ──────────────────────────────────────────────────────
 app:

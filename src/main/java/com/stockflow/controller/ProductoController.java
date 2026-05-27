@@ -84,11 +84,14 @@ public class ProductoController {
     public ResponseEntity<ProductoDTO> crear(@Valid @RequestBody ProductoDTO productoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando producto para tenant: {}", tenantId);
+        log.info("🖼️ imagenUrl recibida en crear: {}", productoDTO.getImagenUrl() != null
+                ? "SÍ (" + productoDTO.getImagenUrl().length() + " chars)" : "NO");
 
-        // Setear tenantId del contexto
         productoDTO.setTenantId(tenantId);
 
         Producto producto = productoMapper.toEntity(productoDTO);
+        // Asegurar que imagenUrl se persiste (por si el mapper compilado es anterior)
+        producto.setImagenUrl(productoDTO.getImagenUrl());
         Producto productoCreado = productoService.crearProducto(producto);
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -102,11 +105,15 @@ public class ProductoController {
             @Valid @RequestBody ProductoDTO productoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("✏️ Actualizando producto ID: {}", id);
+        log.info("🖼️ imagenUrl recibida en actualizar: {}", productoDTO.getImagenUrl() != null
+                ? "SÍ (" + productoDTO.getImagenUrl().length() + " chars)" : "NO");
 
         return productoService.obtenerProductoPorId(id)
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoExistente -> {
                     productoMapper.updateEntityFromDTO(productoDTO, productoExistente);
+                    // Asegurar que imagenUrl se persiste (por si el mapper compilado es anterior)
+                    productoExistente.setImagenUrl(productoDTO.getImagenUrl());
                     Producto productoActualizado = productoService.actualizarProducto(id, productoExistente);
                     return ResponseEntity.ok(productoMapper.toDTO(productoActualizado));
                 })

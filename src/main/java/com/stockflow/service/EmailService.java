@@ -2,6 +2,8 @@ package com.stockflow.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface EmailService {
 
@@ -55,4 +57,13 @@ public interface EmailService {
      * Si el usuario no lo solicitó, puede contactar soporte.
      */
     void enviarConfirmacionCambioContraseña(String email, String nombre);
+
+    /**
+     * Envía la reclamación al correo de contacto de Fluxus y
+     * un acuse de recibo al consumidor.
+     */
+    void enviarReclamacion(String tipo, String nombre, String apellido,
+                           String dni, String correoConsumidor, String telefono,
+                           String pedido, String monto, String descripcion,
+                           List<MultipartFile> archivos);
 }

@@ -41,47 +41,65 @@ public class OnboardingServiceImpl implements OnboardingService {
                         "Cuenta creada",
                         "Tu cuenta ya está activa",
                         true,
-                        null),
+                        null,
+                        false),
 
-                paso("negocio",
-                        "Configura tu negocio",
-                        "Agrega RUC, dirección y datos de contacto de tu negocio",
-                        estaConfiguradoNegocio(tenant),
-                        "/dashboard/configuracion"),
+                paso("empresa",
+                        "Configura tu empresa",
+                        "Agrega RUC y dirección fiscal — aparecen en tus comprobantes y PDFs",
+                        estaConfiguradaEmpresa(tenant),
+                        "/dashboard/configuracion",
+                        false),
+
+                paso("facturacion",
+                        "Activa facturación electrónica",
+                        "Conecta tu cuenta OSE (Nubefact, Efact…) para emitir facturas y boletas con validez SUNAT",
+                        estaConfiguradoOse(tenant),
+                        "/dashboard/configuracion#facturacion",
+                        true),   // opcional — no bloquea el onboarding
 
                 paso("proveedor",
                         "Crea tu primer proveedor",
-                        "Registra al menos un proveedor para tus compras",
+                        "Registra al menos un proveedor para gestionar tus compras",
                         proveedorRepository.countByTenantId(tenantId) > 0,
-                        "/dashboard/proveedores"),
+                        "/dashboard/proveedores",
+                        false),
 
                 paso("producto",
                         "Agrega tu primer producto",
-                        "Crea los productos que vas a vender en tu negocio",
+                        "Crea los productos o servicios que vas a vender",
                         productoRepository.countByTenantId(tenantId) > 0,
-                        "/dashboard/productos"),
+                        "/dashboard/productos",
+                        false),
 
                 paso("stock",
                         "Registra tu inventario inicial",
-                        "Ingresa las cantidades actuales de tus productos para poder vender",
+                        "Ingresa las cantidades actuales para poder vender sin quedar en negativo",
                         productoRepository.sumStockActualByTenantId(tenantId) > 0,
-                        "/dashboard/inventario"),
+                        "/dashboard/inventario",
+                        false),
 
                 paso("caja",
                         "Abre tu primera caja",
-                        "Abre una caja antes de empezar a vender",
+                        "Abre una caja antes de empezar a registrar ventas",
                         cajaRepository.countByTenantId(tenantId) > 0,
-                        "/dashboard/caja"),
+                        "/dashboard/caja",
+                        false),
 
                 paso("venta",
                         "Realiza tu primera venta",
-                        "¡Ya tienes todo listo! Ve al POS y haz tu primera venta",
+                        "¡Ya tienes todo listo! Ve al POS y cobra tu primera venta",
                         ventaRepository.countByTenantId(tenantId) > 0,
-                        "/pos")
+                        "/pos",
+                        false)
         );
 
-        long completados = pasos.stream().filter(PasoOnboardingDTO::isCompletado).count();
-        int porcentaje   = (int) ((completados * 100) / pasos.size());
+        // El porcentaje y la marca de "completado" solo consideran pasos no opcionales
+        List<PasoOnboardingDTO> requeridos = pasos.stream()
+                .filter(p -> !p.isOpcional())
+                .toList();
+        long completados = requeridos.stream().filter(PasoOnboardingDTO::isCompletado).count();
+        int porcentaje   = (int) ((completados * 100) / requeridos.size());
 
         log.debug("📋 Onboarding tenant={} → {}/{}  ({}%)", tenantId, completados, pasos.size(), porcentaje);
 
@@ -95,21 +113,26 @@ public class OnboardingServiceImpl implements OnboardingService {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private PasoOnboardingDTO paso(String id, String titulo, String descripcion,
-                                   boolean completado, String url) {
+                                   boolean completado, String url, boolean opcional) {
         return PasoOnboardingDTO.builder()
                 .id(id)
                 .titulo(titulo)
                 .descripcion(descripcion)
                 .completado(completado)
                 .url(url)
+                .opcional(opcional)
                 .build();
     }
 
-    /**
-     * El negocio está configurado si el tenant tiene al menos RUC o dirección guardada.
-     */
-    private boolean estaConfiguradoNegocio(Tenant tenant) {
-        return (tenant.getRuc()       != null && !tenant.getRuc().isBlank()) ||
+    /** Empresa configurada: RUC + dirección fiscal presentes. */
+    private boolean estaConfiguradaEmpresa(Tenant tenant) {
+        return (tenant.getRuc()       != null && !tenant.getRuc().isBlank()) &&
                (tenant.getDireccion() != null && !tenant.getDireccion().isBlank());
+    }
+
+    /** OSE configurado: URL y token del proveedor de facturación electrónica. */
+    private boolean estaConfiguradoOse(Tenant tenant) {
+        return (tenant.getOseUrl()   != null && !tenant.getOseUrl().isBlank()) &&
+               (tenant.getOseToken() != null && !tenant.getOseToken().isBlank());
     }
 }

@@ -52,6 +52,9 @@ public class Producto {
     @Column(nullable = false)
     private Boolean activo = true;
 
+    @Column(name = "imagen_url", columnDefinition = "TEXT")
+    private String imagenUrl;
+
     @Column(name = "tenant_id")
     private String tenantId;
 

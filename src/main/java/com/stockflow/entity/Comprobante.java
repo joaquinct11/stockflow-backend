@@ -79,6 +79,10 @@ public class Comprobante {
     @Column(name = "sunat_estado", length = 20)
     private String sunatEstado;  // ACEPTADO | RECHAZADO | PENDIENTE
 
+    /** Mensaje descriptivo de SUNAT/Nubefact (ej: "La Factura FFF1-1 ha sido ACEPTADA"). */
+    @Column(name = "sunat_mensaje", columnDefinition = "TEXT")
+    private String sunatMensaje;
+
     @Column(name = "sunat_ticket", length = 100)
     private String sunatTicket;
 

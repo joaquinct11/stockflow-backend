@@ -3,12 +3,16 @@ package com.stockflow.controller;
 import com.stockflow.dto.ComprobanteDTO;
 import com.stockflow.dto.EmitirComprobanteRequest;
 import com.stockflow.service.ComprobanteService;
+import com.stockflow.service.impl.PdfComprobanteService;
 import com.stockflow.util.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -22,7 +26,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ComprobanteController {
 
-    private final ComprobanteService comprobanteService;
+    private final ComprobanteService    comprobanteService;
+    private final PdfComprobanteService pdfComprobanteService;
 
     /**
      * List comprobantes for the current tenant with optional filters.
@@ -66,6 +71,47 @@ public class ComprobanteController {
         return comprobanteService.obtenerPorId(id, tenantId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Descarga el PDF de un comprobante generado localmente.
+     * Devuelve application/pdf con Content-Disposition: attachment.
+     */
+    @GetMapping("/{id}/pdf")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_COMPROBANTE')")
+    public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📄 Descargando PDF comprobante ID: {} (tenant {})", id, tenantId);
+
+        byte[] pdf = pdfComprobanteService.generate(id, tenantId);
+
+        // Resolve filename from DTO (fallback to generic name)
+        String filename = comprobanteService.obtenerPorId(id, tenantId)
+                .map(dto -> (dto.getNumero() != null ? dto.getNumero() : "comprobante-" + id) + ".pdf")
+                .orElse("comprobante-" + id + ".pdf");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(
+                ContentDisposition.attachment().filename(filename).build());
+
+        return ResponseEntity.ok().headers(headers).body(pdf);
+    }
+
+    /**
+     * Envía el comprobante al OSE configurado por el tenant (Nubefact, Efact, etc.)
+     * y actualiza su estado SUNAT, pdf_url y xml_url con la respuesta.
+     *
+     * Precondiciones:
+     *  - El comprobante debe estar EMITIDO (no ANULADO)
+     *  - El tenant debe tener oseUrl y oseToken configurados en Ajustes → Facturación
+     */
+    @PostMapping("/{id}/enviar-sunat")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EMITIR_COMPROBANTE')")
+    public ResponseEntity<ComprobanteDTO> enviarASunat(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("🏛️ Enviando a SUNAT comprobante ID: {} (tenant {})", id, tenantId);
+        return ResponseEntity.ok(comprobanteService.enviarASunat(id, tenantId));
     }
 
     /**

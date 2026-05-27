@@ -13,7 +13,7 @@ import java.util.Set;
 /**
  * Valida los límites y restricciones según el plan de suscripción del tenant.
  *
- * BÁSICO : max 3 usuarios · max 500 productos · roles Admin y Vendedor
+ * BÁSICO : max 3 usuarios · max 500 productos · roles Admin, Vendedor y Almacenero
  * PRO    : sin límites de usuarios ni productos · todos los roles
  */
 @Slf4j
@@ -28,7 +28,7 @@ public class PlanLimitService {
     // ── Límites del plan Básico ──────────────────────────────────────────────
     public static final int         BASICO_MAX_USUARIOS        = 3;
     public static final int         BASICO_MAX_PRODUCTOS       = 500;
-    public static final Set<String> BASICO_ROLES_PERMITIDOS    = Set.of("ADMIN", "VENDEDOR");
+    public static final Set<String> BASICO_ROLES_PERMITIDOS    = Set.of("ADMIN", "VENDEDOR", "GESTOR_INVENTARIO");
 
     // ── Resolución de plan ───────────────────────────────────────────────────
 
@@ -82,8 +82,7 @@ public class PlanLimitService {
         if (!isBasico(tenantId)) return;
         if (!BASICO_ROLES_PERMITIDOS.contains(rolNombre)) {
             throw new BadRequestException(
-                    "El plan Básico solo permite los roles Admin y Vendedor. " +
-                    "Actualiza al plan Pro para usar roles avanzados (Gerente, Gestor de Inventario)."
+                    "El plan Básico solo permite los roles Administrador, Vendedor y Almacenero."
             );
         }
     }

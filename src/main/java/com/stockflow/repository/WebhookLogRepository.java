@@ -12,4 +12,6 @@ public interface WebhookLogRepository extends JpaRepository<WebhookLog, Long> {
     boolean existsByWebhookIdAndTipo(String webhookId, String tipo);
 
     Optional<WebhookLog> findByWebhookIdAndTipo(String webhookId, String tipo);
+
+    boolean existsByWebhookIdAndEstado(String webhookId, String estado);
 }
