@@ -48,7 +48,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
     private final RolePermissionDefaults rolePermissionDefaults;
-    private final com.stockflow.config.properties.MercadoPagoProperties mercadoPagoProperties;
+    private final com.stockflow.config.properties.CulqiProperties culqiProperties;
 
     @Override
     @Transactional
@@ -146,8 +146,10 @@ public class AuthServiceImpl implements AuthService {
                 .tenantId(tenant.getTenantId())
                 .ultimoLogin(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
+                .apellido(request.getApellido())
                 .tipoDocumento(request.getTipoDocumento())
                 .numeroDocumento(request.getNumeroDocumento())
+                .numeroCelular(request.getNumeroCelular())
                 .build();
 
         Usuario usuarioCreado = usuarioRepository.save(usuario);
@@ -163,8 +165,6 @@ public class AuthServiceImpl implements AuthService {
                 .planId(request.getPlanId())
                 .precioMensual(precioMensual)
                 .estado("TRIAL")
-                .metodoPago("MERCADOPAGO")
-                .enPeriodoPrueba(true)
                 .trialEndDate(trialEnd)
                 .tenantId(tenant.getTenantId())
                 .fechaInicio(ahora)
@@ -277,7 +277,7 @@ public class AuthServiceImpl implements AuthService {
         if (!"BASICO".equals(planId)) {
             throw new BadRequestException("Plan inválido: " + planId + ". Solo se permite: BASICO");
         }
-        return mercadoPagoProperties.getPrecioBasico();
+        return culqiProperties.getPrecioBasico();
     }
 
     private SuscripcionDTO mapToSuscripcionDTO(Suscripcion suscripcion) {
@@ -289,7 +289,6 @@ public class AuthServiceImpl implements AuthService {
                 .estado(suscripcion.getEstado())
                 .tenantId(suscripcion.getTenantId())
                 .trialEndDate(suscripcion.getTrialEndDate())
-                .enPeriodoPrueba(suscripcion.getEnPeriodoPrueba())
                 .build();
     }
 

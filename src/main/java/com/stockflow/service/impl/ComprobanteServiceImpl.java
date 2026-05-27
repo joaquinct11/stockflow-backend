@@ -9,8 +9,11 @@ import com.stockflow.entity.Venta;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.ResourceNotFoundException;
+import com.stockflow.dto.NubefactComprobanteResponse;
+import com.stockflow.entity.Tenant;
 import com.stockflow.repository.ComprobanteRepository;
 import com.stockflow.repository.ComprobanteSerieRepository;
+import com.stockflow.repository.TenantRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.ComprobanteService;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +33,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ComprobanteServiceImpl implements ComprobanteService {
 
-    private final ComprobanteRepository comprobanteRepository;
+    private final ComprobanteRepository     comprobanteRepository;
     private final ComprobanteSerieRepository comprobanteSerieRepository;
-    private final VentaRepository ventaRepository;
+    private final VentaRepository            ventaRepository;
+    private final TenantRepository           tenantRepository;
+    private final NubefactService            nubefactService;
 
     @Override
     @Transactional
@@ -55,10 +60,16 @@ public class ComprobanteServiceImpl implements ComprobanteService {
             throw new ConflictException("La venta ya tiene un comprobante emitido.");
         }
 
-        // Resolve serie – default B001 / F001 if not provided
+        // Resolve serie — use tenant config if not explicitly provided in the request
+        String defaultSerie = tenantRepository.findByTenantId(tenantId)
+                .map(t -> tipo.equals("BOLETA")
+                        ? (t.getSerieBoleta() != null ? t.getSerieBoleta() : "BBB1")
+                        : (t.getSerieFactura() != null ? t.getSerieFactura() : "FFF1"))
+                .orElse(tipo.equals("BOLETA") ? "BBB1" : "FFF1");
+
         String serie = (request.getSerie() != null && !request.getSerie().isBlank())
                 ? request.getSerie().toUpperCase()
-                : (tipo.equals("BOLETA") ? "B001" : "F001");
+                : defaultSerie;
 
         // Lock the series row and increment correlativo
         ComprobanteSerie serieRow = comprobanteSerieRepository
@@ -105,7 +116,6 @@ public class ComprobanteServiceImpl implements ComprobanteService {
                 .receptorDocNumero(request.getReceptorDocNumero())
                 .receptorNombre(request.getReceptorNombre())
                 .receptorDireccion(request.getReceptorDireccion())
-                .sunatEstado("PENDIENTE")
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -161,6 +171,63 @@ public class ComprobanteServiceImpl implements ComprobanteService {
         return toDTO(comprobanteRepository.save(comprobante));
     }
 
+    // ── SUNAT / OSE ──────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public ComprobanteDTO enviarASunat(Long id, String tenantId) {
+
+        Comprobante comprobante = comprobanteRepository.findById(id)
+                .filter(c -> tenantId.equals(c.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Comprobante no encontrado: " + id));
+
+        if ("ANULADO".equals(comprobante.getEstado())) {
+            throw new BadRequestException("No se puede enviar a SUNAT un comprobante anulado.");
+        }
+        if ("ACEPTADO".equals(comprobante.getSunatEstado())) {
+            throw new ConflictException("El comprobante ya fue aceptado por SUNAT.");
+        }
+
+        Tenant tenant = tenantRepository.findByTenantId(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado"));
+
+        // Marcar como pendiente antes de llamar al OSE
+        comprobante.setSunatEstado("PENDIENTE");
+        comprobanteRepository.save(comprobante);
+
+        try {
+            NubefactComprobanteResponse resp = nubefactService.enviar(comprobante, tenant);
+
+            // ACEPTADO → SUNAT confirmó; PENDIENTE → en Nubefact pero SUNAT aún no responde
+            // (incluye: error 23 / ya existía, respuesta con ticket/links pero sin aceptación explícita)
+            String nuevoEstado;
+            if (resp.fueAceptado()) {
+                nuevoEstado = "ACEPTADO";
+            } else if (resp.fueRegistrado()) {
+                nuevoEstado = "PENDIENTE";
+            } else {
+                nuevoEstado = "RECHAZADO";
+            }
+            comprobante.setSunatEstado(nuevoEstado);
+            comprobante.setSunatMensaje(resp.resumen());
+            if (resp.getEnlaceDelPdf()  != null) comprobante.setPdfUrl(resp.getEnlaceDelPdf());
+            if (resp.getEnlaceDelXml()  != null) comprobante.setXmlUrl(resp.getEnlaceDelXml());
+            if (resp.getCadenaParaCodigoQr() != null) comprobante.setQr(resp.getCadenaParaCodigoQr());
+            if (resp.getNumeroTicket()  != null) comprobante.setSunatTicket(resp.getNumeroTicket());
+
+            log.info("🏛️ SUNAT {} para {}: {}",
+                    comprobante.getSunatEstado(), comprobante.getNumero(), resp.resumen());
+
+        } catch (Exception e) {
+            comprobante.setSunatEstado("ERROR");
+            comprobanteRepository.save(comprobante);
+            log.error("❌ Error enviando {} a SUNAT: {}", comprobante.getNumero(), e.getMessage());
+            throw e;
+        }
+
+        return toDTO(comprobanteRepository.save(comprobante));
+    }
+
     // ── Mapper ───────────────────────────────────────────────────────────────
 
     private ComprobanteDTO toDTO(Comprobante c) {
@@ -195,6 +262,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
                 .receptorNombre(c.getReceptorNombre())
                 .receptorDireccion(c.getReceptorDireccion())
                 .sunatEstado(c.getSunatEstado())
+                .sunatMensaje(c.getSunatMensaje())
                 .sunatTicket(c.getSunatTicket())
                 .hash(c.getHash())
                 .qr(c.getQr())

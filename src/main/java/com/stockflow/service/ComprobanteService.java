@@ -26,4 +26,10 @@ public interface ComprobanteService {
     );
 
     ComprobanteDTO anular(Long id, String tenantId);
+
+    /**
+     * Envía el comprobante al OSE configurado en el tenant (Nubefact, Efact, etc.)
+     * y actualiza su sunat_estado, pdf_url, xml_url y qr con la respuesta.
+     */
+    ComprobanteDTO enviarASunat(Long id, String tenantId);
 }

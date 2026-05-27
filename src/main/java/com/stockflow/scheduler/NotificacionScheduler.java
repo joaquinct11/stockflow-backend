@@ -10,9 +10,7 @@ import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.TenantRepository;
 import com.stockflow.service.EmailService;
-import com.stockflow.service.MercadoPagoService;
 import com.stockflow.service.NotificacionService;
-import com.stockflow.service.model.MercadoPagoPreapprovalInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,7 +32,6 @@ public class NotificacionScheduler {
     private final SuscripcionRepository          suscripcionRepository;
     private final NotificacionService            notificacionService;
     private final EmailService                   emailService;
-    private final MercadoPagoService             mercadoPagoService;
 
     private static final List<String> ROLES_INVENTARIO =
             List.of("ADMIN", "GERENTE", "GESTOR_INVENTARIO");
@@ -183,9 +180,7 @@ public class NotificacionScheduler {
     }
 
     // ── Trials por vencer — todos los días a las 9:00 AM Lima ──────────────
-    // Solo se notifican TRIALS (no se renuevan automáticamente) y suscripciones
-    // ACTIVAS sin preapprovalId (cobro manual). Las ACTIVAS con preapprovalId
-    // se cobran solas vía MercadoPago — no necesitan aviso.
+    // Notifica TRIALS por vencer y suscripciones ACTIVAS sin preapprovalId (cobro manual).
 
     @Scheduled(cron = "0 0 9 * * *", zone = "America/Lima")
     public void verificarSuscripcionesPorVencer() {
@@ -244,78 +239,5 @@ public class NotificacionScheduler {
         log.info("⏰ [Scheduler] Verificación de suscripciones completada.");
     }
 
-    // ── Cobros mensuales MP — verificación diaria a las 9:30 AM Lima ────────
-    // Detecta suscripciones ACTIVAS cuyo período ya venció y cuyo preapproval
-    // de MP sigue en estado "pending" (nunca fue autorizado por el usuario).
-    // Caso más común: upgrade BÁSICO→PRO donde el usuario pagó el prorrateo
-    // pero cerró el navegador antes de autorizar el preapproval mensual PRO.
-    // También recupera webhooks perdidos para preapprovals ya autorizados.
-
-    @Scheduled(cron = "0 30 9 * * *", zone = "America/Lima")
-    @org.springframework.transaction.annotation.Transactional
-    public void verificarCobrosMensualesMP() {
-        log.info("⏰ [Scheduler] Verificando cobros mensuales de Mercado Pago...");
-
-        // 2 días de gracia después del vencimiento del período
-        LocalDateTime vencidasAntes = LocalDateTime.now().minusDays(2);
-
-        List<Suscripcion> vencidas = suscripcionRepository.findActivasConPreapprovalVencidas(vencidasAntes);
-        log.info("🔍 [Scheduler] {} suscripción(es) con período vencido sin webhook de cobro", vencidas.size());
-
-        for (Suscripcion s : vencidas) {
-            try {
-                MercadoPagoPreapprovalInfo preapproval = mercadoPagoService.obtenerPreapproval(s.getPreapprovalId());
-                String statusMp = preapproval.getStatus() != null ? preapproval.getStatus().toLowerCase() : "unknown";
-
-                switch (statusMp) {
-                    case "pending" -> {
-                        // El preapproval nunca fue autorizado → no habrá cobro → suspender
-                        s.setEstado("SUSPENDIDA");
-                        suscripcionRepository.save(s);
-                        log.warn("⚠️ [Scheduler] Suspendida id={} tenant={} plan={} — preapproval pending, no se autorizó el cobro mensual",
-                                s.getId(), s.getTenantId(), s.getPlanId());
-
-                        try {
-                            var usuario = s.getUsuarioPrincipal();
-                            if (usuario != null && usuario.getEmail() != null) {
-                                emailService.enviarEmailSuscripcion(
-                                        usuario.getEmail(),
-                                        usuario.getNombre(),
-                                        "SUSPENDIDA",
-                                        s.getPlanId()
-                                );
-                            }
-                        } catch (Exception emailEx) {
-                            log.warn("⚠️ Error enviando email de suspensión suscripción {}: {}", s.getId(), emailEx.getMessage());
-                        }
-                    }
-                    case "cancelled" -> {
-                        // Preapproval cancelado directamente en MP
-                        if (s.getFechaCancelacion() == null) s.setFechaCancelacion(LocalDateTime.now());
-                        s.setEstado("CANCELADA");
-                        suscripcionRepository.save(s);
-                        log.warn("⚠️ [Scheduler] Cancelada id={} tenant={} — preapproval cancelado en MP", s.getId(), s.getTenantId());
-                    }
-                    case "authorized", "active" -> {
-                        // Preapproval autorizado y activo; el cobro ocurrió pero el webhook no llegó.
-                        // Recuperamos extendiendo el período para evitar falso vencimiento.
-                        LocalDateTime now = LocalDateTime.now();
-                        s.setCurrentPeriodStart(now);
-                        s.setCurrentPeriodEnd(now.plusMonths(1));
-                        s.setFechaProximoCobro(now.plusMonths(1));
-                        suscripcionRepository.save(s);
-                        log.info("🔧 [Scheduler] Período extendido id={} tenant={} — preapproval {} activo (webhook perdido recuperado)",
-                                s.getId(), s.getTenantId(), statusMp);
-                    }
-                    default -> log.warn("⚠️ [Scheduler] Estado MP desconocido '{}' para preapproval de suscripción id={}", statusMp, s.getId());
-                }
-            } catch (Exception e) {
-                log.error("❌ [Scheduler] Error verificando suscripción id={} tenant={}: {}",
-                        s.getId(), s.getTenantId(), e.getMessage());
-            }
-        }
-
-        log.info("⏰ [Scheduler] Verificación de cobros MP completada.");
-    }
-
 }
+

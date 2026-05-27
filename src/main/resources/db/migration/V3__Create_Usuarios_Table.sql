@@ -3,6 +3,7 @@ CREATE TABLE usuarios (
                           email VARCHAR(150) NOT NULL UNIQUE,
                           contraseña VARCHAR(255) NOT NULL,
                           nombre VARCHAR(150) NOT NULL,
+                          apellido VARCHAR(150) DEFAULT NULL,
                           tipo_documento  VARCHAR(20)  DEFAULT NULL,
                           numero_documento VARCHAR(50) DEFAULT NULL,
                           numero_celular VARCHAR(20) DEFAULT NULL,

@@ -110,6 +110,7 @@ public class ProductoServiceImpl implements ProductoService {
                     producto.setStockActual(productoActualizado.getStockActual());
                     producto.setStockMinimo(productoActualizado.getStockMinimo());
                     producto.setStockMaximo(productoActualizado.getStockMaximo());
+                    producto.setImagenUrl(productoActualizado.getImagenUrl());
                     return productoRepository.save(producto);
                 })
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));

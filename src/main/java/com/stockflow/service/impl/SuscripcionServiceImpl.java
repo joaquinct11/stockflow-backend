@@ -79,7 +79,6 @@ public class SuscripcionServiceImpl implements SuscripcionService {
         Suscripcion s = suscripcionRepository.findById(suscripcionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada con ID: " + suscripcionId));
         s.setEstado("PENDIENTE");
-        s.setEnPeriodoPrueba(false);
         return suscripcionRepository.save(s);
     }
 }

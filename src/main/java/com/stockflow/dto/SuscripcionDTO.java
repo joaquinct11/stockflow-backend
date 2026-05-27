@@ -34,10 +34,6 @@ public class SuscripcionDTO {
 
     private String ultimos4Digitos;
 
-    private String mpPreferenceId;
-
-    private String mpPaymentId;
-
     private LocalDateTime currentPeriodStart;
 
     private LocalDateTime currentPeriodEnd;
@@ -45,6 +41,4 @@ public class SuscripcionDTO {
     private String tenantId;
 
     private LocalDateTime trialEndDate;
-
-    private Boolean enPeriodoPrueba;
 }

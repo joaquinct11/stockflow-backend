@@ -16,10 +16,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -289,7 +293,7 @@ public class EmailServiceImpl implements EmailService {
                 cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
                         + "El pago de tu plan <b>" + plan + "</b> fue rechazado o no pudo procesarse.<br>"
                         + "Intenta con otro método de pago para mantener el acceso a Fluxus.";
-                btnUrl  = frontendUrl + "/checkout?plan=" + planId;
+                btnUrl  = frontendUrl + "/checkout/culqi";
                 btnTexto = "Reintentar pago";
                 nota    = "Si el problema persiste, contacta a tu banco o escríbenos.";
             }
@@ -299,7 +303,7 @@ public class EmailServiceImpl implements EmailService {
                 cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
                         + "Tu plan <b>" + plan + "</b> en Fluxus ha sido cancelado.<br>"
                         + "Puedes volver a suscribirte en cualquier momento.";
-                btnUrl  = frontendUrl + "/checkout";
+                btnUrl  = frontendUrl + "/checkout/culqi";
                 btnTexto = "Reactivar suscripción";
                 nota    = "¡Te esperamos de vuelta cuando quieras!";
             }
@@ -320,7 +324,7 @@ public class EmailServiceImpl implements EmailService {
                 cuerpo  = "Hola <b>" + nombre + "</b>,<br><br>"
                         + "Tu período Pro venció y tu plan ahora es <b>Básico</b>.<br>"
                         + "Para continuar usando Fluxus activa tu plan Básico haciendo clic en el botón.";
-                btnUrl  = frontendUrl + "/checkout?plan=BASICO";
+                btnUrl  = frontendUrl + "/checkout/culqi";
                 btnTexto = "Activar plan Básico";
                 nota    = "¿Quieres volver a Pro? Puedes hacer el upgrade en cualquier momento desde tu panel.";
             }
@@ -559,11 +563,153 @@ public class EmailServiceImpl implements EmailService {
         log.info("📧 OC #{} enviada por email a proveedor: {}", oc.getId(), emailProveedor);
     }
 
+    // ── Libro de Reclamaciones ────────────────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarReclamacion(String tipo, String nombre, String apellido,
+                                   String dni, String correoConsumidor, String telefono,
+                                   String pedido, String monto, String descripcion,
+                                   List<MultipartFile> archivos) {
+
+        String fecha      = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+        String nombreCompleto = nombre + " " + apellido;
+        String CONTACTO   = "contacto@fluxus.pe";
+
+        // ── 1. Email interno a Fluxus ─────────────────────────────────────────
+        String htmlInterno = """
+            <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial,sans-serif;background:#f4f4f5;padding:24px;">
+              <div style="max-width:560px;margin:auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                <div style="background:#dc2626;padding:20px 32px;">
+                  <p style="margin:0;color:#fff;font-size:18px;font-weight:700;">📋 Libro de Reclamaciones</p>
+                  <p style="margin:4px 0 0;color:#fecaca;font-size:12px;">%s recibido · %s</p>
+                </div>
+                <div style="padding:28px 32px;">
+                  <table style="width:100%%;border-collapse:collapse;font-size:14px;">
+                    <tr><td style="padding:6px 0;color:#6b7280;width:40%%;">Tipo</td><td style="padding:6px 0;font-weight:600;">%s</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280;">Nombre</td><td style="padding:6px 0;">%s</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280;">DNI</td><td style="padding:6px 0;">%s</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280;">Correo</td><td style="padding:6px 0;"><a href="mailto:%s">%s</a></td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280;">Teléfono</td><td style="padding:6px 0;">%s</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280;">Pedido/Suscripción</td><td style="padding:6px 0;">%s</td></tr>
+                    <tr><td style="padding:6px 0;color:#6b7280;">Monto (S/)</td><td style="padding:6px 0;">%s</td></tr>
+                  </table>
+                  <div style="margin-top:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;">
+                    <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#991b1b;">Descripción:</p>
+                    <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">%s</p>
+                  </div>
+                  <p style="margin:20px 0 0;font-size:12px;color:#9ca3af;">
+                    Debes responder al consumidor en un plazo máximo de <strong>15 días hábiles</strong>.
+                  </p>
+                </div>
+              </div>
+            </body></html>
+            """.formatted(tipo, fecha, tipo, nombreCompleto, dni,
+                          correoConsumidor, correoConsumidor,
+                          (telefono != null && !telefono.isBlank()) ? telefono : "—",
+                          (pedido   != null && !pedido.isBlank())   ? pedido   : "—",
+                          (monto    != null && !monto.isBlank())    ? "S/ " + monto : "—",
+                          descripcion);
+
+        // Convertir MultipartFiles a adjuntos Resend [{filename, content}]
+        List<Map<String, Object>> adjuntos = new ArrayList<>();
+        if (archivos != null) {
+            for (MultipartFile f : archivos) {
+                if (f != null && !f.isEmpty()) {
+                    try {
+                        adjuntos.add(Map.of(
+                            "filename", f.getOriginalFilename() != null ? f.getOriginalFilename() : "adjunto",
+                            "content",  Base64.getEncoder().encodeToString(f.getBytes())
+                        ));
+                    } catch (IOException ex) {
+                        log.warn("⚠️ No se pudo leer adjunto '{}': {}", f.getOriginalFilename(), ex.getMessage());
+                    }
+                }
+            }
+        }
+
+        log.info("📧 Enviando reclamación interna a: {} ({} adjuntos)", CONTACTO, adjuntos.size());
+        enviarConAdjuntos(CONTACTO, "[Libro de Reclamaciones] " + tipo + " de " + nombreCompleto, htmlInterno, adjuntos);
+
+        // ── 2. Acuse de recibo al consumidor ──────────────────────────────────
+        String htmlAcuse = """
+            <!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"></head>
+            <body style="font-family:Arial,sans-serif;background:#f4f4f5;padding:24px;">
+              <div style="max-width:560px;margin:auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+                <div style="background:#2563eb;padding:20px 32px;">
+                  <p style="margin:0;color:#fff;font-size:18px;font-weight:700;">📦 Fluxus</p>
+                  <p style="margin:4px 0 0;color:#bfdbfe;font-size:12px;">Reclamación registrada ✅</p>
+                </div>
+                <div style="padding:28px 32px;">
+                  <p style="font-size:15px;color:#111827;">Hola <strong>%s</strong>,</p>
+                  <p style="font-size:14px;color:#4b5563;line-height:1.65;">
+                    Hemos recibido tu <strong>%s</strong> el día <strong>%s</strong>.
+                    Te responderemos en un plazo máximo de <strong>15 días hábiles</strong>
+                    a este correo.
+                  </p>
+                  <div style="margin:20px 0;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;font-size:13px;color:#6b7280;">
+                    <p style="margin:0 0 4px;"><strong>Resumen de tu %s:</strong></p>
+                    <p style="margin:0;">%s</p>
+                  </div>
+                  <p style="font-size:13px;color:#6b7280;">
+                    Si tienes dudas, responde este correo o escríbenos a
+                    <a href="mailto:%s" style="color:#2563eb;">%s</a>.
+                  </p>
+                </div>
+                <div style="padding:14px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+                  <p style="margin:0;font-size:11px;color:#9ca3af;">
+                    © %d Joaquin Castillo Tello (Fluxus) · RUC 10769109566 · Magdalena del Mar, Lima
+                  </p>
+                </div>
+              </div>
+            </body></html>
+            """.formatted(nombre, tipo.toLowerCase(), fecha,
+                          tipo.toLowerCase(),
+                          descripcion.length() > 120 ? descripcion.substring(0, 120) + "…" : descripcion,
+                          CONTACTO, CONTACTO,
+                          java.time.LocalDate.now().getYear());
+
+        log.info("📧 Enviando acuse de reclamación al consumidor: {}", correoConsumidor);
+        enviar(correoConsumidor, "Hemos recibido tu " + tipo.toLowerCase() + " — Fluxus", htmlAcuse);
+    }
+
     // ── Envío HTTP a Resend ───────────────────────────────────────────────────
 
     /** Envío simple sin adjunto */
     private void enviar(String destinatario, String asunto, String html) {
         enviarConAdjunto(destinatario, asunto, html, null, null);
+    }
+
+    /** Envío con lista de adjuntos ya codificados en Base64 [{filename, content}] */
+    private void enviarConAdjuntos(String destinatario, String asunto, String html,
+                                    List<Map<String, Object>> adjuntos) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(apiKey);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("from",    fromName + " <" + fromEmail + ">");
+            body.put("to",      List.of(destinatario));
+            body.put("subject", asunto);
+            body.put("html",    html);
+            if (adjuntos != null && !adjuntos.isEmpty()) {
+                body.put("attachments", adjuntos);
+            }
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+            ResponseEntity<String> response = restTemplate.postForEntity(RESEND_URL, request, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("✅ Email enviado correctamente a: {}", destinatario);
+            } else {
+                log.error("❌ Resend rechazó el email. Status: {} | Body: {}",
+                        response.getStatusCode(), response.getBody());
+            }
+        } catch (Exception e) {
+            log.error("❌ Error al enviar email a {}: {}", destinatario, e.getMessage(), e);
+        }
     }
 
     /** Envío con adjunto PDF opcional (pdfBytes == null → sin adjunto) */

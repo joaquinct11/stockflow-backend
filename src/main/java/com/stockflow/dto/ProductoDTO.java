@@ -49,5 +49,8 @@ public class ProductoDTO {
 
     private Boolean activo;
 
+    /** URL de imagen del producto (opcional). */
+    private String imagenUrl;
+
     private String tenantId;
 }

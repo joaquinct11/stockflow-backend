@@ -16,4 +16,6 @@ public class PasoOnboardingDTO {
     private String descripcion;
     private boolean completado;
     private String url;
+    /** Si es true, no cuenta para el porcentaje ni para marcar el onboarding como completado. */
+    private boolean opcional;
 }
