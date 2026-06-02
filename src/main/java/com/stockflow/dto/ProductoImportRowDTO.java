@@ -35,4 +35,7 @@ public class ProductoImportRowDTO {
 
     /** Nombre de la unidad de medida (ej. "Unidad", "Caja", "Kg") */
     private String unidadMedida;
+
+    /** Nombre de la categoría (ej. "Medicamentos", "Limpieza") */
+    private String categoria;
 }
