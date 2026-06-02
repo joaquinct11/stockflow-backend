@@ -60,11 +60,20 @@ public class Tenant {
 
     @Column(name = "serie_boleta", length = 10)
     @Builder.Default
-    private String serieBoleta = "B001";
+    private String serieBoleta = "BBB1";
 
     @Column(name = "serie_factura", length = 10)
     @Builder.Default
-    private String serieFactura = "F001";
+    private String serieFactura = "FFF1";
+
+    // ── Integración OSE (Operador de Servicios Electrónicos) ─────────────────
+    /** URL base del OSE, ej: https://api.nubefact.com/api/v1/{empresa-slug} */
+    @Column(name = "ose_url", length = 500)
+    private String oseUrl;
+
+    /** Token API del OSE del tenant. */
+    @Column(name = "ose_token", length = 500)
+    private String oseToken;
     // ────────────────────────────────────────────────────────────────────────
 
     @Column(name = "deleted_at")

@@ -29,6 +29,12 @@ public class RolePermissionDefaults {
             "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO", "ELIMINAR_PRODUCTO",
             // Ventas
             "VER_VENTAS", "VER_MIS_VENTAS", "CREAR_VENTA", "VER_DETALLE_VENTA", "ELIMINAR_VENTA",
+            // Caja
+            "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
+            // Devoluciones
+            "VER_DEVOLUCIONES", "CREAR_DEVOLUCION",
+            // Notas de crédito
+            "VER_NOTAS_CREDITO", "EMITIR_NOTA_CREDITO",
             // Inventario
             "VER_INVENTARIO", "CREAR_INVENTARIO", "VER_DETALLE_INVENTARIO", "ELIMINAR_INVENTARIO",
             // Usuarios
@@ -44,7 +50,11 @@ public class RolePermissionDefaults {
             // Orden de Compra
             "VER_OC", "CREAR_OC", "EDITAR_OC",
             // Recepción de mercadería
-            "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION"
+            "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION",
+            // Clientes
+            "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE", "ELIMINAR_CLIENTE", "CAMBIAR_ESTADO_CLIENTE",
+            // Gastos / Egresos
+            "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO", "ELIMINAR_GASTO"
     );
 
     /**
@@ -75,7 +85,13 @@ public class RolePermissionDefaults {
                     // Proveedores
                     "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "CAMBIAR_ESTADO_PROVEEDOR",
                     // Ventas
-                    "VER_VENTAS", "VER_DETALLE_VENTA", "CREAR_VENTA",
+                    "VER_VENTAS", "VER_DETALLE_VENTA", "CREAR_VENTA", "ELIMINAR_VENTA",
+                    // Caja
+                    "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
+                    // Devoluciones
+                    "VER_DEVOLUCIONES", "CREAR_DEVOLUCION",
+                    // Notas de crédito
+                    "VER_NOTAS_CREDITO", "EMITIR_NOTA_CREDITO",
                     // Inventario
                     "VER_INVENTARIO", "VER_DETALLE_INVENTARIO", "CREAR_INVENTARIO",
                     // Usuarios
@@ -89,7 +105,11 @@ public class RolePermissionDefaults {
                     // Órdenes de compra
                     "VER_OC", "CREAR_OC", "EDITAR_OC",
                     // Recepciones
-                    "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION"
+                    "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION",
+                    // Clientes
+                    "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE", "CAMBIAR_ESTADO_CLIENTE",
+                    // Gastos (gerente puede registrar y ver gastos)
+                    "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO"
             );
 
             // Foco en inventario: compras, recepciones, productos y proveedores.
@@ -116,7 +136,16 @@ public class RolePermissionDefaults {
                     "VER_DASHBOARD",
                     "VER_PRODUCTOS",
                     "CREAR_VENTA", "VER_MIS_VENTAS", "VER_DETALLE_VENTA",
-                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE"
+                    // Caja
+                    "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
+                    // Devoluciones (solo las propias ventas)
+                    "VER_DEVOLUCIONES", "CREAR_DEVOLUCION",
+                    // Notas de crédito (validar en POS)
+                    "VER_NOTAS_CREDITO",
+                    // Facturación
+                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE",
+                    // Clientes (vendedor puede crear y ver clientes para las ventas)
+                    "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE"
             );
 
             default -> Set.of();

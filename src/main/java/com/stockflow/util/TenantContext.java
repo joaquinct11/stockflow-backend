@@ -5,60 +5,43 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class TenantContext {
 
-    private static final ThreadLocal<String> currentTenant = new ThreadLocal<>();
+    private static final ThreadLocal<String> tenantContext  = new ThreadLocal<>();
+    private static final ThreadLocal<Long>   userIdContext  = new ThreadLocal<>();
 
-    /**
-     * Establecer el tenantId para el thread actual
-     */
+    // ── Tenant ────────────────────────────────────────────────
+
     public static void setCurrentTenant(String tenantId) {
-        currentTenant.set(tenantId);
-        log.debug("🔑 TenantContext establecido: {}", tenantId);
+        tenantContext.set(tenantId);
+        log.debug("TenantContext establecido: {}", tenantId);
     }
 
-    /**
-     * Obtener el tenantId del thread actual
-     */
     public static String getCurrentTenant() {
-        String tenantId = currentTenant.get();
+        String tenantId = tenantContext.get();
         if (tenantId == null) {
-            log.warn("⚠️ TenantContext es NULL - Usuario probablemente no autenticado");
+            log.warn("TenantContext es NULL — usuario probablemente no autenticado");
         }
         return tenantId;
     }
 
-    /**
-     * Limpiar el tenantId del thread actual
-     */
-    public static void clear() {
-        String tenantId = currentTenant.get();
-        if (tenantId != null) {
-            log.debug("🧹 Limpiando TenantContext: {}", tenantId);
-        }
-        currentTenant.remove();
-    }
+    // ── Usuario ───────────────────────────────────────────────
 
-    /**
-     * Verificar si hay un tenant establecido
-     */
-    public static boolean hasTenant() {
-        return currentTenant.get() != null;
-    }
-
-    private static final ThreadLocal<Long> userIdContext = new ThreadLocal<>();
-
-    public static void setCurrentUserId(Long usuarioId) {
-        userIdContext.set(usuarioId);
+    public static void setCurrentUserId(Long userId) {
+        userIdContext.set(userId);
     }
 
     public static Long getCurrentUserId() {
-        Long usuarioId = userIdContext.get();
-        if (usuarioId == null) {
+        Long userId = userIdContext.get();
+        if (userId == null) {
             throw new IllegalStateException("Usuario no establecido en el contexto");
         }
-        return usuarioId;
+        return userId;
     }
 
-    public static void clearUserId() {
+    // ── Limpieza (llamar en el finally de TenantFilter) ───────
+
+    public static void clear() {
+        log.debug("Limpiando TenantContext: {}", tenantContext.get());
+        tenantContext.remove();
         userIdContext.remove();
     }
 }

@@ -2,6 +2,7 @@ CREATE TABLE productos (
                            id BIGSERIAL PRIMARY KEY,
                            nombre VARCHAR(255) NOT NULL,
                            codigo_barras VARCHAR(100) UNIQUE,
+                           imagen_url TEXT,
                            categoria VARCHAR(100),
                            stock_actual INTEGER DEFAULT 0,
                            stock_minimo INTEGER DEFAULT 10,

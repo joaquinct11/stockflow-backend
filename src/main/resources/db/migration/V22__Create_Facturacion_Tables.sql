@@ -39,6 +39,7 @@ CREATE TABLE comprobantes (
     qr                   TEXT,
     pdf_url              VARCHAR(500),
     xml_url              VARCHAR(500),
+    sunat_mensaje        TEXT,
     created_at           TIMESTAMP      NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMP      NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_comprobante_numero  UNIQUE (tenant_id, tipo, serie, correlativo)

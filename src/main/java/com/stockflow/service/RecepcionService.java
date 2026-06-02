@@ -13,25 +13,25 @@ public interface RecepcionService {
 
     RecepcionResponseDTO crearRecepcion(RecepcionRequestDTO request, Long usuarioReceptorId, String tenantId);
 
-    Optional<RecepcionResponseDTO> obtenerPorId(Long id);
+    Optional<RecepcionResponseDTO> obtenerPorId(Long id, String tenantId);
 
     List<RecepcionResponseDTO> listar(String tenantId);
 
     /** Upsert: creates or updates the detail row for the given producto in the recepcion. */
-    RecepcionDetalleResponseDTO upsertItem(Long recepcionId, RecepcionDetalleRequestDTO request);
+    RecepcionDetalleResponseDTO upsertItem(Long recepcionId, RecepcionDetalleRequestDTO request, String tenantId);
 
     /** Saves supplier voucher data (tipo, serie, numero, url_adjunto) on the recepcion. */
-    RecepcionResponseDTO guardarComprobante(Long recepcionId, ComprobanteProveedorDTO dto);
+    RecepcionResponseDTO guardarComprobante(Long recepcionId, ComprobanteProveedorDTO dto, String tenantId);
 
     /**
      * Confirms the recepcion: validates, generates inventory movements (ENTRADA/COMPRA),
      * and marks the recepcion as CONFIRMADA.  Idempotent: throws if already confirmed.
      */
-    RecepcionResponseDTO confirmar(Long recepcionId, Long usuarioId);
+    RecepcionResponseDTO confirmar(Long recepcionId, Long usuarioId, String tenantId);
 
     /** Anula una recepción en estado BORRADOR. No impacta inventario. */
     void anular(Long id, String tenantId);
 
     /** Elimina un ítem de una recepción en estado BORRADOR. */
-    void removeItem(Long recepcionId, Long itemId);
+    void removeItem(Long recepcionId, Long itemId, String tenantId);
 }

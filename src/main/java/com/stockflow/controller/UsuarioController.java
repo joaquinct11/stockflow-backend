@@ -5,8 +5,11 @@ import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.dto.UsuarioUpdateDTO;
 import com.stockflow.entity.Rol;
 import com.stockflow.entity.Usuario;
+import com.stockflow.exception.BadRequestException;
 import com.stockflow.mapper.UsuarioMapper;
 import com.stockflow.repository.RolRepository;
+import com.stockflow.service.EmailService;
+import com.stockflow.service.PlanLimitService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import jakarta.validation.Valid;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -29,6 +33,8 @@ public class UsuarioController {
     private final UsuarioService usuarioService;
     private final UsuarioMapper usuarioMapper;
     private final RolRepository rolRepository;
+    private final PlanLimitService planLimitService;
+    private final EmailService emailService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene usuarios del tenant actual
@@ -47,7 +53,9 @@ public class UsuarioController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_USUARIOS')")
     public ResponseEntity<UsuarioDTO> obtenerPorId(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         return usuarioService.obtenerUsuarioPorId(id)
+                .filter(u -> tenantId.equals(u.getTenantId()))
                 .map(usuarioMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -56,7 +64,9 @@ public class UsuarioController {
     @GetMapping("/email/{email}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_USUARIOS')")
     public ResponseEntity<UsuarioDTO> obtenerPorEmail(@PathVariable String email) {
+        String tenantId = TenantContext.getCurrentTenant();
         return usuarioService.obtenerUsuarioPorEmail(email)
+                .filter(u -> tenantId.equals(u.getTenantId()))
                 .map(usuarioMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -68,40 +78,46 @@ public class UsuarioController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_USUARIO')")
     public ResponseEntity<UsuarioDTO> crear(@Valid @RequestBody UsuarioDTO usuarioDTO) {
-        try {
-            String tenantId = TenantContext.getCurrentTenant();
-            log.info("📝 Creando nuevo usuario: {} para tenant: {}", usuarioDTO.getEmail(), tenantId);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📝 Creando nuevo usuario: {} para tenant: {}", usuarioDTO.getEmail(), tenantId);
 
-            // Buscar el rol
-            Rol rol = rolRepository.findByNombre(usuarioDTO.getRolNombre())
-                    .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + usuarioDTO.getRolNombre()));
+        // ── Validaciones de plan ────────────────────────────────────────────
+        planLimitService.validarLimiteUsuarios(tenantId);
+        planLimitService.validarRolPermitido(tenantId, usuarioDTO.getRolNombre());
 
-            // Convertir DTO a Entity
-            Usuario usuario = usuarioMapper.toEntity(usuarioDTO);
-            usuario.setRol(rol);
-            usuario.setContraseña(usuarioDTO.getContraseña());
-            usuario.setTenantId(tenantId);  // ✅ Setear tenantId automáticamente
-            usuario.setCreatedAt(LocalDateTime.now());
+        // Buscar el rol
+        Rol rol = rolRepository.findByNombre(usuarioDTO.getRolNombre())
+                .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + usuarioDTO.getRolNombre()));
 
-            // Datos de identidad y contacto (explícito por si MapStruct no los auto-mapea)
-            if (usuarioDTO.getTipoDocumento() != null && !usuarioDTO.getTipoDocumento().isBlank())
-                usuario.setTipoDocumento(usuarioDTO.getTipoDocumento());
-            if (usuarioDTO.getNumeroDocumento() != null && !usuarioDTO.getNumeroDocumento().isBlank())
-                usuario.setNumeroDocumento(usuarioDTO.getNumeroDocumento());
-            if (usuarioDTO.getNumeroCelular() != null && !usuarioDTO.getNumeroCelular().isBlank())
-                usuario.setNumeroCelular(usuarioDTO.getNumeroCelular());
+        // Convertir DTO a Entity
+        Usuario usuario = usuarioMapper.toEntity(usuarioDTO);
+        usuario.setRol(rol);
+        // Generar contraseña temporal aleatoria — el usuario la reemplazará al activar su cuenta
+        usuario.setContraseña(UUID.randomUUID().toString());
+        usuario.setTenantId(tenantId);
+        usuario.setCreatedAt(LocalDateTime.now());
 
-            // Guardar en BD
-            Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
+        if (usuarioDTO.getTipoDocumento() != null && !usuarioDTO.getTipoDocumento().isBlank())
+            usuario.setTipoDocumento(usuarioDTO.getTipoDocumento());
+        if (usuarioDTO.getNumeroDocumento() != null && !usuarioDTO.getNumeroDocumento().isBlank())
+            usuario.setNumeroDocumento(usuarioDTO.getNumeroDocumento());
+        if (usuarioDTO.getNumeroCelular() != null && !usuarioDTO.getNumeroCelular().isBlank())
+            usuario.setNumeroCelular(usuarioDTO.getNumeroCelular());
 
-            log.info("✅ Usuario creado exitosamente: {}", usuarioCreado.getEmail());
+        Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
 
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(usuarioMapper.toDTO(usuarioCreado));
-        } catch (RuntimeException e) {
-            log.error("❌ Error al crear usuario: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
-        }
+        // Generar token de activación (48h) y enviar email de bienvenida
+        String activationToken = UUID.randomUUID().toString();
+        usuarioCreado.setTokenActivacion(activationToken);
+        usuarioCreado.setTokenActivacionExpira(LocalDateTime.now().plusHours(48));
+        usuarioService.guardarUsuario(usuarioCreado);
+
+        emailService.enviarBienvenidaUsuarioNuevo(
+                usuarioCreado.getEmail(), usuarioCreado.getNombre(), tenantId, activationToken);
+
+        log.info("✅ Usuario creado y email de activación enviado: {}", usuarioCreado.getEmail());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioMapper.toDTO(usuarioCreado));
     }
 
     @PutMapping("/{id}")
@@ -109,42 +125,36 @@ public class UsuarioController {
     public ResponseEntity<UsuarioDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody UsuarioUpdateDTO updateDTO) {
-        try {
-            log.info("📝 Actualizando usuario ID: {}", id);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📝 Actualizando usuario ID: {}", id);
 
-            return usuarioService.obtenerUsuarioPorId(id)
-                    .map(usuario -> {
-                        // Actualizar campos básicos
-                        usuario.setNombre(updateDTO.getNombre());
-                        usuario.setActivo(updateDTO.getActivo());
+        // ── Validar rol permitido por plan ──────────────────────────────────
+        planLimitService.validarRolPermitido(tenantId, updateDTO.getRolNombre());
 
-                        // Datos de identidad y contacto (opcionales)
-                        if (updateDTO.getTipoDocumento() != null)
-                            usuario.setTipoDocumento(updateDTO.getTipoDocumento());
-                        if (updateDTO.getNumeroDocumento() != null)
-                            usuario.setNumeroDocumento(updateDTO.getNumeroDocumento());
-                        if (updateDTO.getNumeroCelular() != null)
-                            usuario.setNumeroCelular(updateDTO.getNumeroCelular());
+        return usuarioService.obtenerUsuarioPorId(id)
+                .map(usuario -> {
+                    usuario.setNombre(updateDTO.getNombre());
+                    usuario.setActivo(updateDTO.getActivo());
 
-                        // Actualizar rol
-                        Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())
-                                .orElseThrow(() -> new RuntimeException("Rol no encontrado: " + updateDTO.getRolNombre()));
-                        usuario.setRol(rol);
+                    if (updateDTO.getTipoDocumento() != null)
+                        usuario.setTipoDocumento(updateDTO.getTipoDocumento());
+                    if (updateDTO.getNumeroDocumento() != null)
+                        usuario.setNumeroDocumento(updateDTO.getNumeroDocumento());
+                    if (updateDTO.getNumeroCelular() != null)
+                        usuario.setNumeroCelular(updateDTO.getNumeroCelular());
 
-                        Usuario usuarioActualizado = usuarioService.actualizarUsuario(id, usuario);
+                    Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())
+                            .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + updateDTO.getRolNombre()));
+                    usuario.setRol(rol);
 
-                        log.info("✅ Usuario actualizado exitosamente");
-
-                        return ResponseEntity.ok(usuarioMapper.toDTO(usuarioActualizado));
-                    })
-                    .orElseGet(() -> {
-                        log.error("❌ Usuario no encontrado: ID {}", id);
-                        return ResponseEntity.notFound().build();
-                    });
-        } catch (RuntimeException e) {
-            log.error("❌ Error al actualizar: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
-        }
+                    Usuario usuarioActualizado = usuarioService.actualizarUsuario(id, usuario);
+                    log.info("✅ Usuario actualizado exitosamente");
+                    return ResponseEntity.ok(usuarioMapper.toDTO(usuarioActualizado));
+                })
+                .orElseGet(() -> {
+                    log.error("❌ Usuario no encontrado: ID {}", id);
+                    return ResponseEntity.notFound().build();
+                });
     }
 
     @PatchMapping("/{id}/desactivar")
@@ -160,6 +170,18 @@ public class UsuarioController {
     public ResponseEntity<Void> activar(@PathVariable Long id) {
         log.info("✅ Activando usuario ID: {}", id);
         usuarioService.activarUsuario(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Reenvía el email de activación al usuario (útil cuando el link original de 48h expiró).
+     */
+    @PostMapping("/{id}/reenviar-activacion")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> reenviarActivacion(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📧 Reenviando link de activación para usuario ID: {} (tenant: {})", id, tenantId);
+        usuarioService.reenviarActivacion(id, tenantId);
         return ResponseEntity.noContent().build();
     }
 

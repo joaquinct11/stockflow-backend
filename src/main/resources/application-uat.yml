@@ -1,17 +1,10 @@
 # ============================================================
-# PERFIL UAT — FLUXUS BACKEND
-# Variables de entorno requeridas en Render:
-#   SPRING_DATASOURCE_URL, DB_USERNAME, DB_PASSWORD
-#   JWT_SECRET
-#   FRONTEND_URL         → https://fluxus-uat.vercel.app
-#   RESEND_API_KEY
-#   RESEND_FROM_EMAIL    → onboarding@resend.dev (sin dominio)
-#   MERCADOPAGO_ACCESS_TOKEN, MERCADOPAGO_WEBHOOK_SECRET
-#   MERCADOPAGO_NOTIFICATION_URL, MERCADOPAGO_SUCCESS_URL
-#   MERCADOPAGO_FAILURE_URL, MERCADOPAGO_PENDING_URL
+# PERFIL UAT
+# Variables de entorno requeridas:
+#   DATABASE_URL, DB_USERNAME, DB_PASSWORD
+#   FRONTEND_URL
 # ============================================================
 
-# ── Base de datos ─────────────────────────────────────────────
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
@@ -26,24 +19,16 @@ spring:
       max-lifetime: 1800000
 
   jpa:
-    show-sql: false
     hibernate:
-      ddl-auto: validate   # NUNCA update en entornos desplegados
+      ddl-auto: validate
 
   flyway:
-    enabled: true
-    clean-disabled: true   # No permitir limpiar en UAT
+    clean-disabled: true
 
-# ── JWT ──────────────────────────────────────────────────────
-jwt:
-  secret: ${JWT_SECRET}
-
-# ── CORS ─────────────────────────────────────────────────────
 cors:
   allowed-origins:
-    - ${FRONTEND_URL:https://fluxus-uat.vercel.app}
+    - ${FRONTEND_URL}
 
-# ── Servidor ─────────────────────────────────────────────────
 server:
   port: ${PORT:8080}
   error:
@@ -53,39 +38,14 @@ server:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/plain
 
-# ── Logging ──────────────────────────────────────────────────
-logging:
-  level:
-    root: INFO
-    com.stockflow: DEBUG
-    org.springframework.web: INFO
-    org.springframework.security: INFO
-  file:
-    name: logs/fluxus-uat.log
-    max-size: 50MB
-    max-history: 14
-
-# ── Actuator ─────────────────────────────────────────────────
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics
   endpoint:
     health:
       show-details: when-authorized
 
-# ── App ──────────────────────────────────────────────────────
 app:
-  frontend-url: ${FRONTEND_URL:https://fluxus-uat.vercel.app}
+  frontend-url: ${FRONTEND_URL}
 
-# ── Email — Resend ────────────────────────────────────────────
-resend:
-  api-key:    ${RESEND_API_KEY}
-  from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
-  from-name:  ${RESEND_FROM_NAME:Fluxus}
-
-# ── Swagger/OpenAPI ───────────────────────────────────────────
 springdoc:
   api-docs:
     path: /api-docs

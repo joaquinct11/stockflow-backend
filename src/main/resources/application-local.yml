@@ -1,4 +1,0 @@
-mercadopago:
-  success-url: http://localhost:5173/checkout/success
-  failure-url: http://localhost:5173/checkout/failure
-  pending-url: http://localhost:5173/checkout/pending

@@ -18,8 +18,6 @@ public class ProductoImportRowDTO {
     /** Opcional — si existe en BD se actualiza; si no, se crea */
     private String codigoBarras;
 
-    private String categoria;
-
     /** Requerido */
     private BigDecimal precioVenta;
 
@@ -37,4 +35,7 @@ public class ProductoImportRowDTO {
 
     /** Nombre de la unidad de medida (ej. "Unidad", "Caja", "Kg") */
     private String unidadMedida;
+
+    /** Nombre de la categoría (ej. "Medicamentos", "Limpieza") */
+    private String categoria;
 }

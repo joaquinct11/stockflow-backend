@@ -33,4 +33,14 @@ public class TenantConfigDTO {
 
     private String serieBoleta;
     private String serieFactura;
+
+    /** URL base del OSE (Nubefact / Efact / etc) configurada por el tenant. */
+    private String oseUrl;
+
+    /**
+     * Token API del OSE.
+     * Se devuelve enmascarado en GET para no exponer el valor completo;
+     * se acepta el token completo en PUT para actualizarlo.
+     */
+    private String oseToken;
 }

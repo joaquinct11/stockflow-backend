@@ -1,5 +1,10 @@
 package com.stockflow.service;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
+
 public interface EmailService {
 
     /** Recuperación de contraseña — link expira en 1 hora */
@@ -17,4 +22,48 @@ public interface EmailService {
      * Si el proveedor no tiene email configurado, se omite silenciosamente.
      */
     void enviarOCAlProveedor(Long ocId, String tenantId);
+
+    /**
+     * Bienvenida a usuario nuevo creado por el admin.
+     * Contiene link de activación para que el usuario establezca su propia contraseña.
+     * El link expira en 48 horas.
+     */
+    void enviarBienvenidaUsuarioNuevo(String email, String nombre, String tenantId, String token);
+
+    /**
+     * Resumen de cierre de caja enviado a ADMIN y GERENTE del tenant.
+     */
+    void enviarResumenCierreCaja(String email, String empresaNombre, String usuarioCierre,
+                                  BigDecimal montoApertura, BigDecimal totalEfectivo,
+                                  BigDecimal totalTarjeta, BigDecimal totalYapePlin,
+                                  BigDecimal totalIngresos, BigDecimal montoContado,
+                                  BigDecimal diferencia, Integer cantidadVentas,
+                                  BigDecimal totalRetiros, Integer cantidadRetiros);
+
+    /**
+     * Notificación de cambio de estado de suscripción.
+     * estados relevantes: ACTIVA (approved), SUSPENDIDA (rejected), CANCELADA (cancelled).
+     */
+    void enviarEmailSuscripcion(String email, String nombre, String estado, String planId);
+
+    /**
+     * Aviso proactivo de trial por vencer (7, 3 y 1 día antes).
+     * Se dispara desde el scheduler, no desde un evento de MP.
+     */
+    void enviarEmailTrialPorVencer(String email, String nombre, int diasRestantes, LocalDate fechaVencimiento);
+
+    /**
+     * Confirmación de seguridad tras un cambio de contraseña exitoso.
+     * Si el usuario no lo solicitó, puede contactar soporte.
+     */
+    void enviarConfirmacionCambioContraseña(String email, String nombre);
+
+    /**
+     * Envía la reclamación al correo de contacto de Fluxus y
+     * un acuse de recibo al consumidor.
+     */
+    void enviarReclamacion(String tipo, String nombre, String apellido,
+                           String dni, String correoConsumidor, String telefono,
+                           String pedido, String monto, String descripcion,
+                           List<MultipartFile> archivos);
 }

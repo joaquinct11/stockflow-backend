@@ -32,6 +32,8 @@ public class ComprobanteDTO {
     private String receptorNombre;
     private String receptorDireccion;
     private String sunatEstado;
+    /** Mensaje descriptivo de SUNAT/Nubefact tras el envío. */
+    private String sunatMensaje;
     private String sunatTicket;
     private String hash;
     private String qr;

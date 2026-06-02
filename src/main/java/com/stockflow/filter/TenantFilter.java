@@ -39,7 +39,7 @@ public class TenantFilter implements Filter {
             String token = authHeader.substring(7);
             try {
                 // Extraer tenantId del JWT
-                String tenantId = jwtUtil.extractTenantId(token);
+                String tenantId = jwtUtil.getTenantIdFromToken(token);
 
                 if (tenantId != null && !tenantId.isEmpty()) {
                     TenantContext.setCurrentTenant(tenantId);
@@ -69,7 +69,6 @@ public class TenantFilter implements Filter {
         return uri.startsWith("/api/auth/login") ||
                 uri.startsWith("/api/auth/register") ||
                 uri.startsWith("/api/auth/registro") ||
-                uri.startsWith("/api/info") ||
                 uri.startsWith("/swagger-ui") ||
                 uri.startsWith("/v3/api-docs") ||
                 uri.startsWith("/actuator");

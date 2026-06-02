@@ -32,7 +32,9 @@ public class RegistrationRequestDTO {
     @Pattern(regexp = "BASICO|PRO", message = "Plan debe ser BASICO o PRO")
     private String planId;
 
-    // Opcionales — datos de identificación del administrador
+    // Opcionales — datos de identificación y contacto del administrador
+    private String apellido;
     private String tipoDocumento;
     private String numeroDocumento;
+    private String numeroCelular;
 }

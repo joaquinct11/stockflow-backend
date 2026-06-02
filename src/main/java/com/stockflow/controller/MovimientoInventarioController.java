@@ -1,10 +1,12 @@
 package com.stockflow.controller;
 
+import com.stockflow.dto.LoteVencimientoDTO;
 import com.stockflow.dto.MovimientoInventarioDTO;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.MovimientoInventarioMapper;
+import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
@@ -19,7 +21,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -27,10 +32,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MovimientoInventarioController {
 
-    private final MovimientoInventarioService movimientoService;
-    private final ProductoService productoService;
-    private final UsuarioService usuarioService;
-    private final MovimientoInventarioMapper movimientoMapper;
+    private final MovimientoInventarioService        movimientoService;
+    private final MovimientoInventarioRepository     movimientoRepository;
+    private final ProductoService                    productoService;
+    private final UsuarioService                     usuarioService;
+    private final MovimientoInventarioMapper         movimientoMapper;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -49,7 +55,9 @@ public class MovimientoInventarioController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_INVENTARIO')")
     public ResponseEntity<MovimientoInventarioDTO> obtenerPorId(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         return movimientoService.obtenerMovimientoPorId(id)
+                .filter(m -> tenantId.equals(m.getTenantId()))
                 .map(movimientoMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -58,7 +66,12 @@ public class MovimientoInventarioController {
     @GetMapping("/producto/{productoId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorProducto(@PathVariable Long productoId) {
-        log.info("📦 Obteniendo movimientos del producto: {}", productoId);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("📦 Obteniendo movimientos del producto: {} para tenant: {}", productoId, tenantId);
+        // Verificar que el producto pertenece al tenant antes de exponer sus movimientos
+        productoService.obtenerProductoPorId(productoId)
+                .filter(p -> tenantId.equals(p.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
         return ResponseEntity.ok(
                 movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorProducto(productoId))
         );
@@ -67,7 +80,12 @@ public class MovimientoInventarioController {
     @GetMapping("/usuario/{usuarioId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorUsuario(@PathVariable Long usuarioId) {
-        log.info("👤 Obteniendo movimientos del usuario: {}", usuarioId);
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("👤 Obteniendo movimientos del usuario: {} para tenant: {}", usuarioId, tenantId);
+        // Verificar que el usuario pertenece al tenant antes de exponer sus movimientos
+        usuarioService.obtenerUsuarioPorId(usuarioId)
+                .filter(u -> tenantId.equals(u.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         return ResponseEntity.ok(
                 movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorUsuario(usuarioId))
         );
@@ -93,12 +111,14 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando movimiento de inventario para tenant: {}", tenantId);
 
-        // Validar producto
+        // Validar producto y que pertenece al tenant
         Producto producto = productoService.obtenerProductoPorId(movimientoDTO.getProductoId())
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
 
-        // Validar usuario
+        // Validar usuario y que pertenece al tenant
         Usuario usuario = usuarioService.obtenerUsuarioPorId(movimientoDTO.getUsuarioId())
+                .filter(u -> tenantId.equals(u.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         // Validar tipo de movimiento
@@ -174,11 +194,43 @@ public class MovimientoInventarioController {
                 .body(movimientoMapper.toDTO(movimientoCreado));
     }
 
+    /**
+     * Devuelve todos los lotes con fecha de vencimiento del tenant,
+     * ordenados de más próximo a vencer al más lejano.
+     * diasRestantes es negativo cuando el lote ya está vencido.
+     */
+    @GetMapping("/lotes")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    public ResponseEntity<List<LoteVencimientoDTO>> getLotes() {
+        String tenantId = TenantContext.getCurrentTenant();
+        LocalDate hoy = LocalDate.now();
+
+        List<LoteVencimientoDTO> lotes = movimientoRepository
+                .findEntradasConVencimientoPorTenant(tenantId)
+                .stream()
+                .map(m -> LoteVencimientoDTO.builder()
+                        .movimientoId(m.getId())
+                        .productoId(m.getProducto().getId())
+                        .productoNombre(m.getProducto().getNombre())
+                        .codigoBarras(m.getProducto().getCodigoBarras())
+                        .lote(m.getLote())
+                        .fechaVencimiento(m.getFechaVencimiento())
+                        .cantidad(m.getCantidad())
+                        .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
+                        .build())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(lotes);
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_INVENTARIO')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("🗑️ Eliminando movimiento ID: {}", id);
-        movimientoService.eliminarMovimiento(id);
+        movimientoService.obtenerMovimientoPorId(id)
+                .filter(m -> tenantId.equals(m.getTenantId()))
+                .ifPresent(m -> movimientoService.eliminarMovimiento(id));
         return ResponseEntity.noContent().build();
     }
 }

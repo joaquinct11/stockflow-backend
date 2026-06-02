@@ -1,18 +1,19 @@
 package com.stockflow.exception;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -20,6 +21,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleResourceNotFound(
             ResourceNotFoundException ex,
             WebRequest request) {
+
+        log.warn("NOT_FOUND [{}] : {}", path(request), ex.getMessage());
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -37,6 +40,8 @@ public class GlobalExceptionHandler {
             BadRequestException ex,
             WebRequest request) {
 
+        log.warn("BAD_REQUEST [{}] : {}", path(request), ex.getMessage());
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -52,6 +57,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnauthorized(
             UnauthorizedException ex,
             WebRequest request) {
+
+        log.warn("UNAUTHORIZED [{}] : {}", path(request), ex.getMessage());
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -69,6 +76,8 @@ public class GlobalExceptionHandler {
             ForbiddenException ex,
             WebRequest request) {
 
+        log.warn("FORBIDDEN [{}] : {}", path(request), ex.getMessage());
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.FORBIDDEN.value())
@@ -85,6 +94,8 @@ public class GlobalExceptionHandler {
             ConflictException ex,
             WebRequest request) {
 
+        log.warn("CONFLICT [{}] : {}", path(request), ex.getMessage());
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.CONFLICT.value())
@@ -100,6 +111,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleValidationExceptions(
             MethodArgumentNotValidException ex,
             WebRequest request) {
+
+        log.warn("VALIDATION_FAILED [{}] : {} campo(s) inválido(s)",
+                path(request), ex.getBindingResult().getErrorCount());
 
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
@@ -122,6 +136,8 @@ public class GlobalExceptionHandler {
             AccessDeniedException ex,
             WebRequest request) {
 
+        log.warn("ACCESS_DENIED [{}] : {}", path(request), ex.getMessage());
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.FORBIDDEN.value())
@@ -137,6 +153,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleSpringAuthentication(
             AuthenticationException ex,
             WebRequest request) {
+
+        log.warn("AUTHENTICATION_FAILED [{}] : {}", path(request), ex.getMessage());
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
@@ -154,14 +172,22 @@ public class GlobalExceptionHandler {
             Exception ex,
             WebRequest request) {
 
+        log.error("INTERNAL_ERROR [{}] : {}", path(request), ex.getMessage(), ex);
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error("Internal Server Error")
-                .mensaje("Ocurrió un error inesperado: " + ex.getMessage())
-                .path(request.getDescription(false).replace("uri=", ""))
+                .mensaje("Ocurrió un error inesperado")
+                .path(path(request))
                 .build();
 
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    private static String path(WebRequest request) {
+        return request.getDescription(false).replace("uri=", "");
     }
 }

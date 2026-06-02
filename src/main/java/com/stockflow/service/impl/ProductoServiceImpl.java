@@ -2,14 +2,17 @@ package com.stockflow.service.impl;
 
 import com.stockflow.dto.ProductoImportResultDTO;
 import com.stockflow.dto.ProductoImportRowDTO;
+import com.stockflow.entity.Categoria;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.UnidadMedida;
 import com.stockflow.entity.Usuario;
+import com.stockflow.repository.CategoriaRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.UnidadMedidaRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.service.PlanLimitService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -31,12 +34,18 @@ public class ProductoServiceImpl implements ProductoService {
     private final MovimientoInventarioRepository movimientoInventarioRepository;
     private final UsuarioRepository usuarioRepository;
     private final UnidadMedidaRepository unidadMedidaRepository;
+    private final CategoriaRepository categoriaRepository;
+    private final PlanLimitService planLimitService;
 
     @Override
+    @Transactional
     public Producto crearProducto(Producto producto) {
+        // ── Validar límite de plan ───────────────────────────────────────────
+        planLimitService.validarLimiteProductos(producto.getTenantId());
+
         Producto productoCreado = productoRepository.save(producto);
 
-        Long userId = TenantContext.getCurrentUserId(); // viene del token
+        Long userId = TenantContext.getCurrentUserId();
         Usuario usuario = usuarioRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
 
@@ -53,7 +62,10 @@ public class ProductoServiceImpl implements ProductoService {
 
         movimientoInventarioRepository.save(mov);
 
-        return productoCreado;
+        // Recargar con JOIN FETCH para que categoriaRef y unidadMedida estén
+        // completamente inicializados en el DTO de respuesta.
+        return productoRepository.findByIdWithJoins(productoCreado.getId())
+                .orElse(productoCreado);
     }
 
     @Override
@@ -67,8 +79,8 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     @Override
-    public List<Producto> buscarProductosPorNombre(String nombre) {
-        return productoRepository.findByNombreContainingIgnoreCase(nombre);
+    public List<Producto> buscarProductosPorNombre(String nombre, String tenantId) {
+        return productoRepository.findByNombreContainingIgnoreCaseAndTenantId(nombre, tenantId);
     }
 
     @Override
@@ -87,12 +99,12 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     @Override
+    @Transactional
     public Producto actualizarProducto(Long id, Producto productoActualizado) {
-        return productoRepository.findById(id)
+        productoRepository.findById(id)
                 .map(producto -> {
                     producto.setNombre(productoActualizado.getNombre());
                     producto.setCodigoBarras(productoActualizado.getCodigoBarras());
-                    producto.setCategoria(productoActualizado.getCategoria());
                     producto.setCategoriaRef(productoActualizado.getCategoriaRef());
                     producto.setCostoUnitario(productoActualizado.getCostoUnitario());
                     producto.setPrecioVenta(productoActualizado.getPrecioVenta());
@@ -101,9 +113,14 @@ public class ProductoServiceImpl implements ProductoService {
                     producto.setStockActual(productoActualizado.getStockActual());
                     producto.setStockMinimo(productoActualizado.getStockMinimo());
                     producto.setStockMaximo(productoActualizado.getStockMaximo());
+                    producto.setImagenUrl(productoActualizado.getImagenUrl());
                     return productoRepository.save(producto);
                 })
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
+
+        // Recargar con JOIN FETCH para devolver categoriaRef y unidadMedida completos.
+        return productoRepository.findByIdWithJoins(id)
+                .orElseThrow(() -> new RuntimeException("Producto no encontrado tras actualizar"));
     }
 
     @Override
@@ -162,6 +179,21 @@ public class ProductoServiceImpl implements ProductoService {
                 continue;
             }
 
+            // ── Resolver categoría ────────────────────────────────────────
+            Categoria categoria = null;
+            if (fila.getCategoria() != null && !fila.getCategoria().isBlank()) {
+                String catNombre = fila.getCategoria().trim();
+                categoria = categoriaRepository
+                        .findByNombreIgnoreCaseAndTenantId(catNombre, tenantId)
+                        .orElseGet(() -> categoriaRepository.save(
+                                Categoria.builder()
+                                        .nombre(catNombre)
+                                        .tenantId(tenantId)
+                                        .activo(true)
+                                        .build()
+                        ));
+            }
+
             // ── Crear o actualizar ────────────────────────────────────────
             try {
                 Optional<Producto> existente = (fila.getCodigoBarras() != null && !fila.getCodigoBarras().isBlank())
@@ -180,13 +212,13 @@ public class ProductoServiceImpl implements ProductoService {
                     BigDecimal costoAnterior = p.getCostoUnitario() != null ? p.getCostoUnitario() : BigDecimal.ZERO;
 
                     p.setNombre(fila.getNombre().trim());
-                    p.setCategoria(fila.getCategoria() != null ? fila.getCategoria().trim() : p.getCategoria());
                     p.setPrecioVenta(fila.getPrecioVenta());
                     if (fila.getCostoUnitario() != null) p.setCostoUnitario(fila.getCostoUnitario());
                     if (fila.getStockActual() != null)   p.setStockActual(fila.getStockActual());
                     if (fila.getStockMinimo() != null)   p.setStockMinimo(fila.getStockMinimo());
                     if (fila.getStockMaximo() != null)   p.setStockMaximo(fila.getStockMaximo());
                     p.setUnidadMedida(unidad);
+                    if (categoria != null) p.setCategoriaRef(categoria);
                     Producto saved = productoRepository.save(p);
 
                     // Registrar ajuste de stock si cambió
@@ -221,13 +253,13 @@ public class ProductoServiceImpl implements ProductoService {
                             .nombre(fila.getNombre().trim())
                             .codigoBarras(fila.getCodigoBarras() != null && !fila.getCodigoBarras().isBlank()
                                     ? fila.getCodigoBarras().trim() : null)
-                            .categoria(fila.getCategoria() != null ? fila.getCategoria().trim() : null)
                             .precioVenta(fila.getPrecioVenta())
                             .costoUnitario(costo)
                             .stockActual(stockInicial)
                             .stockMinimo(fila.getStockMinimo() != null ? fila.getStockMinimo() : 10)
                             .stockMaximo(fila.getStockMaximo() != null ? fila.getStockMaximo() : 500)
                             .unidadMedida(unidad)
+                            .categoriaRef(categoria)
                             .activo(true)
                             .tenantId(tenantId)
                             .build();

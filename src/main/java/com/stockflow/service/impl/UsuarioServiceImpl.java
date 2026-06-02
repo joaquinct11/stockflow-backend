@@ -4,8 +4,11 @@ import com.stockflow.dto.DeleteAccountValidationDTO;
 import com.stockflow.dto.DatosEliminacionDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
+import com.stockflow.exception.BadRequestException;
+import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.service.EmailService;
 import com.stockflow.service.TenantService;
 import com.stockflow.service.UsuarioService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -26,6 +30,7 @@ public class UsuarioServiceImpl implements UsuarioService {
     private final SuscripcionRepository suscripcionRepository;
     private final PasswordEncoder passwordEncoder;
     private final TenantService tenantService;
+    private final EmailService emailService;
 
     @Override
     public Usuario crearUsuario(Usuario usuario) {
@@ -46,11 +51,6 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Override
     public List<Usuario> obtenerUsuariosPorTenant(String tenantId) {
         return usuarioRepository.findByTenantId(tenantId);
-    }
-
-    @Override
-    public List<Usuario> obtenerTodos() {
-        return usuarioRepository.findAll();
     }
 
     @Override
@@ -76,7 +76,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         usuarioRepository.findById(id)
                 .ifPresent(usuario -> {
                     usuario.setActivo(false);
-                    usuario.setDeletedAt(LocalDateTime.now());
                     usuarioRepository.save(usuario);
                     log.info("🔒 Usuario desactivado: {}", usuario.getEmail());
                 });
@@ -87,7 +86,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         Usuario usuario = obtenerUsuarioPorId(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         usuario.setActivo(true);
-        usuario.setDeletedAt(null);
         usuarioRepository.save(usuario);
         log.info("✅ Usuario activado: {}", usuario.getEmail());
     }
@@ -126,9 +124,17 @@ public class UsuarioServiceImpl implements UsuarioService {
         }
     }
 
+    /**
+     * "Eliminar" usuario normal = desactivar (soft-delete).
+     * No borra el registro para preservar historial de ventas, movimientos, etc.
+     */
     @Override
     public void eliminarUsuario(Long id) {
-        usuarioRepository.deleteById(id);
+        usuarioRepository.findById(id).ifPresent(usuario -> {
+            usuario.setActivo(false);
+            usuarioRepository.save(usuario);
+            log.info("🗑️ Usuario soft-deleted (desactivado): {}", usuario.getEmail());
+        });
     }
 
     @Override
@@ -157,5 +163,29 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Override
     public Usuario guardarUsuario(Usuario usuario) {
         return usuarioRepository.save(usuario);
+    }
+
+    @Override
+    @Transactional
+    public void reenviarActivacion(Long usuarioId, String tenantId) {
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        // Solo re-enviar si el usuario aún no se ha activado (tiene token pendiente o expirado)
+        // Si el usuario ya inició sesión con éxito (token limpiado), no tiene sentido
+        // pero lo permitimos para que el admin pueda reenviar ante cualquier duda
+        if (!usuario.getTenantId().equals(tenantId)) {
+            throw new BadRequestException("No autorizado para gestionar este usuario");
+        }
+
+        String nuevoToken = UUID.randomUUID().toString();
+        usuario.setTokenActivacion(nuevoToken);
+        usuario.setTokenActivacionExpira(LocalDateTime.now().plusHours(48));
+        usuarioRepository.save(usuario);
+
+        emailService.enviarBienvenidaUsuarioNuevo(
+                usuario.getEmail(), usuario.getNombre(), tenantId, nuevoToken);
+
+        log.info("📧 Link de activación reenviado a: {}", usuario.getEmail());
     }
 }

@@ -23,10 +23,6 @@ public class ProductoDTO {
 
     private String codigoBarras;
 
-    /** @deprecated Usar categoriaId en su lugar. Mantenido para backward compat con datos viejos. */
-    @Deprecated
-    private String categoria;
-
     private Long categoriaId;
 
     /** Solo lectura — nombre de la categoría para mostrar en frontend. */
@@ -52,6 +48,9 @@ public class ProductoDTO {
     private Long unidadMedidaId;
 
     private Boolean activo;
+
+    /** URL de imagen del producto (opcional). */
+    private String imagenUrl;
 
     private String tenantId;
 }

@@ -42,7 +42,9 @@ public class ProductoController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<ProductoDTO> obtenerPorId(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         return productoService.obtenerProductoPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -60,8 +62,9 @@ public class ProductoController {
     @GetMapping("/buscar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<List<ProductoDTO>> buscarPorNombre(@RequestParam String nombre) {
+        String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(
-                productoMapper.toDTOList(productoService.buscarProductosPorNombre(nombre))
+                productoMapper.toDTOList(productoService.buscarProductosPorNombre(nombre, tenantId))
         );
     }
 
@@ -81,11 +84,14 @@ public class ProductoController {
     public ResponseEntity<ProductoDTO> crear(@Valid @RequestBody ProductoDTO productoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando producto para tenant: {}", tenantId);
+        log.info("🖼️ imagenUrl recibida en crear: {}", productoDTO.getImagenUrl() != null
+                ? "SÍ (" + productoDTO.getImagenUrl().length() + " chars)" : "NO");
 
-        // Setear tenantId del contexto
         productoDTO.setTenantId(tenantId);
 
         Producto producto = productoMapper.toEntity(productoDTO);
+        // Asegurar que imagenUrl se persiste (por si el mapper compilado es anterior)
+        producto.setImagenUrl(productoDTO.getImagenUrl());
         Producto productoCreado = productoService.crearProducto(producto);
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -97,11 +103,17 @@ public class ProductoController {
     public ResponseEntity<ProductoDTO> actualizar(
             @PathVariable Long id,
             @Valid @RequestBody ProductoDTO productoDTO) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("✏️ Actualizando producto ID: {}", id);
+        log.info("🖼️ imagenUrl recibida en actualizar: {}", productoDTO.getImagenUrl() != null
+                ? "SÍ (" + productoDTO.getImagenUrl().length() + " chars)" : "NO");
 
         return productoService.obtenerProductoPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoExistente -> {
                     productoMapper.updateEntityFromDTO(productoDTO, productoExistente);
+                    // Asegurar que imagenUrl se persiste (por si el mapper compilado es anterior)
+                    productoExistente.setImagenUrl(productoDTO.getImagenUrl());
                     Producto productoActualizado = productoService.actualizarProducto(id, productoExistente);
                     return ResponseEntity.ok(productoMapper.toDTO(productoActualizado));
                 })
@@ -111,7 +123,13 @@ public class ProductoController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ELIMINAR_PRODUCTO')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
         log.info("🗑️ Eliminando producto ID: {}", id);
+        // Verificar que el producto pertenezca al tenant antes de eliminar
+        boolean pertenece = productoService.obtenerProductoPorId(id)
+                .map(p -> tenantId.equals(p.getTenantId()))
+                .orElse(false);
+        if (!pertenece) return ResponseEntity.notFound().build();
         productoService.eliminarProducto(id);
         return ResponseEntity.noContent().build();
     }

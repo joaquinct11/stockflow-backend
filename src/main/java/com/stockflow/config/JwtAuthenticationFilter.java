@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.MDC;
 
 @Slf4j
 @Component
@@ -48,6 +49,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtUtil.isTokenExpired(token)) {
                     request.setAttribute("jwt_error", "Token JWT expirado");
                     log.warn("⏰ Token expirado detectado");
+                } else if ("refresh".equals(jwtUtil.getTypeFromToken(token))) {
+                    request.setAttribute("jwt_error", "Refresh token no válido para autenticación");
+                    log.warn("🚫 Intento de usar refresh token como access token rechazado");
                 } else if (jwtUtil.validateToken(token)) {
                     // ✅ Token válido y no expirado
                     String email = jwtUtil.getEmailFromToken(token);
@@ -58,6 +62,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // Establecer TenantContext
                     TenantContext.setCurrentUserId(usuarioId);
                     TenantContext.setCurrentTenant(tenantId);
+
+                    // Enriquecer MDC para trazabilidad en logs
+                    MDC.put("tenantId", tenantId);
+                    MDC.put("userId",   String.valueOf(usuarioId));
 
                     // Construir authorities: rol + permisos base del rol + permisos directos del usuario
                     Set<SimpleGrantedAuthority> authoritySet = new LinkedHashSet<>();

@@ -15,8 +15,6 @@ public interface UsuarioService {
 
     List<Usuario> obtenerUsuariosPorTenant(String tenantId);
 
-    List<Usuario> obtenerTodos();
-
     Usuario actualizarUsuario(Long id, Usuario usuarioActualizado);
 
     void desactivarUsuario(Long id);
@@ -34,4 +32,10 @@ public interface UsuarioService {
      * tipo_documento / numero_documento sin pasar por el flujo de actualización completa).
      */
     Usuario guardarUsuario(Usuario usuario);
+
+    /**
+     * Regenera el token de activación y reenvía el email de bienvenida.
+     * Útil cuando el link original de 48h ya expiró.
+     */
+    void reenviarActivacion(Long usuarioId, String tenantId);
 }

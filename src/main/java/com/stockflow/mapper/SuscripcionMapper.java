@@ -16,7 +16,6 @@ public interface SuscripcionMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "usuarioPrincipal", ignore = true)
     @Mapping(target = "fechaInicio", expression = "java(java.time.LocalDateTime.now())")
-    @Mapping(target = "intentosFallidos", defaultValue = "0")
     Suscripcion toEntity(SuscripcionDTO dto);
 
     List<SuscripcionDTO> toDTOList(List<Suscripcion> suscripciones);

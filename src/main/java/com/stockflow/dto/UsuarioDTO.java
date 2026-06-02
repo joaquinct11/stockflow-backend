@@ -21,8 +21,7 @@ public class UsuarioDTO {
     @Email(message = "El email debe ser válido")
     private String email;
 
-    @NotBlank(message = "La contraseña es requerida")
-    @Size(min = 6, message = "La contraseña debe tener al menos 6 caracteres")
+    /** No requerida al crear desde el admin — el sistema genera contraseña temporal y envía link de activación. */
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String contraseña;
 

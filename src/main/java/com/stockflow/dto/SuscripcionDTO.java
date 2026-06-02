@@ -1,7 +1,5 @@
 package com.stockflow.dto;
 
-import jakarta.persistence.Column;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -26,23 +24,15 @@ public class SuscripcionDTO {
     private String planId;
 
     @NotNull(message = "El precio mensual es requerido")
-//    @DecimalMin(value = "0.01", message = "El precio debe ser mayor a 0")
     private BigDecimal precioMensual;
 
     private String preapprovalId;
-
-    @Column(name = "intentos_fallidos")
-    private Integer intentosFallidos = 0;
 
     private String estado;
 
     private String metodoPago;
 
     private String ultimos4Digitos;
-
-    private String mpPreferenceId;
-
-    private String mpPaymentId;
 
     private LocalDateTime currentPeriodStart;
 
@@ -51,6 +41,4 @@ public class SuscripcionDTO {
     private String tenantId;
 
     private LocalDateTime trialEndDate;
-
-    private Boolean enPeriodoPrueba;
 }

@@ -103,15 +103,16 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
 
     // ── Ventas por categoría (nativeQuery para NULLIF/TRIM) ──
 
-    @Query(value = "SELECT COALESCE(NULLIF(TRIM(p.categoria), ''), 'Sin categoría') AS cat, " +
+    @Query(value = "SELECT COALESCE(c.nombre, 'Sin categoría') AS cat, " +
                    "SUM(dv.cantidad) AS unidades, " +
                    "SUM(dv.subtotal) AS ingresos_total, " +
                    "COUNT(DISTINCT dv.venta_id) AS ventas_count " +
                    "FROM detalles_venta dv " +
                    "JOIN ventas v ON v.id = dv.venta_id " +
                    "JOIN productos p ON p.id = dv.producto_id " +
+                   "LEFT JOIN categorias c ON c.id = p.categoria_id " +
                    "WHERE v.tenant_id = ?1 AND v.created_at BETWEEN ?2 AND ?3 " +
-                   "GROUP BY COALESCE(NULLIF(TRIM(p.categoria), ''), 'Sin categoría') " +
+                   "GROUP BY COALESCE(c.nombre, 'Sin categoría') " +
                    "ORDER BY SUM(dv.subtotal) DESC",
            nativeQuery = true)
     List<Object[]> findVentasPorCategoria(String tenantId, LocalDateTime inicio, LocalDateTime fin);
@@ -168,4 +169,16 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     );
 
     List<Venta> findByCajaIdAndTenantId(Long cajaId, String tenantId);
+
+    // ── Top clientes por monto comprado ──
+
+    @Query(value = "SELECT v.cliente_id, c.nombre, COUNT(v.id), SUM(v.total), MAX(v.created_at) " +
+                   "FROM ventas v " +
+                   "JOIN clientes c ON c.id = v.cliente_id " +
+                   "WHERE v.tenant_id = ?1 AND v.created_at BETWEEN ?2 AND ?3 " +
+                   "  AND v.cliente_id IS NOT NULL " +
+                   "GROUP BY v.cliente_id, c.nombre " +
+                   "ORDER BY SUM(v.total) DESC",
+           nativeQuery = true)
+    List<Object[]> findTopClientesPorGasto(String tenantId, LocalDateTime inicio, LocalDateTime fin);
 }
