@@ -26,8 +26,11 @@ public class UsuarioDTO {
     private String contraseña;
 
     @NotBlank(message = "El nombre es requerido")
-    @Size(min = 3, max = 150, message = "El nombre debe tener entre 3 y 150 caracteres")
+    @Size(min = 2, max = 80, message = "El nombre debe tener entre 2 y 80 caracteres")
     private String nombre;
+
+    @Size(max = 150, message = "El apellido no puede superar 150 caracteres")
+    private String apellido;
 
     @NotBlank(message = "El rol es requerido")
     private String rolNombre;
