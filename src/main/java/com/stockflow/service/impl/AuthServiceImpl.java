@@ -310,6 +310,7 @@ public class AuthServiceImpl implements AuthService {
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
                 .nombre(usuario.getNombre())
+                .apellido(usuario.getApellido())
                 .rol(usuario.getRol().getNombre())
                 .tenantId(usuario.getTenantId())
                 .ultimoLogin(usuario.getUltimoLogin())

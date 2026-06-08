@@ -134,6 +134,7 @@ public class UsuarioController {
         return usuarioService.obtenerUsuarioPorId(id)
                 .map(usuario -> {
                     usuario.setNombre(updateDTO.getNombre());
+                    if (updateDTO.getApellido() != null) usuario.setApellido(updateDTO.getApellido());
                     usuario.setActivo(updateDTO.getActivo());
 
                     if (updateDTO.getTipoDocumento() != null)
