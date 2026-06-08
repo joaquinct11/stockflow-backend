@@ -16,6 +16,7 @@ public class UsuarioProfileDTO {
     private Long usuarioId;
     private String email;
     private String nombre;
+    private String apellido;
     private String rol;
     private String tenantId;
     private LocalDateTime createdAt;
