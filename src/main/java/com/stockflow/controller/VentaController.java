@@ -265,7 +265,7 @@ public class VentaController {
     }
 
     @PatchMapping("/{id}/anular")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_ELIMINAR_VENTA')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_ANULAR_VENTA') or hasAuthority('PERM_ELIMINAR_VENTA')")
     @Transactional
     public ResponseEntity<VentaDTO> anular(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();

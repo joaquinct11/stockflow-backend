@@ -108,6 +108,27 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("tenantId") String tenantId
     );
 
+    // ── Próxima fecha de vencimiento por producto (para POS y catálogo) ──────
+
+    /**
+     * Devuelve (productoId, MIN(fechaVencimiento)) para todos los lotes futuros activos.
+     * Una sola query para enriquecer la lista de productos sin N+1.
+     */
+    @Query("""
+            SELECT m.producto.id, MIN(m.fechaVencimiento)
+            FROM MovimientoInventario m
+            WHERE m.tenantId = :tenantId
+              AND m.tipo IN ('ENTRADA', 'SALDO_INICIAL')
+              AND m.fechaVencimiento IS NOT NULL
+              AND m.fechaVencimiento >= :hoy
+              AND m.producto.activo = true
+            GROUP BY m.producto.id
+            """)
+    List<Object[]> findProximaFechaVencimientoPorProducto(
+            @Param("tenantId") String tenantId,
+            @Param("hoy")      LocalDate hoy
+    );
+
     // ── Salidas por producto en rango (para cálculo de cobertura) ──
 
     @Query("SELECT m.producto.id, m.producto.nombre, m.producto.stockActual, SUM(m.cantidad) " +

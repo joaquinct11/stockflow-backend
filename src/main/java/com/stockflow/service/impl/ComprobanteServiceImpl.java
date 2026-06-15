@@ -9,7 +9,7 @@ import com.stockflow.entity.Venta;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.ResourceNotFoundException;
-import com.stockflow.dto.NubefactComprobanteResponse;
+import com.stockflow.dto.ApiSunatComprobanteResponse;
 import com.stockflow.entity.Tenant;
 import com.stockflow.repository.ComprobanteRepository;
 import com.stockflow.repository.ComprobanteSerieRepository;
@@ -37,7 +37,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
     private final ComprobanteSerieRepository comprobanteSerieRepository;
     private final VentaRepository            ventaRepository;
     private final TenantRepository           tenantRepository;
-    private final NubefactService            nubefactService;
+    private final ApiSunatService            apiSunatService;
 
     @Override
     @Transactional
@@ -196,10 +196,8 @@ public class ComprobanteServiceImpl implements ComprobanteService {
         comprobanteRepository.save(comprobante);
 
         try {
-            NubefactComprobanteResponse resp = nubefactService.enviar(comprobante, tenant);
+            ApiSunatComprobanteResponse resp = apiSunatService.enviar(comprobante, tenant);
 
-            // ACEPTADO → SUNAT confirmó; PENDIENTE → en Nubefact pero SUNAT aún no responde
-            // (incluye: error 23 / ya existía, respuesta con ticket/links pero sin aceptación explícita)
             String nuevoEstado;
             if (resp.fueAceptado()) {
                 nuevoEstado = "ACEPTADO";
@@ -210,10 +208,10 @@ public class ComprobanteServiceImpl implements ComprobanteService {
             }
             comprobante.setSunatEstado(nuevoEstado);
             comprobante.setSunatMensaje(resp.resumen());
-            if (resp.getEnlaceDelPdf()  != null) comprobante.setPdfUrl(resp.getEnlaceDelPdf());
-            if (resp.getEnlaceDelXml()  != null) comprobante.setXmlUrl(resp.getEnlaceDelXml());
+            if (resp.getEnlaceDelPdf()       != null) comprobante.setPdfUrl(resp.getEnlaceDelPdf());
+            if (resp.getEnlaceDelXml()       != null) comprobante.setXmlUrl(resp.getEnlaceDelXml());
             if (resp.getCadenaParaCodigoQr() != null) comprobante.setQr(resp.getCadenaParaCodigoQr());
-            if (resp.getNumeroTicket()  != null) comprobante.setSunatTicket(resp.getNumeroTicket());
+            if (resp.getNumeroTicket()       != null) comprobante.setSunatTicket(resp.getNumeroTicket());
 
             log.info("🏛️ SUNAT {} para {}: {}",
                     comprobante.getSunatEstado(), comprobante.getNumero(), resp.resumen());

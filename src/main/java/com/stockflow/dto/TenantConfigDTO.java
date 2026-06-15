@@ -43,4 +43,7 @@ public class TenantConfigDTO {
      * se acepta el token completo en PUT para actualizarlo.
      */
     private String oseToken;
+
+    /** Rubro del negocio. Posibles valores: BOTICA, FARMACIA, MINIMARKET, FERRETERIA, RESTAURANTE, TIENDA, OTRO */
+    private String rubro;
 }

@@ -5,6 +5,7 @@ import com.stockflow.dto.ProductoImportResultDTO;
 import com.stockflow.dto.ProductoImportRowDTO;
 import com.stockflow.entity.Producto;
 import com.stockflow.mapper.ProductoMapper;
+import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.service.ProductoService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -24,6 +28,7 @@ public class ProductoController {
 
     private final ProductoService productoService;
     private final ProductoMapper productoMapper;
+    private final MovimientoInventarioRepository movimientoRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene productos del tenant actual automáticamente
@@ -34,9 +39,22 @@ public class ProductoController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Obteniendo productos para tenant: {}", tenantId);
 
-        return ResponseEntity.ok(
-                productoMapper.toDTOList(productoService.obtenerProductosPorTenant(tenantId))
-        );
+        List<ProductoDTO> dtos = productoMapper.toDTOList(
+                productoService.obtenerProductosPorTenant(tenantId));
+
+        // Enriquecer con la próxima fecha de vencimiento de cada lote (1 query extra)
+        Map<Long, LocalDate> vencMap = movimientoRepository
+                .findProximaFechaVencimientoPorProducto(tenantId, LocalDate.now())
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (LocalDate) row[1]
+                ));
+        dtos.forEach(dto -> {
+            if (dto.getId() != null) dto.setProximaFechaVencimiento(vencMap.get(dto.getId()));
+        });
+
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{id}")

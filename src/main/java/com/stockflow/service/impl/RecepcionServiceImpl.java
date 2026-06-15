@@ -187,6 +187,7 @@ public class RecepcionServiceImpl implements RecepcionService {
         detalle.setCantidadRecibida(request.getCantidadRecibida());
         detalle.setFechaVencimiento(request.getFechaVencimiento());
         detalle.setLote(request.getLote());
+        detalle.setRegistroSanitario(request.getRegistroSanitario());
         RecepcionDetalle saved = detalleRepository.save(detalle);
 
         return toDetalleResponseDTO(saved);
@@ -270,6 +271,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                     .proveedorId(recepcion.getProveedor().getId())
                     .fechaVencimiento(detalle.getFechaVencimiento())
                     .lote(detalle.getLote())
+                    .registroSanitario(detalle.getRegistroSanitario())
                     .costoUnitario(costoUnitario)
                     .build();
 
@@ -432,6 +434,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .cantidadRecibida(d.getCantidadRecibida())
                 .fechaVencimiento(d.getFechaVencimiento())
                 .lote(d.getLote())
+                .registroSanitario(d.getRegistroSanitario())
                 .build();
     }
 }

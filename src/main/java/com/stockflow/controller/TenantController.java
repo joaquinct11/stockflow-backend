@@ -72,6 +72,9 @@ public class TenantController {
         if (dto.getOseToken() != null && !dto.getOseToken().isBlank()) {
             tenant.setOseToken(dto.getOseToken().trim());
         }
+        if (dto.getRubro() != null && !dto.getRubro().isBlank()) {
+            tenant.setRubro(dto.getRubro().trim().toUpperCase());
+        }
 
         Tenant saved = tenantRepository.save(tenant);
         log.info("✅ Config del negocio actualizada para tenant={}", tenantId);
@@ -109,6 +112,7 @@ public class TenantController {
                 // Enmascaramos el token: devolvemos solo los últimos 6 caracteres para
                 // que la UI sepa que ya está configurado sin exponer el valor completo.
                 .oseToken(maskToken(t.getOseToken()))
+                .rubro(t.getRubro() != null ? t.getRubro() : "OTRO")
                 .build();
     }
 }
