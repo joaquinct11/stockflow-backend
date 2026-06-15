@@ -62,11 +62,12 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
-                                "/auth/**",         // ✅ Cualquier endpoint /api/auth/*
+                                "/auth/**",
                                 "/actuator/**",
                                 "/info/**",
                                 "/api-docs/**",
-                                "/webhooks/culqi"
+                                "/webhooks/culqi",
+                                "/internal/**"      // clave interna validada en el controller
                         ).permitAll()
                         // Endpoints de administración solo para ADMIN
                         .requestMatchers("/admin/**").hasRole("ADMIN")

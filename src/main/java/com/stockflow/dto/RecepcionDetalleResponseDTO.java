@@ -21,4 +21,5 @@ public class RecepcionDetalleResponseDTO {
     private Integer cantidadRecibida;
     private LocalDate fechaVencimiento;
     private String lote;
+    private String registroSanitario;
 }

@@ -18,6 +18,7 @@ public class OrdenCompraResponseDTO {
     private String tenantId;
     private Long proveedorId;
     private String proveedorNombre;
+    private String proveedorTelefono;
     private Long usuarioCreadorId;
     private String usuarioCreadorNombre;
     private String estado;

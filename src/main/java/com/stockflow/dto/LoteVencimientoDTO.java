@@ -27,4 +27,6 @@ public class LoteVencimientoDTO {
 
     /** Días hasta vencimiento: negativo = ya vencido */
     private Long diasRestantes;
+
+    private String registroSanitario;
 }

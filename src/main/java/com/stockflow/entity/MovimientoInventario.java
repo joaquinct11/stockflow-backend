@@ -59,6 +59,9 @@ public class MovimientoInventario {
     @Column(name = "fecha_vencimiento")
     private LocalDate fechaVencimiento;
 
+    @Column(name = "registro_sanitario", length = 100)
+    private String registroSanitario;
+
     @PrePersist
     protected void prePersist() {
         if (createdAt == null) {

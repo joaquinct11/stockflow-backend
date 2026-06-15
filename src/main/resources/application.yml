@@ -93,3 +93,7 @@ culqi:
 # ── App ──────────────────────────────────────────────────────
 app:
   frontend-url: ${FRONTEND_URL}  # OBLIGATORIO: URL pública del frontend (ej: https://fluxus.pe)
+
+# ── Fluxus internal ──────────────────────────────────────────────────────────
+fluxus:
+  internal-api-key: ${FLUXUS_INTERNAL_KEY}  # Clave secreta para endpoints internos de Fluxus

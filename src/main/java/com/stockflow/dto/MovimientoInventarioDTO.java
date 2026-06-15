@@ -49,4 +49,6 @@ public class MovimientoInventarioDTO {
 
     private LocalDate fechaVencimiento;
 
+    private String registroSanitario;
+
 }

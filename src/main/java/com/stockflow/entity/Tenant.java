@@ -47,6 +47,11 @@ public class Tenant {
     @Column(name = "logo_base64", columnDefinition = "TEXT")
     private String logoBase64;
 
+    /** Rubro del negocio: BOTICA, FARMACIA, MINIMARKET, FERRETERIA, RESTAURANTE, TIENDA, OTRO */
+    @Column(name = "rubro", length = 50)
+    @Builder.Default
+    private String rubro = "OTRO";
+
     @Column(name = "moneda", length = 10)
     @Builder.Default
     private String moneda = "S/.";
