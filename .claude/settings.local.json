@@ -88,7 +88,11 @@
       "Read(//c/Users/castillojoot/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/c4b52d33-bb7f-4a7a-bc13-f4e78ee65292/db8e4004-af14-4eb0-a099-aabc2799f67b/skills/xlsx/**)",
       "Bash(python -c ' *)",
       "Bash(pip install *)",
-      "Bash(python -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8','replace'\\)\\)\")"
+      "Bash(python -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8','replace'\\)\\)\")",
+      "Bash(Expand-Archive -Path \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\TK_MF_BONUS-main\\(1\\).zip\" -DestinationPath \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\TK_MF_BONUS-main\" -Force)",
+      "Bash(find \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\TK_MF_BONUS-main\" -type f | head -80)",
+      "WebFetch(domain:lucode.pe)",
+      "WebFetch(domain:docs.apisunat.pe)"
     ]
   }
 }

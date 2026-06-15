@@ -147,6 +147,7 @@ public class MovimientoInventarioController {
         BigDecimal costoUnitario = (esEntrada || esDevolucion) ? movimientoDTO.getCostoUnitario() : null;
         String lote = (esEntrada || esDevolucion) ? movimientoDTO.getLote() : null;
         java.time.LocalDate fechaVencimiento = (esEntrada || esDevolucion) ? movimientoDTO.getFechaVencimiento() : null;
+        String registroSanitario = esEntrada ? movimientoDTO.getRegistroSanitario() : null;
 
         MovimientoInventario movimiento = MovimientoInventario.builder()
                 .producto(producto)
@@ -160,6 +161,7 @@ public class MovimientoInventarioController {
                 .costoUnitario(costoUnitario)
                 .lote(lote)
                 .fechaVencimiento(fechaVencimiento)
+                .registroSanitario(registroSanitario)
                 .build();
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);
@@ -217,6 +219,7 @@ public class MovimientoInventarioController {
                         .fechaVencimiento(m.getFechaVencimiento())
                         .cantidad(m.getCantidad())
                         .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
+                        .registroSanitario(m.getRegistroSanitario())
                         .build())
                 .collect(Collectors.toList());
 

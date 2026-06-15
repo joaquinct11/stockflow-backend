@@ -9,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
@@ -53,4 +54,7 @@ public class ProductoDTO {
     private String imagenUrl;
 
     private String tenantId;
+
+    /** Fecha del lote más próximo a vencer (calculado en el servidor, solo lectura). */
+    private LocalDate proximaFechaVencimiento;
 }

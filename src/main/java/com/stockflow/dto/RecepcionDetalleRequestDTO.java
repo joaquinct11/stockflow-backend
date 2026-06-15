@@ -27,4 +27,6 @@ public class RecepcionDetalleRequestDTO {
     private LocalDate fechaVencimiento;
 
     private String lote;
+
+    private String registroSanitario;
 }

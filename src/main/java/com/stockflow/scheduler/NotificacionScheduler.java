@@ -34,9 +34,9 @@ public class NotificacionScheduler {
     private final EmailService                   emailService;
 
     private static final List<String> ROLES_INVENTARIO =
-            List.of("ADMIN", "GERENTE", "GESTOR_INVENTARIO");
+            List.of("ADMIN", "GESTOR_INVENTARIO");
     private static final List<String> ROLES_VENCIDO =
-            List.of("ADMIN", "GERENTE", "GESTOR_INVENTARIO", "VENDEDOR");
+            List.of("ADMIN", "GESTOR_INVENTARIO", "VENDEDOR");
 
     // ── Stock bajo — todos los días a las 8:00 AM Lima ──────────────────────
 
@@ -78,7 +78,7 @@ public class NotificacionScheduler {
         log.info("⏰ [Scheduler] Verificando vencimientos de productos...");
         List<Tenant> tenants = tenantRepository.findAll();
         LocalDate hoy        = LocalDate.now();
-        LocalDate en30dias   = hoy.plusDays(30);
+        LocalDate en30dias   = hoy.plusDays(90);
 
         for (Tenant tenant : tenants) {
             if (!Boolean.TRUE.equals(tenant.getActivo())) continue;
@@ -100,7 +100,7 @@ public class NotificacionScheduler {
                 }
             }
 
-            // Lotes que vencen en los próximos 30 días
+            // Lotes que vencen en los próximos 90 días
             List<Producto> porVencer = movimientoRepository.findProductosConLotePorVencer(tenantId, hoy, en30dias);
             for (Producto p : porVencer) {
                 for (String rol : ROLES_INVENTARIO) {
@@ -109,7 +109,7 @@ public class NotificacionScheduler {
                             tenantId, List.of(rol),
                             "PRODUCTO_POR_VENCER",
                             "⚠️ Lote por vencer: " + p.getNombre(),
-                            String.format("'%s' tiene un lote que vence en los próximos 30 días. Stock: %d unidades.",
+                            String.format("'%s' tiene un lote que vence en los próximos 90 días. Stock: %d unidades.",
                                     p.getNombre(), p.getStockActual()),
                             p.getId(), "PRODUCTO"
                     );
@@ -133,7 +133,7 @@ public class NotificacionScheduler {
 
             List<Producto> slowMovers = productoRepository.findSlowMovers(tenantId, hace30dias);
             for (Producto p : slowMovers) {
-                for (String rol : List.of("ADMIN", "GERENTE")) {
+                for (String rol : List.of("ADMIN")) {
                     if (notificacionService.yaExisteNoLeida(tenantId, rol, "PRODUCTO_SIN_MOVIMIENTO", p.getId())) continue;
                     notificacionService.notificarRoles(
                             tenantId, List.of(rol),

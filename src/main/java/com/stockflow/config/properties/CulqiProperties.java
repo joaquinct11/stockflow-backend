@@ -19,7 +19,7 @@ public class CulqiProperties {
     private String planIdBasico;
 
     /** Precio mensual en soles (override via env CULQI_PRECIO_BASICO o application.yml) */
-    private BigDecimal precioBasico = new BigDecimal("129.00");
+    private BigDecimal precioBasico = new BigDecimal("89.00");
 
     /**
      * Llave pública RSA de Culqi (Desarrollo → RSA Keys en el panel).

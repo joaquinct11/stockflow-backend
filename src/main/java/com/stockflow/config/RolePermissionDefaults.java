@@ -28,7 +28,7 @@ public class RolePermissionDefaults {
             // Productos
             "VER_PRODUCTOS", "CREAR_PRODUCTO", "EDITAR_PRODUCTO", "ELIMINAR_PRODUCTO",
             // Ventas
-            "VER_VENTAS", "VER_MIS_VENTAS", "CREAR_VENTA", "VER_DETALLE_VENTA", "ELIMINAR_VENTA",
+            "VER_VENTAS", "VER_MIS_VENTAS", "CREAR_VENTA", "VER_DETALLE_VENTA", "ELIMINAR_VENTA", "ANULAR_VENTA",
             // Caja
             "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
             // Devoluciones
@@ -85,7 +85,7 @@ public class RolePermissionDefaults {
                     // Proveedores
                     "VER_PROVEEDORES", "CREAR_PROVEEDOR", "EDITAR_PROVEEDOR", "CAMBIAR_ESTADO_PROVEEDOR",
                     // Ventas
-                    "VER_VENTAS", "VER_DETALLE_VENTA", "CREAR_VENTA", "ELIMINAR_VENTA",
+                    "VER_VENTAS", "VER_DETALLE_VENTA", "CREAR_VENTA", "ELIMINAR_VENTA", "ANULAR_VENTA",
                     // Caja
                     "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
                     // Devoluciones

@@ -157,6 +157,7 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
                 .tenantId(oc.getTenantId())
                 .proveedorId(oc.getProveedor().getId())
                 .proveedorNombre(oc.getProveedor().getNombre())
+                .proveedorTelefono(oc.getProveedor().getTelefono())
                 .usuarioCreadorId(oc.getUsuarioCreador().getId())
                 .usuarioCreadorNombre(oc.getUsuarioCreador().getNombre())
                 .estado(oc.getEstado())

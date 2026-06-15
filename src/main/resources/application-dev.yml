@@ -2,6 +2,9 @@
 # PERFIL DEV — solo sobreescribe lo que difiere del base
 # ============================================================
 
+fluxus:
+  internal-api-key: dev-internal-key-change-in-prod
+
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}

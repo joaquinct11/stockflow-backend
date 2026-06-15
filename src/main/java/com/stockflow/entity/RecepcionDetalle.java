@@ -39,4 +39,7 @@ public class RecepcionDetalle {
 
     @Column(length = 100)
     private String lote;
+
+    @Column(name = "registro_sanitario", length = 100)
+    private String registroSanitario;
 }
