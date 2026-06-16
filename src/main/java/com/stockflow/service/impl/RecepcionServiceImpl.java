@@ -188,6 +188,7 @@ public class RecepcionServiceImpl implements RecepcionService {
         detalle.setFechaVencimiento(request.getFechaVencimiento());
         detalle.setLote(request.getLote());
         detalle.setRegistroSanitario(request.getRegistroSanitario());
+        detalle.setPrecioVenta(request.getPrecioVenta());
         RecepcionDetalle saved = detalleRepository.save(detalle);
 
         return toDetalleResponseDTO(saved);
@@ -280,6 +281,9 @@ public class RecepcionServiceImpl implements RecepcionService {
             producto.setStockActual(producto.getStockActual() + detalle.getCantidadRecibida());
             // Actualizar último costo unitario del producto con el precio de esta recepción
             producto.setCostoUnitario(costoUnitario);
+            if (detalle.getPrecioVenta() != null) {
+                producto.setPrecioVenta(detalle.getPrecioVenta());
+            }
             productoRepository.save(producto);
             log.info("📦 Producto #{} '{}': stock +{} → {}, costo actualizado → {}",
                     producto.getId(), producto.getNombre(),
@@ -435,6 +439,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .fechaVencimiento(d.getFechaVencimiento())
                 .lote(d.getLote())
                 .registroSanitario(d.getRegistroSanitario())
+                .precioVenta(d.getPrecioVenta())
                 .build();
     }
 }

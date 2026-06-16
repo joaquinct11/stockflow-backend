@@ -95,6 +95,9 @@ public class Comprobante {
     @Column(name = "pdf_url", length = 500)
     private String pdfUrl;
 
+    @Column(name = "pdf_ticket_url", length = 500)
+    private String pdfTicketUrl;
+
     @Column(name = "xml_url", length = 500)
     private String xmlUrl;
 

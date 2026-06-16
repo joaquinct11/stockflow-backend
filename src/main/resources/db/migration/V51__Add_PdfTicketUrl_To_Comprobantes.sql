@@ -1,0 +1,1 @@
+ALTER TABLE comprobantes ADD COLUMN IF NOT EXISTS pdf_ticket_url VARCHAR(500);
