@@ -46,7 +46,7 @@ public class RolePermissionDefaults {
             // Gestión de permisos (admin only)
             "VER_PERMISOS",
             // Facturación (comprobantes SUNAT)
-            "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE",
+            "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE", "ENVIAR_SUNAT",
             // Orden de Compra
             "VER_OC", "CREAR_OC", "EDITAR_OC",
             // Recepción de mercadería
@@ -101,7 +101,7 @@ public class RolePermissionDefaults {
                     // Reportes
                     "VER_REPORTES",
                     // Facturación
-                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE",
+                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE", "ENVIAR_SUNAT",
                     // Órdenes de compra
                     "VER_OC", "CREAR_OC", "EDITAR_OC",
                     // Recepciones

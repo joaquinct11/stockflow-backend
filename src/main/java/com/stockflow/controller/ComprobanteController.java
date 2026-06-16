@@ -107,7 +107,7 @@ public class ComprobanteController {
      *  - El tenant debe tener oseUrl y oseToken configurados en Ajustes → Facturación
      */
     @PostMapping("/{id}/enviar-sunat")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EMITIR_COMPROBANTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ENVIAR_SUNAT')")
     public ResponseEntity<ComprobanteDTO> enviarASunat(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🏛️ Enviando a SUNAT comprobante ID: {} (tenant {})", id, tenantId);
