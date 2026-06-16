@@ -97,3 +97,7 @@ app:
 # ── Fluxus internal ──────────────────────────────────────────────────────────
 fluxus:
   internal-api-key: ${FLUXUS_INTERNAL_KEY}  # Clave secreta para endpoints internos de Fluxus
+
+# ── ApiSunat ─────────────────────────────────────────────────────────────────
+apisunat:
+  base-url: ${APISUNAT_BASE_URL}  # Producción por defecto

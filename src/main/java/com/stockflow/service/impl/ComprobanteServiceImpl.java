@@ -16,6 +16,7 @@ import com.stockflow.repository.ComprobanteSerieRepository;
 import com.stockflow.repository.TenantRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.ComprobanteService;
+import com.stockflow.service.VentaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
     private final VentaRepository            ventaRepository;
     private final TenantRepository           tenantRepository;
     private final ApiSunatService            apiSunatService;
+    private final VentaService               ventaService;
 
     @Override
     @Transactional
@@ -166,9 +168,41 @@ public class ComprobanteServiceImpl implements ComprobanteService {
             throw new ConflictException("El comprobante ya se encuentra anulado.");
         }
 
+        // Si fue aceptado por SUNAT, hay que comunicar la baja a ApiSunat también
+        if ("ACEPTADO".equals(comprobante.getSunatEstado())) {
+            Tenant tenant = tenantRepository.findByTenantId(tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado"));
+            try {
+                ApiSunatComprobanteResponse resp = apiSunatService.anular(comprobante, tenant, null);
+                comprobante.setSunatEstado("ANULADO");
+                comprobante.setSunatMensaje(resp.resumen());
+                log.info("🗑️ SUNAT baja comunicada para {}: {}", comprobante.getNumero(), resp.resumen());
+            } catch (Exception e) {
+                log.error("⚠️ No se pudo comunicar baja a SUNAT para {}: {}", comprobante.getNumero(), e.getMessage());
+                // Continuamos con la anulación local aunque falle SUNAT
+                comprobante.setSunatEstado("ANULADO_LOCAL");
+                comprobante.setSunatMensaje("Anulado localmente — error al comunicar baja a SUNAT: " + e.getMessage());
+            }
+        }
+
         comprobante.setEstado("ANULADO");
         log.info("🗑️ Comprobante anulado: {} (tenant {})", comprobante.getNumero(), tenantId);
-        return toDTO(comprobanteRepository.save(comprobante));
+        ComprobanteDTO result = toDTO(comprobanteRepository.save(comprobante));
+
+        // Anular la venta subyacente → repone stock automáticamente
+        Venta venta = comprobante.getVenta();
+        if (venta != null && !"ANULADA".equals(venta.getEstado())) {
+            try {
+                ventaService.anularVenta(venta.getId(), tenantId);
+                log.info("📦 Stock repuesto por anulación de comprobante {} (venta #{})",
+                        comprobante.getNumero(), venta.getId());
+            } catch (Exception e) {
+                log.warn("No se pudo anular la venta #{} al anular comprobante {}: {}",
+                        venta.getId(), comprobante.getNumero(), e.getMessage());
+            }
+        }
+
+        return result;
     }
 
     // ── SUNAT / OSE ──────────────────────────────────────────────────────────
@@ -208,10 +242,11 @@ public class ComprobanteServiceImpl implements ComprobanteService {
             }
             comprobante.setSunatEstado(nuevoEstado);
             comprobante.setSunatMensaje(resp.resumen());
-            if (resp.getEnlaceDelPdf()       != null) comprobante.setPdfUrl(resp.getEnlaceDelPdf());
-            if (resp.getEnlaceDelXml()       != null) comprobante.setXmlUrl(resp.getEnlaceDelXml());
-            if (resp.getCadenaParaCodigoQr() != null) comprobante.setQr(resp.getCadenaParaCodigoQr());
-            if (resp.getNumeroTicket()       != null) comprobante.setSunatTicket(resp.getNumeroTicket());
+            if (resp.getPdfUrl()       != null) comprobante.setPdfUrl(resp.getPdfUrl());
+            if (resp.getPdfTicketUrl() != null) comprobante.setPdfTicketUrl(resp.getPdfTicketUrl());
+            if (resp.getXmlUrl()       != null) comprobante.setXmlUrl(resp.getXmlUrl());
+            if (resp.getPayload()      != null && resp.getPayload().getHash() != null)
+                comprobante.setHash(resp.getPayload().getHash());
 
             log.info("🏛️ SUNAT {} para {}: {}",
                     comprobante.getSunatEstado(), comprobante.getNumero(), resp.resumen());
@@ -265,6 +300,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
                 .hash(c.getHash())
                 .qr(c.getQr())
                 .pdfUrl(c.getPdfUrl())
+                .pdfTicketUrl(c.getPdfTicketUrl())
                 .xmlUrl(c.getXmlUrl())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())

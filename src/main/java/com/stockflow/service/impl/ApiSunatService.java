@@ -9,6 +9,7 @@ import com.stockflow.entity.DetalleVenta;
 import com.stockflow.entity.Tenant;
 import com.stockflow.exception.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -24,18 +25,109 @@ import java.util.stream.Collectors;
  * Envía comprobantes a ApiSunat (lucode.pe) usando el token de organización
  * que Fluxus asigna a cada tenant tras el onboarding.
  *
- * El tenant NO configura URL — está hardcodeada. Solo necesita oseToken.
+ * El tenant NO configura URL — se controla por entorno:
+ *   dev/uat → https://sandbox.apisunat.pe  (sin impacto en SUNAT real)
+ *   prod    → https://app.apisunat.pe
  */
 @Slf4j
 @Service
 public class ApiSunatService {
 
-    private static final String APISUNAT_URL  = "https://app.apisunat.pe/api/v3/documents";
+    private static final String DOCUMENTS_PATH = "/api/v3/documents";
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
+    @Value("${apisunat.base-url:https://app.apisunat.pe}")
+    private String apiSunatBaseUrl;
+
+    private static final String DAILY_SUMMARY_PATH = "/api/v3/daily-summary";
+    private static final String VOIDED_PATH         = "/api/v3/voided";
+
     private final RestClient http = RestClient.create();
     private final ObjectMapper mapper = new ObjectMapper();
+
+    /**
+     * Anula un comprobante en SUNAT vía ApiSunat.
+     * - BOLETA  → POST /api/v3/daily-summary  (resumen diario con acción "anular")
+     * - FACTURA → POST /api/v3/voided         (comunicación de baja)
+     */
+    public ApiSunatComprobanteResponse anular(Comprobante comprobante, Tenant tenant, String motivo) {
+        if (tenant.getOseToken() == null || tenant.getOseToken().isBlank()) {
+            throw new BadRequestException(
+                    "La facturación electrónica aún no está activada para tu cuenta. " +
+                    "Contacta a soporte de Fluxus para habilitarla.");
+        }
+
+        boolean esBoleta = "BOLETA".equals(comprobante.getTipo());
+        String path = esBoleta ? DAILY_SUMMARY_PATH : VOIDED_PATH;
+        String url  = apiSunatBaseUrl + path;
+
+        Object body = esBoleta ? buildAnularBoleta(comprobante) : buildAnularFactura(comprobante, motivo);
+
+        log.info("🗑️ Anulando {} en ApiSunat [{}]", comprobante.getNumero(), url);
+
+        try {
+            String rawJson = http.post()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tenant.getOseToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(
+                            status -> status.is4xxClientError() || status.is5xxServerError(),
+                            (req, resp) -> {
+                                byte[] bytes = resp.getBody().readAllBytes();
+                                String respBody = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                                log.error("ApiSunat anulación error {}: {}", resp.getStatusCode(), respBody);
+                                throw new RuntimeException("APISUNAT_ERROR:" + resp.getStatusCode() + ":" + respBody);
+                            })
+                    .body(String.class);
+
+            log.debug("📨 ApiSunat anulación raw response para {}: {}", comprobante.getNumero(), rawJson);
+            ApiSunatComprobanteResponse response = mapper.readValue(rawJson, ApiSunatComprobanteResponse.class);
+            log.info("📨 ApiSunat anulación para {}: success={}, estado={}",
+                    comprobante.getNumero(), response.getSuccess(),
+                    response.getPayload() != null ? response.getPayload().getEstado() : "null");
+            return response;
+
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            String msg = e.getMessage();
+            if (msg != null && msg.startsWith("APISUNAT_ERROR:")) {
+                String[] parts = msg.split(":", 3);
+                throw new RuntimeException("ApiSunat devolvió error " + parts[1] + ": " + parts[2]);
+            }
+            throw e;
+        } catch (Exception e) {
+            log.error("Error anulando en ApiSunat {}: {}", comprobante.getNumero(), e.getMessage(), e);
+            throw new RuntimeException("No se pudo conectar con ApiSunat: " + e.getMessage(), e);
+        }
+    }
+
+    private java.util.Map<String, Object> buildAnularBoleta(Comprobante c) {
+        return java.util.Map.of(
+            "documento", "resumen_diario",
+            "documentos_afectados", java.util.List.of(java.util.Map.of(
+                "accion_resumen", "anular",
+                "documento",      "boleta",
+                "serie",          c.getSerie(),
+                "numero",         String.valueOf(c.getCorrelativo())
+            ))
+        );
+    }
+
+    private java.util.Map<String, Object> buildAnularFactura(Comprobante c, String motivo) {
+        return java.util.Map.of(
+            "documento", "comunicacion_baja",
+            "motivo",    motivo != null && !motivo.isBlank() ? motivo : "ANULACIÓN DE OPERACIÓN",
+            "documento_afectado", java.util.Map.of(
+                "documento", "factura",
+                "serie",     c.getSerie(),
+                "numero",    String.valueOf(c.getCorrelativo())
+            )
+        );
+    }
 
     /**
      * Envía el comprobante a ApiSunat usando el token del tenant.
@@ -55,12 +147,13 @@ public class ApiSunatService {
 
         ApiSunatComprobanteRequest body = buildRequest(comprobante, tenant);
 
-        log.info("🏛️ Enviando {} a ApiSunat: {}-{}",
-                comprobante.getNumero(), body.getDocumento(), body.getSerie());
+        String url = apiSunatBaseUrl + DOCUMENTS_PATH;
+        log.info("🏛️ Enviando {} a ApiSunat [{}]: {}-{}",
+                comprobante.getNumero(), url, body.getDocumento(), body.getSerie());
 
         try {
             String rawJson = http.post()
-                    .uri(APISUNAT_URL)
+                    .uri(url)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + tenant.getOseToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
@@ -79,10 +172,10 @@ public class ApiSunatService {
 
             ApiSunatComprobanteResponse response = mapper.readValue(rawJson, ApiSunatComprobanteResponse.class);
 
-            log.info("📨 ApiSunat para {}: aceptada={}, codigo={}, mensaje={}",
+            log.info("📨 ApiSunat para {}: success={}, estado={}, mensaje={}",
                     comprobante.getNumero(),
-                    response.getAceptadaPorSunat(),
-                    response.getSunatCodigoRespuesta(),
+                    response.getSuccess(),
+                    response.getPayload() != null ? response.getPayload().getEstado() : "null",
                     response.resumen());
 
             return response;
@@ -108,6 +201,17 @@ public class ApiSunatService {
         boolean esBoleta = "BOLETA".equals(c.getTipo());
         double igvRate = (tenant.getIgvPorcentaje() != null ? tenant.getIgvPorcentaje() : 18.0) / 100.0;
 
+        String docTipo   = resolveDocType(c.getReceptorDocTipo());
+        String docNumero = resolveDocNumero(docTipo, c.getReceptorDocNumero());
+        String nombre    = notBlank(c.getReceptorNombre()) ? c.getReceptorNombre().trim() : "CLIENTES VARIOS";
+
+        // FACTURA requiere RUC válido (11 dígitos)
+        if (!esBoleta && !"6".equals(docTipo)) {
+            throw new BadRequestException(
+                "Para emitir una FACTURA el receptor debe tener RUC. " +
+                "Verifica el tipo de documento del cliente.");
+        }
+
         return ApiSunatComprobanteRequest.builder()
                 .documento(esBoleta ? "boleta" : "factura")
                 .serie(c.getSerie())
@@ -116,12 +220,10 @@ public class ApiSunatService {
                 .horaDeEmision(c.getFechaEmision().format(TIME_FMT))
                 .moneda("PEN")
                 .tipoOperacion("0101")
-                .clienteTipoDeDocumento(resolveDocType(c.getReceptorDocTipo()))
-                .clienteNumeroDeDocumento(
-                        notBlank(c.getReceptorDocNumero()) ? c.getReceptorDocNumero() : "00000000")
-                .clienteDenominacion(
-                        notBlank(c.getReceptorNombre()) ? c.getReceptorNombre() : "CLIENTES VARIOS")
-                .clienteDireccion(notBlank(c.getReceptorDireccion()) ? c.getReceptorDireccion() : "")
+                .clienteTipoDeDocumento(docTipo)
+                .clienteNumeroDeDocumento(docNumero)
+                .clienteDenominacion(nombre)
+                .clienteDireccion(notBlank(c.getReceptorDireccion()) ? c.getReceptorDireccion() : "-")
                 .items(buildItems(c, igvRate))
                 .total(c.getTotal().setScale(2, RoundingMode.HALF_UP).toPlainString())
                 .build();
@@ -159,6 +261,24 @@ public class ApiSunatService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Garantiza que el número de documento cumpla los mínimos de ApiSunat.
+     * DNI (1): 8 dígitos exactos → rellena con ceros a la izquierda o usa "00000000".
+     * RUC (6): 11 dígitos.
+     * Otros / sin documento: "00000000".
+     */
+    private String resolveDocNumero(String docTipo, String docNumero) {
+        if (!notBlank(docNumero)) {
+            return "00000000";
+        }
+        String num = docNumero.trim();
+        return switch (docTipo) {
+            case "1" -> num.length() >= 8 ? num : String.format("%08d", Long.parseLong(num.replaceAll("\\D", "0")));
+            case "6" -> num.length() >= 11 ? num : "00000000000";
+            default  -> num.length() >= 8 ? num : "00000000";
+        };
+    }
 
     /** Mapea tipo de documento al código SUNAT catálogo 06. */
     private String resolveDocType(String docTipo) {

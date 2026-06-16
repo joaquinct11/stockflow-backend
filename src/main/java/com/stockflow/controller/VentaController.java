@@ -272,55 +272,8 @@ public class VentaController {
         Long usuarioId = TenantContext.getCurrentUserId();
         log.info("🚫 Anulando venta ID: {} (tenant={})", id, tenantId);
 
-        // 1. Obtener venta y validar
-        Venta venta = ventaService.obtenerVentaPorId(id)
-                .filter(v -> tenantId.equals(v.getTenantId()))
-                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada"));
+        Venta venta = ventaService.anularVenta(id, tenantId);
 
-        if ("ANULADA".equals(venta.getEstado())) {
-            throw new BadRequestException("La venta ya está anulada");
-        }
-        if ("DEVUELTA".equals(venta.getEstado()) || "DEVUELTA_PARCIAL".equals(venta.getEstado())) {
-            throw new BadRequestException("No se puede anular una venta que ya tiene devoluciones registradas");
-        }
-
-        // 2. Obtener usuario que anula
-        Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-
-        // 3. Reponer stock + crear movimiento ANULACION por cada producto
-        for (DetalleVenta detalle : venta.getDetalles()) {
-            Producto producto = detalle.getProducto();
-            producto.setStockActual(producto.getStockActual() + detalle.getCantidad());
-            productoService.actualizarProducto(producto.getId(), producto);
-
-            MovimientoInventario mov = MovimientoInventario.builder()
-                    .producto(producto)
-                    .usuario(usuario)
-                    .tipo("AJUSTE")
-                    .cantidad(detalle.getCantidad())
-                    .descripcion("Anulación venta #" + venta.getId())
-                    .referencia("ANUL-" + venta.getId())
-                    .tenantId(tenantId)
-                    .build();
-            movimientoService.crearMovimiento(mov);
-
-            log.info("📦 Stock repuesto: +{} de {} por anulación venta {}",
-                    detalle.getCantidad(), producto.getNombre(), venta.getId());
-        }
-
-        // 4. Si se usó una NC en esta venta, restaurarla a PENDIENTE
-        if (venta.getNotaCreditoId() != null) {
-            notaCreditoService.restaurarPorVentaAnulada(venta.getNotaCreditoId(), tenantId);
-            venta.setNotaCreditoId(null);
-            venta.setDescuentoNotaCredito(null);
-        }
-
-        // 5. Marcar venta como ANULADA
-        venta.setEstado("ANULADA");
-        ventaService.crearVenta(venta);
-
-        // Notificar anulación a ADMIN y GERENTE
         try {
             notificacionService.notificarRoles(tenantId, List.of("ADMIN", "GERENTE"),
                     "VENTA_ANULADA",

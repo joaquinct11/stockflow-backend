@@ -53,6 +53,9 @@ public class ProductoDTO {
     /** URL de imagen del producto (opcional). */
     private String imagenUrl;
 
+    /** Composición o contenido del producto (ej: "paracetamol 500mg, amoxicilina 250mg"). Opcional. */
+    private String componentes;
+
     private String tenantId;
 
     /** Fecha del lote más próximo a vencer (calculado en el servidor, solo lectura). */

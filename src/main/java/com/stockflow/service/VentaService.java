@@ -21,4 +21,7 @@ public interface VentaService {
     List<DetalleVenta> obtenerDetallesVenta(Long ventaId);
 
     void actualizarNotaCredito(Long ventaId, Long notaCreditoId);
+
+    /** Anula la venta, repone stock y registra movimientos. Lanza excepción si ya estaba anulada. */
+    Venta anularVenta(Long id, String tenantId);
 }

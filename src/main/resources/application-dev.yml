@@ -5,6 +5,9 @@
 fluxus:
   internal-api-key: dev-internal-key-change-in-prod
 
+apisunat:
+  base-url: https://sandbox.apisunat.pe  # Sandbox para desarrollo y UAT
+
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
