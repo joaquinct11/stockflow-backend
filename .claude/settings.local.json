@@ -92,7 +92,8 @@
       "Bash(Expand-Archive -Path \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\TK_MF_BONUS-main\\(1\\).zip\" -DestinationPath \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\TK_MF_BONUS-main\" -Force)",
       "Bash(find \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\TK_MF_BONUS-main\" -type f | head -80)",
       "WebFetch(domain:lucode.pe)",
-      "WebFetch(domain:docs.apisunat.pe)"
+      "WebFetch(domain:docs.apisunat.pe)",
+      "mcp__visualize__show_widget"
     ]
   }
 }
