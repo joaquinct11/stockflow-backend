@@ -55,6 +55,9 @@ public class Producto {
     @Column(name = "imagen_url", columnDefinition = "TEXT")
     private String imagenUrl;
 
+    @Column(columnDefinition = "TEXT")
+    private String componentes;
+
     @Column(name = "tenant_id")
     private String tenantId;
 

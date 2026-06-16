@@ -37,7 +37,8 @@ public class ComprobanteDTO {
     private String sunatTicket;
     private String hash;
     private String qr;
-    private String pdfUrl;
+    private String pdfUrl;        // PDF A4 (ApiSunat)
+    private String pdfTicketUrl;  // PDF Ticket/80mm (ApiSunat)
     private String xmlUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -42,4 +43,7 @@ public class RecepcionDetalle {
 
     @Column(name = "registro_sanitario", length = 100)
     private String registroSanitario;
+
+    @Column(name = "precio_venta", precision = 10, scale = 2)
+    private BigDecimal precioVenta;
 }

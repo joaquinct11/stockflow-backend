@@ -1,27 +1,40 @@
 package com.stockflow.service.impl;
 
 import com.stockflow.entity.DetalleVenta;
+import com.stockflow.entity.MovimientoInventario;
+import com.stockflow.entity.Producto;
+import com.stockflow.entity.Usuario;
 import com.stockflow.entity.Venta;
-import com.stockflow.repository.VentaRepository;
+import com.stockflow.exception.BadRequestException;
+import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.ProductoRepository;
-import com.stockflow.service.VentaService;
+import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.MovimientoInventarioService;
+import com.stockflow.service.NotaCreditoService;
+import com.stockflow.service.VentaService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VentaServiceImpl implements VentaService {
 
-    private final VentaRepository ventaRepository;
-    private final DetalleVentaRepository detalleVentaRepository;
-    private final ProductoRepository productoRepository;
-    private final MovimientoInventarioService movimientoInventarioService;
+    private final VentaRepository               ventaRepository;
+    private final DetalleVentaRepository        detalleVentaRepository;
+    private final ProductoRepository            productoRepository;
+    private final UsuarioRepository             usuarioRepository;
+    private final MovimientoInventarioService   movimientoInventarioService;
+    private final NotaCreditoService            notaCreditoService;
 
     @Override
     @Transactional
@@ -65,5 +78,61 @@ public class VentaServiceImpl implements VentaService {
             v.setNotaCreditoId(notaCreditoId);
             ventaRepository.save(v);
         });
+    }
+
+    @Override
+    @Transactional
+    public Venta anularVenta(Long id, String tenantId) {
+        Venta venta = ventaRepository.findById(id)
+                .filter(v -> tenantId.equals(v.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada: " + id));
+
+        if ("ANULADA".equals(venta.getEstado())) {
+            throw new BadRequestException("La venta ya está anulada");
+        }
+        if ("DEVUELTA".equals(venta.getEstado()) || "DEVUELTA_PARCIAL".equals(venta.getEstado())) {
+            throw new BadRequestException("No se puede anular una venta que ya tiene devoluciones registradas");
+        }
+
+        Long usuarioId = TenantContext.getCurrentUserId();
+        Usuario usuario = usuarioId != null
+                ? usuarioRepository.findById(usuarioId).orElse(null)
+                : null;
+
+        // Reponer stock y registrar movimiento por cada producto
+        for (DetalleVenta detalle : venta.getDetalles()) {
+            Producto producto = detalle.getProducto();
+            producto.setStockActual(producto.getStockActual() + detalle.getCantidad());
+            productoRepository.save(producto);
+
+            MovimientoInventario mov = MovimientoInventario.builder()
+                    .producto(producto)
+                    .usuario(usuario)
+                    .tipo("AJUSTE")
+                    .cantidad(detalle.getCantidad())
+                    .descripcion("Anulación venta #" + venta.getId())
+                    .referencia("ANUL-" + venta.getId())
+                    .tenantId(tenantId)
+                    .build();
+            movimientoInventarioService.crearMovimiento(mov);
+
+            log.info("📦 Stock repuesto: +{} de '{}' por anulación venta {}",
+                    detalle.getCantidad(), producto.getNombre(), venta.getId());
+        }
+
+        // Si la venta usó una nota de crédito, restaurarla a PENDIENTE
+        if (venta.getNotaCreditoId() != null) {
+            try {
+                notaCreditoService.restaurarPorVentaAnulada(venta.getNotaCreditoId(), tenantId);
+            } catch (Exception e) {
+                log.warn("No se pudo restaurar nota de crédito {} al anular venta {}: {}",
+                        venta.getNotaCreditoId(), venta.getId(), e.getMessage());
+            }
+            venta.setNotaCreditoId(null);
+            venta.setDescuentoNotaCredito(null);
+        }
+
+        venta.setEstado("ANULADA");
+        return ventaRepository.save(venta);
     }
 }

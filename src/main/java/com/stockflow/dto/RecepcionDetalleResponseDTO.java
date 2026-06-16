@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Data
@@ -22,4 +23,5 @@ public class RecepcionDetalleResponseDTO {
     private LocalDate fechaVencimiento;
     private String lote;
     private String registroSanitario;
+    private BigDecimal precioVenta;
 }
