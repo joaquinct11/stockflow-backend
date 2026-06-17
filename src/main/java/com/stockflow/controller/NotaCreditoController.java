@@ -44,18 +44,24 @@ public class NotaCreditoController {
 
     @GetMapping("/{id}/pdf")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_EMITIR_NOTA_CREDITO')")
-    public ResponseEntity<byte[]> generarPdf(@PathVariable Long id) {
+    public ResponseEntity<byte[]> generarPdf(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "A4") String formato) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("Generando PDF de nota de credito {} para tenant: {}", id, tenantId);
+        log.info("Generando PDF ({}) de nota de credito {} para tenant: {}", formato, id, tenantId);
 
         Tenant tenant = tenantRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado: " + tenantId));
 
-        byte[] pdf = notaCreditoService.generarPdf(id, tenantId, tenant);
+        byte[] pdf = notaCreditoService.generarPdf(id, tenantId, tenant, formato);
+
+        String filename = "TICKET".equalsIgnoreCase(formato)
+                ? "nc-ticket-" + id + ".pdf"
+                : "nota-credito-" + id + ".pdf";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDispositionFormData("attachment", "nota-credito-" + id + ".pdf");
+        headers.setContentDispositionFormData("attachment", filename);
 
         return ResponseEntity.ok()
                 .headers(headers)

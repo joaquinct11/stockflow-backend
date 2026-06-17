@@ -1,0 +1,1 @@
+ALTER TABLE cajas ADD COLUMN IF NOT EXISTS cerrado_por_nombre VARCHAR(200);

@@ -25,4 +25,5 @@ public class CajaDTO {
     private String observaciones;
     private LocalDateTime fechaApertura;
     private LocalDateTime fechaCierre;
+    private String cerradoPorNombre;
 }

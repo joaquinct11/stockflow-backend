@@ -143,7 +143,8 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     @Async
-    public void enviarResumenCierreCaja(String email, String empresaNombre, String usuarioCierre,
+    public void enviarResumenCierreCaja(String email, String empresaNombre, String usuarioApertura,
+                                         String usuarioCierre,
                                          BigDecimal montoApertura, BigDecimal totalEfectivo,
                                          BigDecimal totalTarjeta, BigDecimal totalYapePlin,
                                          BigDecimal totalIngresos, BigDecimal montoContado,
@@ -178,8 +179,11 @@ public class EmailServiceImpl implements EmailService {
                     <!-- CUERPO -->
                     <tr>
                       <td style="padding:28px 36px 8px;">
+                        <p style="margin:0 0 4px;color:#374151;font-size:14px;">
+                          Abrió: <b>%s</b>
+                        </p>
                         <p style="margin:0 0 6px;color:#374151;font-size:14px;">
-                          Cerrada por: <b>%s</b>
+                          Cerró: <b>%s</b>
                         </p>
                         <p style="margin:0;color:#6b7280;font-size:12px;">%s</p>
                       </td>
@@ -247,6 +251,7 @@ public class EmailServiceImpl implements EmailService {
             </html>
             """.formatted(
                 empresaNombre,
+                usuarioApertura,
                 usuarioCierre,
                 java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
                 montoApertura != null ? montoApertura : BigDecimal.ZERO,

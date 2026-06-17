@@ -53,6 +53,158 @@ public class NotaCreditoPdfGenerator {
 
     // ────────────────────────────────────────────────────────────────────────
 
+    // ── TICKET 80mm ──────────────────────────────────────────────────────────
+
+    public byte[] generarTicket(NotaCredito nc, Tenant tenant) {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            // 80mm ≈ 226pt; altura dinámica (800pt sobra siempre)
+            Rectangle pageSize = new Rectangle(226f, 800f);
+            Document doc = new Document(pageSize, 10, 10, 12, 12);
+            PdfWriter.getInstance(doc, out);
+            doc.open();
+
+            String moneda = tenant.getMoneda() != null ? tenant.getMoneda() : "S/.";
+            String nombre  = tenant.getNombre() != null ? tenant.getNombre() : "Mi Negocio";
+
+            Font fEmpresa   = new Font(Font.HELVETICA, 10, Font.BOLD,   COLOR_TEXT_DARK);
+            Font fSubtitulo = new Font(Font.HELVETICA,  7, Font.NORMAL, COLOR_TEXT_MID);
+            Font fTitulo    = new Font(Font.HELVETICA, 11, Font.BOLD,   COLOR_PRIMARY);
+            Font fCodigo    = new Font(Font.HELVETICA, 14, Font.BOLD,   COLOR_TEXT_DARK);
+            Font fLabel     = new Font(Font.HELVETICA,  7, Font.BOLD,   COLOR_TEXT_MID);
+            Font fValue     = new Font(Font.HELVETICA,  8, Font.NORMAL, COLOR_TEXT_DARK);
+            Font fMonto     = new Font(Font.HELVETICA, 18, Font.BOLD,   COLOR_GREEN);
+            Font fLeyenda   = new Font(Font.HELVETICA,  7, Font.ITALIC, COLOR_TEXT_MID);
+            Font fVence     = new Font(Font.HELVETICA,  7, Font.NORMAL, COLOR_TEXT_SOFT);
+
+            // Nombre empresa
+            Paragraph pNombre = new Paragraph(nombre, fEmpresa);
+            pNombre.setAlignment(Element.ALIGN_CENTER);
+            doc.add(pNombre);
+
+            if (tenant.getRuc() != null && !tenant.getRuc().isBlank()) {
+                Paragraph pRuc = new Paragraph("RUC: " + tenant.getRuc(), fSubtitulo);
+                pRuc.setAlignment(Element.ALIGN_CENTER);
+                doc.add(pRuc);
+            }
+
+            // Separador
+            doc.add(lineaSeparadora(190f));
+
+            // Título
+            Paragraph pTitulo = new Paragraph("NOTA DE CRÉDITO", fTitulo);
+            pTitulo.setAlignment(Element.ALIGN_CENTER);
+            pTitulo.setSpacingBefore(4);
+            pTitulo.setSpacingAfter(2);
+            doc.add(pTitulo);
+
+            // Código grande
+            Paragraph pCodigo = new Paragraph(nc.getCodigo(), fCodigo);
+            pCodigo.setAlignment(Element.ALIGN_CENTER);
+            pCodigo.setSpacingAfter(4);
+            doc.add(pCodigo);
+
+            doc.add(lineaSeparadora(190f));
+
+            // Datos en dos columnas
+            PdfPTable datos = new PdfPTable(2);
+            datos.setWidthPercentage(100);
+            datos.setSpacingBefore(6);
+            datos.setSpacingAfter(6);
+
+            agregarFilaTicket(datos, "Emisión:", nc.getFechaEmision() != null ? nc.getFechaEmision().format(FMT) : "—", fLabel, fValue);
+            agregarFilaTicket(datos, "Vence:", nc.getFechaVencimiento() != null ? nc.getFechaVencimiento().format(FMT) : "—", fLabel, fValue);
+            if (nc.getDevolucion() != null && nc.getDevolucion().getVenta() != null) {
+                agregarFilaTicket(datos, "Venta origen:", "#" + nc.getDevolucion().getVenta().getId(), fLabel, fValue);
+            }
+            if (nc.getDevolucion() != null && nc.getDevolucion().getUsuario() != null) {
+                agregarFilaTicket(datos, "Atendido por:", nc.getDevolucion().getUsuario().getNombre(), fLabel, fValue);
+            }
+            doc.add(datos);
+
+            // Motivo (si hay)
+            if (nc.getDevolucion() != null && nc.getDevolucion().getMotivo() != null && !nc.getDevolucion().getMotivo().isBlank()) {
+                Paragraph pMotivoLabel = new Paragraph("Motivo:", fLabel);
+                pMotivoLabel.setAlignment(Element.ALIGN_LEFT);
+                doc.add(pMotivoLabel);
+                Paragraph pMotivo = new Paragraph(nc.getDevolucion().getMotivo(), fValue);
+                pMotivo.setAlignment(Element.ALIGN_LEFT);
+                pMotivo.setSpacingAfter(6);
+                doc.add(pMotivo);
+            }
+
+            doc.add(lineaSeparadora(190f));
+
+            // Monto
+            Paragraph pMontoLabel = new Paragraph("TOTAL A FAVOR", new Font(Font.HELVETICA, 8, Font.BOLD, COLOR_GREEN));
+            pMontoLabel.setAlignment(Element.ALIGN_CENTER);
+            pMontoLabel.setSpacingBefore(6);
+            doc.add(pMontoLabel);
+
+            BigDecimal monto = nc.getMontoTotal() != null ? nc.getMontoTotal() : BigDecimal.ZERO;
+            Paragraph pMonto = new Paragraph(moneda + " " + String.format("%.2f", monto), fMonto);
+            pMonto.setAlignment(Element.ALIGN_CENTER);
+            pMonto.setSpacingAfter(6);
+            doc.add(pMonto);
+
+            doc.add(lineaSeparadora(190f));
+
+            // Leyenda
+            Paragraph pLey1 = new Paragraph("Presenta este ticket en tu próxima compra", fLeyenda);
+            pLey1.setAlignment(Element.ALIGN_CENTER);
+            pLey1.setSpacingBefore(6);
+            doc.add(pLey1);
+
+            Paragraph pLey2 = new Paragraph("y se descontará el monto indicado.", fLeyenda);
+            pLey2.setAlignment(Element.ALIGN_CENTER);
+            doc.add(pLey2);
+
+            if (nc.getFechaVencimiento() != null) {
+                Paragraph pVence = new Paragraph("Válido hasta: " + nc.getFechaVencimiento().format(FMT), fVence);
+                pVence.setAlignment(Element.ALIGN_CENTER);
+                pVence.setSpacingBefore(4);
+                doc.add(pVence);
+            }
+
+            doc.close();
+            return out.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Error generando ticket PDF de nota de credito #{}: {}", nc.getId(), e.getMessage(), e);
+            throw new RuntimeException("Error generando ticket PDF de Nota de Credito", e);
+        }
+    }
+
+    private PdfPTable lineaSeparadora(float widthPt) throws Exception {
+        PdfPTable linea = new PdfPTable(1);
+        linea.setTotalWidth(widthPt);
+        linea.setLockedWidth(true);
+        linea.setHorizontalAlignment(Element.ALIGN_CENTER);
+        linea.setSpacingBefore(4);
+        linea.setSpacingAfter(4);
+        PdfPCell cell = new PdfPCell();
+        cell.setBorderWidthBottom(0.5f);
+        cell.setBorderColorBottom(COLOR_BORDER);
+        cell.setBorderWidthTop(0);
+        cell.setBorderWidthLeft(0);
+        cell.setBorderWidthRight(0);
+        cell.setFixedHeight(1f);
+        linea.addCell(cell);
+        return linea;
+    }
+
+    private void agregarFilaTicket(PdfPTable tabla, String label, String valor, Font fLabel, Font fValue) {
+        PdfPCell cL = new PdfPCell(new Phrase(label, fLabel));
+        cL.setBorder(Rectangle.NO_BORDER);
+        cL.setPaddingBottom(3);
+        tabla.addCell(cL);
+        PdfPCell cV = new PdfPCell(new Phrase(valor, fValue));
+        cV.setBorder(Rectangle.NO_BORDER);
+        cV.setPaddingBottom(3);
+        tabla.addCell(cV);
+    }
+
+    // ── A4 ───────────────────────────────────────────────────────────────────
+
     public byte[] generar(NotaCredito nc, Tenant tenant) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Document doc = new Document(PageSize.A4, 40, 40, 40, 50);
