@@ -146,10 +146,12 @@ public class NotaCreditoServiceImpl implements NotaCreditoService {
 
     @Override
     @Transactional(readOnly = true)
-    public byte[] generarPdf(Long id, String tenantId, Tenant tenant) {
+    public byte[] generarPdf(Long id, String tenantId, Tenant tenant, String formato) {
         NotaCredito nc = notaCreditoRepository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Nota de credito no encontrada: " + id));
-        return pdfGenerator.generar(nc, tenant);
+        return "TICKET".equalsIgnoreCase(formato)
+                ? pdfGenerator.generarTicket(nc, tenant)
+                : pdfGenerator.generar(nc, tenant);
     }
 
     private NotaCreditoDTO toDTO(NotaCredito nc) {

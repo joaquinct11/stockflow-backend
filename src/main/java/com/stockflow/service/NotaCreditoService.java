@@ -21,5 +21,5 @@ public interface NotaCreditoService {
 
     List<NotaCreditoDTO> getAll(String tenantId);
 
-    byte[] generarPdf(Long id, String tenantId, Tenant tenant);
+    byte[] generarPdf(Long id, String tenantId, Tenant tenant, String formato);
 }

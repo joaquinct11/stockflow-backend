@@ -18,6 +18,7 @@ import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.CajaService;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.NotificacionService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -152,6 +153,11 @@ public class CajaServiceImpl implements CajaService {
         if (request.getObservaciones() != null) {
             caja.setObservaciones(request.getObservaciones());
         }
+        Long currentUserId = TenantContext.getCurrentUserId();
+        if (currentUserId != null) {
+            usuarioRepository.findById(currentUserId)
+                    .ifPresent(u -> caja.setCerradoPorNombre(u.getNombre()));
+        }
 
         CajaDTO resultado = toDTO(cajaRepository.save(caja));
 
@@ -177,9 +183,10 @@ public class CajaServiceImpl implements CajaService {
             String empresaNombre = tenantRepository.findByTenantId(tenantId)
                     .map(Tenant::getNombre).orElse(tenantId);
 
+            String cerradoPor = caja.getCerradoPorNombre() != null ? caja.getCerradoPorNombre() : caja.getUsuarioNombre();
             usuarioRepository.findAdminYGerenteByTenant(tenantId).forEach(u ->
                 emailService.enviarResumenCierreCaja(
-                        u.getEmail(), empresaNombre, caja.getUsuarioNombre(),
+                        u.getEmail(), empresaNombre, caja.getUsuarioNombre(), cerradoPor,
                         caja.getMontoApertura(), caja.getTotalEfectivo(),
                         caja.getTotalTarjeta(), caja.getTotalYapePlin(),
                         caja.getTotalIngresos(), caja.getMontoContado(),
@@ -281,6 +288,7 @@ public class CajaServiceImpl implements CajaService {
                 .observaciones(c.getObservaciones())
                 .fechaApertura(c.getFechaApertura())
                 .fechaCierre(c.getFechaCierre())
+                .cerradoPorNombre(c.getCerradoPorNombre())
                 .build();
     }
 

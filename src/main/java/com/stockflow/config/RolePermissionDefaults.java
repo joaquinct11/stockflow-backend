@@ -140,8 +140,8 @@ public class RolePermissionDefaults {
                     "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
                     // Devoluciones (solo las propias ventas)
                     "VER_DEVOLUCIONES", "CREAR_DEVOLUCION",
-                    // Notas de crédito (validar en POS)
-                    "VER_NOTAS_CREDITO",
+                    // Notas de crédito (validar en POS y emitir las propias)
+                    "VER_NOTAS_CREDITO", "EMITIR_NOTA_CREDITO",
                     // Facturación
                     "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE",
                     // Clientes (vendedor puede crear y ver clientes para las ventas)
