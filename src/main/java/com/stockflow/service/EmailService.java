@@ -33,7 +33,8 @@ public interface EmailService {
     /**
      * Resumen de cierre de caja enviado a ADMIN y GERENTE del tenant.
      */
-    void enviarResumenCierreCaja(String email, String empresaNombre, String usuarioCierre,
+    void enviarResumenCierreCaja(String email, String empresaNombre, String usuarioApertura,
+                                  String usuarioCierre,
                                   BigDecimal montoApertura, BigDecimal totalEfectivo,
                                   BigDecimal totalTarjeta, BigDecimal totalYapePlin,
                                   BigDecimal totalIngresos, BigDecimal montoContado,

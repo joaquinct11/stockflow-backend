@@ -58,4 +58,7 @@ public class Caja {
 
     @Column(name = "fecha_cierre")
     private LocalDateTime fechaCierre;
+
+    @Column(name = "cerrado_por_nombre", length = 200)
+    private String cerradoPorNombre;
 }
