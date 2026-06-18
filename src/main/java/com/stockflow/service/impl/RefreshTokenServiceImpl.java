@@ -77,7 +77,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Transactional
     @Scheduled(cron = "0 0 2 * * ?")
     public void limpiarTokensExpirados() {
+        // Eliminar tokens expirados (activos o revocados)
         refreshTokenRepository.deleteByExpiracionBefore(LocalDateTime.now());
-        log.info("Limpieza de refresh tokens expirados completada");
+        // Eliminar tokens revocados con más de 24h de antigüedad (rotación de refresh)
+        refreshTokenRepository.deleteRevocadosAntesde(LocalDateTime.now().minusHours(24));
+        log.info("Limpieza de refresh tokens completada");
     }
 }
