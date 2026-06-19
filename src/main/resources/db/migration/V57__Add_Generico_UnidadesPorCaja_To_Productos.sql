@@ -1,0 +1,3 @@
+ALTER TABLE productos
+    ADD COLUMN es_generico BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN unidades_por_caja INTEGER NULL;

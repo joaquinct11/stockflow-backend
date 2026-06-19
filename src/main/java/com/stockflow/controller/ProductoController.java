@@ -108,8 +108,10 @@ public class ProductoController {
         productoDTO.setTenantId(tenantId);
 
         Producto producto = productoMapper.toEntity(productoDTO);
-        // Asegurar que imagenUrl se persiste (por si el mapper compilado es anterior)
+        // Setters explícitos por si el mapper fue compilado antes de agregar estos campos
         producto.setImagenUrl(productoDTO.getImagenUrl());
+        producto.setEsGenerico(productoDTO.getEsGenerico() != null ? productoDTO.getEsGenerico() : false);
+        producto.setUnidadesPorCaja(productoDTO.getUnidadesPorCaja());
         Producto productoCreado = productoService.crearProducto(producto);
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -130,8 +132,10 @@ public class ProductoController {
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoExistente -> {
                     productoMapper.updateEntityFromDTO(productoDTO, productoExistente);
-                    // Asegurar que imagenUrl se persiste (por si el mapper compilado es anterior)
+                    // Setters explícitos por si el mapper fue compilado antes de agregar estos campos
                     productoExistente.setImagenUrl(productoDTO.getImagenUrl());
+                    productoExistente.setEsGenerico(productoDTO.getEsGenerico() != null ? productoDTO.getEsGenerico() : false);
+                    productoExistente.setUnidadesPorCaja(productoDTO.getUnidadesPorCaja());
                     Producto productoActualizado = productoService.actualizarProducto(id, productoExistente);
                     return ResponseEntity.ok(productoMapper.toDTO(productoActualizado));
                 })

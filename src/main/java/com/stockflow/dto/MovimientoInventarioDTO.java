@@ -45,6 +45,8 @@ public class MovimientoInventarioDTO {
 
     private BigDecimal costoUnitario;
 
+    private BigDecimal precioVenta;
+
     private String lote;
 
     private LocalDate fechaVencimiento;

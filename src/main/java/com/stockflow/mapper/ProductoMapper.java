@@ -19,6 +19,8 @@ public interface ProductoMapper {
     @Mapping(source = "categoriaRef.id", target = "categoriaId")
     @Mapping(source = "categoriaRef.nombre", target = "categoriaNombre")
     @Mapping(source = "imagenUrl", target = "imagenUrl")
+    @Mapping(source = "esGenerico", target = "esGenerico")
+    @Mapping(source = "unidadesPorCaja", target = "unidadesPorCaja")
     ProductoDTO toDTO(Producto producto);
 
     // DTO → ENTITY
@@ -39,6 +41,8 @@ public interface ProductoMapper {
     @Mapping(source = "unidadMedidaId", target = "unidadMedida", qualifiedByName = "longToUnidadMedida")
     @Mapping(source = "categoriaId", target = "categoriaRef", qualifiedByName = "longToCategoria")
     @Mapping(source = "imagenUrl", target = "imagenUrl")
+    @Mapping(source = "esGenerico", target = "esGenerico")
+    @Mapping(source = "unidadesPorCaja", target = "unidadesPorCaja")
     void updateEntityFromDTO(ProductoDTO dto, @MappingTarget Producto producto);
 
     // 🔑 Long → UnidadMedida

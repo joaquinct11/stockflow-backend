@@ -58,6 +58,12 @@ public class Producto {
     @Column(columnDefinition = "TEXT")
     private String componentes;
 
+    @Column(name = "es_generico", nullable = false)
+    private Boolean esGenerico = false;
+
+    @Column(name = "unidades_por_caja")
+    private Integer unidadesPorCaja;
+
     @Column(name = "tenant_id")
     private String tenantId;
 
