@@ -22,8 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -115,6 +117,10 @@ public class ProductoServiceImpl implements ProductoService {
                     producto.setStockMaximo(productoActualizado.getStockMaximo());
                     producto.setImagenUrl(productoActualizado.getImagenUrl());
                     producto.setComponentes(productoActualizado.getComponentes());
+                    if (productoActualizado.getEsGenerico() != null) {
+                        producto.setEsGenerico(productoActualizado.getEsGenerico());
+                    }
+                    producto.setUnidadesPorCaja(productoActualizado.getUnidadesPorCaja());
                     return productoRepository.save(producto);
                 })
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
@@ -135,6 +141,9 @@ public class ProductoServiceImpl implements ProductoService {
         int creados = 0, actualizados = 0;
         List<ProductoImportResultDTO.FilaError> errores = new ArrayList<>();
 
+        // Rastrear qué códigos/nombres ya se procesaron en este batch para soportar multi-lote
+        Set<String> processedInBatch = new HashSet<>();
+
         // Unidad fallback: primera del tenant o global
         UnidadMedida unidadFallback = unidadMedidaRepository.findFirstByTenantIdOrGlobal(tenantId).orElse(null);
 
@@ -152,6 +161,12 @@ public class ProductoServiceImpl implements ProductoService {
                 continue;
             }
 
+            // Clave única para detectar el mismo producto en filas consecutivas (multi-lote)
+            String claveProducto = (fila.getCodigoBarras() != null && !fila.getCodigoBarras().isBlank())
+                    ? "cod:" + fila.getCodigoBarras().trim().toLowerCase()
+                    : "nom:" + fila.getNombre().trim().toLowerCase();
+            boolean esLoteAdicional = processedInBatch.contains(claveProducto);
+
             // ── Resolver unidad de medida ─────────────────────────────────
             UnidadMedida unidad = null;
             if (fila.getUnidadMedida() != null && !fila.getUnidadMedida().isBlank()) {
@@ -160,7 +175,6 @@ public class ProductoServiceImpl implements ProductoService {
                 if (!matches.isEmpty()) {
                     unidad = matches.get(0); // prioriza la del tenant
                 } else {
-                    // Último intento: buscar por abreviatura o nombre parcial
                     unidad = unidadMedidaRepository.findAll().stream()
                             .filter(u -> u.getTenantId() == null || u.getTenantId().equals(tenantId))
                             .filter(u -> u.getNombre() != null &&
@@ -201,8 +215,40 @@ public class ProductoServiceImpl implements ProductoService {
                         ? productoRepository.findByCodigoBarras(fila.getCodigoBarras().trim())
                         : Optional.empty();
 
-                if (existente.isPresent()) {
-                    // UPDATE
+                Long userId = TenantContext.getCurrentUserId();
+                Usuario usuario = usuarioRepository.findById(userId)
+                        .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
+
+                if (esLoteAdicional && existente.isPresent()) {
+                    // ── LOTE ADICIONAL del mismo producto ─────────────────
+                    // Suma la cantidad al stock ya existente y crea movimiento con los datos del lote
+                    Producto p = existente.get();
+                    int cantidadLote = fila.getStockActual() != null ? fila.getStockActual() : 0;
+                    if (cantidadLote > 0) {
+                        p.setStockActual((p.getStockActual() != null ? p.getStockActual() : 0) + cantidadLote);
+                        Producto saved = productoRepository.save(p);
+                        BigDecimal costo = fila.getCostoUnitario() != null ? fila.getCostoUnitario()
+                                : (saved.getCostoUnitario() != null ? saved.getCostoUnitario() : BigDecimal.ZERO);
+                        MovimientoInventario mov = MovimientoInventario.builder()
+                                .producto(saved)
+                                .usuario(usuario)
+                                .tipo("SALDO_INICIAL")
+                                .cantidad(cantidadLote)
+                                .descripcion("Saldo inicial — importación masiva (lote adicional: " +
+                                        (fila.getLote() != null ? fila.getLote() : "sin lote") + ")")
+                                .referencia("IMPORTACION")
+                                .tenantId(tenantId)
+                                .costoUnitario(costo)
+                                .lote(fila.getLote())
+                                .fechaVencimiento(fila.getFechaVencimiento())
+                                .registroSanitario(fila.getRegistroSanitario())
+                                .build();
+                        movimientoInventarioRepository.save(mov);
+                    }
+                    actualizados++;
+
+                } else if (existente.isPresent()) {
+                    // ── UPDATE — primera aparición de un producto ya en BD ─
                     Producto p = existente.get();
                     if (!p.getTenantId().equals(tenantId)) {
                         errores.add(err(numFila, fila.getNombre(), "Código de barras pertenece a otro tenant"));
@@ -222,13 +268,9 @@ public class ProductoServiceImpl implements ProductoService {
                     if (categoria != null) p.setCategoriaRef(categoria);
                     Producto saved = productoRepository.save(p);
 
-                    // Registrar ajuste de stock si cambió
                     int stockNuevo = saved.getStockActual() != null ? saved.getStockActual() : 0;
                     int diferencia = stockNuevo - stockAnterior;
                     if (diferencia != 0) {
-                        Long userId = TenantContext.getCurrentUserId();
-                        Usuario usuario = usuarioRepository.findById(userId)
-                                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
                         BigDecimal costoFinal = saved.getCostoUnitario() != null ? saved.getCostoUnitario() : costoAnterior;
                         MovimientoInventario ajuste = MovimientoInventario.builder()
                                 .producto(saved)
@@ -240,13 +282,16 @@ public class ProductoServiceImpl implements ProductoService {
                                 .referencia("IMPORTACION")
                                 .tenantId(tenantId)
                                 .costoUnitario(costoFinal)
+                                .lote(fila.getLote())
+                                .fechaVencimiento(fila.getFechaVencimiento())
+                                .registroSanitario(fila.getRegistroSanitario())
                                 .build();
                         movimientoInventarioRepository.save(ajuste);
                     }
                     actualizados++;
 
                 } else {
-                    // CREATE — nuevo producto + movimiento kardex de saldo inicial
+                    // ── CREATE — nuevo producto + movimiento de saldo inicial ─
                     int stockInicial = fila.getStockActual() != null ? fila.getStockActual() : 0;
                     BigDecimal costo = fila.getCostoUnitario() != null ? fila.getCostoUnitario() : BigDecimal.ZERO;
 
@@ -266,23 +311,27 @@ public class ProductoServiceImpl implements ProductoService {
                             .build();
                     Producto saved = productoRepository.save(p);
 
-                    // Registrar movimiento kardex de saldo inicial
-                    Long userId = TenantContext.getCurrentUserId();
-                    Usuario usuario = usuarioRepository.findById(userId)
-                            .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
                     MovimientoInventario mov = MovimientoInventario.builder()
                             .producto(saved)
                             .usuario(usuario)
                             .tipo("SALDO_INICIAL")
                             .cantidad(stockInicial)
-                            .descripcion("Saldo inicial — importación masiva")
+                            .descripcion("Saldo inicial — importación masiva" +
+                                    (fila.getLote() != null && !fila.getLote().isBlank()
+                                            ? " (lote: " + fila.getLote() + ")" : ""))
                             .referencia("IMPORTACION")
                             .tenantId(tenantId)
                             .costoUnitario(costo)
+                            .lote(fila.getLote())
+                            .fechaVencimiento(fila.getFechaVencimiento())
+                            .registroSanitario(fila.getRegistroSanitario())
                             .build();
                     movimientoInventarioRepository.save(mov);
                     creados++;
                 }
+
+                processedInBatch.add(claveProducto);
+
             } catch (Exception ex) {
                 log.warn("⚠️ Error importando fila {}: {}", numFila, ex.getMessage());
                 errores.add(err(numFila, fila.getNombre(), "Error inesperado: " + ex.getMessage()));

@@ -38,8 +38,7 @@ public class ProductoDTO {
     @Min(value = 0, message = "El stock máximo no puede ser negativo")
     private Integer stockMaximo;
 
-    @NotNull(message = "El costo unitario es requerido")
-    @DecimalMin(value = "0.01", message = "El costo debe ser mayor a 0")
+    @DecimalMin(value = "0.00", inclusive = true, message = "El costo no puede ser negativo")
     private BigDecimal costoUnitario;
 
     @NotNull(message = "El precio de venta es requerido")
@@ -55,6 +54,12 @@ public class ProductoDTO {
 
     /** Composición o contenido del producto (ej: "paracetamol 500mg, amoxicilina 250mg"). Opcional. */
     private String componentes;
+
+    /** True si el producto es genérico (sin marca). */
+    private Boolean esGenerico = false;
+
+    /** Cuántas unidades trae cada caja/presentación (ej: 100 tabletas/caja). Informativo. */
+    private Integer unidadesPorCaja;
 
     private String tenantId;
 

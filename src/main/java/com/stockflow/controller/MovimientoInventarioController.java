@@ -145,6 +145,7 @@ public class MovimientoInventarioController {
         // Solo ENTRADA y DEVOLUCION pueden llevar datos de lote/proveedor/costo
         Long proveedorId = (esEntrada || esDevolucion) ? movimientoDTO.getProveedorId() : null;
         BigDecimal costoUnitario = (esEntrada || esDevolucion) ? movimientoDTO.getCostoUnitario() : null;
+        BigDecimal precioVenta = esEntrada ? movimientoDTO.getPrecioVenta() : null;
         String lote = (esEntrada || esDevolucion) ? movimientoDTO.getLote() : null;
         java.time.LocalDate fechaVencimiento = (esEntrada || esDevolucion) ? movimientoDTO.getFechaVencimiento() : null;
         String registroSanitario = esEntrada ? movimientoDTO.getRegistroSanitario() : null;
@@ -159,6 +160,7 @@ public class MovimientoInventarioController {
                 .tenantId(tenantId)
                 .proveedorId(proveedorId)
                 .costoUnitario(costoUnitario)
+                .precioVenta(precioVenta)
                 .lote(lote)
                 .fechaVencimiento(fechaVencimiento)
                 .registroSanitario(registroSanitario)
@@ -183,9 +185,13 @@ public class MovimientoInventarioController {
 
         producto.setStockActual(nuevoStock);
 
-        // Si es ENTRADA y costoUnitario fue provisto y > 0, actualizar el último costo del producto
+        // Si es ENTRADA y costoUnitario fue provisto, actualizar el último costo del producto
         if (esEntrada && costoUnitario != null && costoUnitario.compareTo(BigDecimal.ZERO) > 0) {
             producto.setCostoUnitario(costoUnitario);
+        }
+        // Si es ENTRADA y precioVenta fue provisto, actualizar el precio de venta del producto
+        if (esEntrada && precioVenta != null && precioVenta.compareTo(BigDecimal.ZERO) > 0) {
+            producto.setPrecioVenta(precioVenta);
         }
 
         productoService.actualizarProducto(producto.getId(), producto);

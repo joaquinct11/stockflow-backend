@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -31,21 +32,27 @@ public class ComprobanteController {
 
     /**
      * List comprobantes for the current tenant with optional filters.
+     * PERM_VER_FACTURACION → todos; PERM_VER_MIS_FACTURACION → solo los propios.
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_FACTURACION')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_FACTURACION') or hasAuthority('PERM_VER_MIS_FACTURACION')")
     public ResponseEntity<List<ComprobanteDTO>> listar(
             @RequestParam(required = false) String tipo,
             @RequestParam(required = false) String estado,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(required = false) Long ventaId,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            Authentication authentication) {
 
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("📋 Listando comprobantes para tenant: {}", tenantId);
+        boolean verTodos = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("PERM_VER_FACTURACION") || a.getAuthority().equals("ROLE_ADMIN"));
+        Long vendedorId = verTodos ? null : TenantContext.getCurrentUserId();
+
+        log.info("📋 Listando comprobantes para tenant: {} vendedorId: {}", tenantId, vendedorId);
         return ResponseEntity.ok(
-                comprobanteService.listar(tenantId, tipo, estado, from, to, ventaId, search));
+                comprobanteService.listar(tenantId, vendedorId, tipo, estado, from, to, ventaId, search));
     }
 
     /**

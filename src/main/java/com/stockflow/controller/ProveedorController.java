@@ -27,7 +27,7 @@ public class ProveedorController {
      * ✅ ACTUALIZADO: Obtiene proveedores del tenant actual
      */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES') or hasAuthority('PERM_CREAR_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<List<ProveedorDTO>> obtenerTodos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🏢 Obteniendo proveedores para tenant: {}", tenantId);
@@ -38,7 +38,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/activos")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES') or hasAuthority('PERM_CREAR_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<List<ProveedorDTO>> obtenerActivos() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("✅ Obteniendo proveedores activos para tenant: {}", tenantId);
@@ -49,7 +49,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES') or hasAuthority('PERM_CREAR_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<ProveedorDTO> obtenerPorId(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
         return proveedorService.obtenerProveedorPorId(id)
@@ -60,7 +60,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/ruc/{ruc}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES') or hasAuthority('PERM_CREAR_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<ProveedorDTO> obtenerPorRuc(@PathVariable String ruc) {
         String tenantId = TenantContext.getCurrentTenant();
         return proveedorService.obtenerProveedorPorRuc(ruc)
@@ -71,7 +71,7 @@ public class ProveedorController {
     }
 
     @GetMapping("/buscar")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PROVEEDORES') or hasAuthority('PERM_CREAR_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<List<ProveedorDTO>> buscarPorNombre(@RequestParam String nombre) {
         String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(

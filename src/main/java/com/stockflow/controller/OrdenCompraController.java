@@ -42,7 +42,7 @@ public class OrdenCompraController {
      * GET /api/oc — List purchase orders (optional filters: estado, proveedorId).
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<List<OrdenCompraResponseDTO>> listar(
             @RequestParam(required = false) String estado,
             @RequestParam(required = false) Long proveedorId) {
@@ -54,7 +54,7 @@ public class OrdenCompraController {
      * GET /api/oc/{id} — Detail with items and received/pending quantities.
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<OrdenCompraResponseDTO> obtenerPorId(@PathVariable Long id) {
         return ordenCompraService.obtenerPorId(id)
                 .map(ResponseEntity::ok)
@@ -65,7 +65,7 @@ public class OrdenCompraController {
      * GET /api/oc/{id}/items — Items with received and pending quantities.
      */
     @GetMapping("/{id}/items")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<List<OrdenCompraItemDTO>> obtenerItems(@PathVariable Long id) {
         return ResponseEntity.ok(ordenCompraService.obtenerItemsConPendientes(id));
     }
@@ -114,7 +114,7 @@ public class OrdenCompraController {
      * PATCH /api/oc/{id}/enviar — Cambia estado a ENVIADA
      */
     @PatchMapping("/{id}/enviar")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_OC')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_ENVIAR_OC')")
     public ResponseEntity<OrdenCompraResponseDTO> enviar(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📤 Enviando OC id={} tenant={}", id, tenantId);
@@ -125,7 +125,7 @@ public class OrdenCompraController {
      * GET /api/oc/{id}/pdf — Descarga el PDF de la OC (mismo que se envía al proveedor).
      */
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📄 Generando PDF de OC id={} tenant={}", id, tenantId);
@@ -141,7 +141,7 @@ public class OrdenCompraController {
      * PATCH /api/oc/{id}/cancelar — Cambia estado a CANCELADA
      */
     @PatchMapping("/{id}/cancelar")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_OC')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CANCELAR_OC')")
     public ResponseEntity<OrdenCompraResponseDTO> cancelar(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("❌ Cancelando OC id={} tenant={}", id, tenantId);

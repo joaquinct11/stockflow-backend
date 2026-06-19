@@ -20,9 +20,11 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
     boolean existsByVentaIdAndTenantIdAndEstadoNot(Long ventaId, String tenantId, String estado);
 
     @Query(value = """
-      SELECT *
+      SELECT c.*
       FROM comprobantes c
+      JOIN ventas v ON c.venta_id = v.id
       WHERE c.tenant_id = :tenantId
+        AND (:vendedorId IS NULL OR v.vendedor_id = :vendedorId)
         AND (:tipo IS NULL OR c.tipo = :tipo)
         AND (:estado IS NULL OR c.estado = :estado)
         AND (CAST(:from AS timestamp) IS NULL OR c.fecha_emision >= :from)
@@ -38,6 +40,7 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
     """, nativeQuery = true)
     List<Comprobante> findFiltered(
             @Param("tenantId") String tenantId,
+            @Param("vendedorId") Long vendedorId,
             @Param("tipo") String tipo,
             @Param("estado") String estado,
             @Param("from") LocalDateTime from,

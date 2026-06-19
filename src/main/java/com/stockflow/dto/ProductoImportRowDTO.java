@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /** Una fila parseada del Excel/CSV enviada desde el frontend. */
 @Data
@@ -38,4 +39,13 @@ public class ProductoImportRowDTO {
 
     /** Nombre de la categoría (ej. "Medicamentos", "Limpieza") */
     private String categoria;
+
+    /** Número de lote — permite múltiples filas del mismo producto con distinto lote */
+    private String lote;
+
+    /** Fecha de vencimiento del lote (YYYY-MM-DD) */
+    private LocalDate fechaVencimiento;
+
+    /** Registro sanitario del lote */
+    private String registroSanitario;
 }

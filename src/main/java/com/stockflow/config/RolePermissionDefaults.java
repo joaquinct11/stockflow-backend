@@ -30,7 +30,7 @@ public class RolePermissionDefaults {
             // Ventas
             "VER_VENTAS", "VER_MIS_VENTAS", "CREAR_VENTA", "VER_DETALLE_VENTA", "ELIMINAR_VENTA", "ANULAR_VENTA",
             // Caja
-            "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
+            "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA", "RETIRO_CAJA",
             // Devoluciones
             "VER_DEVOLUCIONES", "CREAR_DEVOLUCION",
             // Notas de crédito
@@ -46,9 +46,9 @@ public class RolePermissionDefaults {
             // Gestión de permisos (admin only)
             "VER_PERMISOS",
             // Facturación (comprobantes SUNAT)
-            "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE", "ENVIAR_SUNAT",
+            "VER_FACTURACION", "VER_MIS_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE", "ENVIAR_SUNAT",
             // Orden de Compra
-            "VER_OC", "CREAR_OC", "EDITAR_OC",
+            "VER_OC", "CREAR_OC", "EDITAR_OC", "ENVIAR_OC", "CANCELAR_OC",
             // Recepción de mercadería
             "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION",
             // Clientes
@@ -87,7 +87,7 @@ public class RolePermissionDefaults {
                     // Ventas
                     "VER_VENTAS", "VER_DETALLE_VENTA", "CREAR_VENTA", "ELIMINAR_VENTA", "ANULAR_VENTA",
                     // Caja
-                    "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
+                    "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA", "RETIRO_CAJA",
                     // Devoluciones
                     "VER_DEVOLUCIONES", "CREAR_DEVOLUCION",
                     // Notas de crédito
@@ -101,9 +101,9 @@ public class RolePermissionDefaults {
                     // Reportes
                     "VER_REPORTES",
                     // Facturación
-                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE", "ENVIAR_SUNAT",
+                    "VER_FACTURACION", "VER_MIS_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE", "ANULAR_COMPROBANTE", "ENVIAR_SUNAT",
                     // Órdenes de compra
-                    "VER_OC", "CREAR_OC", "EDITAR_OC",
+                    "VER_OC", "CREAR_OC", "EDITAR_OC", "ENVIAR_OC", "CANCELAR_OC",
                     // Recepciones
                     "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION",
                     // Clientes
@@ -137,13 +137,13 @@ public class RolePermissionDefaults {
                     "VER_PRODUCTOS",
                     "CREAR_VENTA", "VER_MIS_VENTAS", "VER_DETALLE_VENTA",
                     // Caja
-                    "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA",
+                    "VER_CAJA", "ABRIR_CAJA", "CERRAR_CAJA", "RETIRO_CAJA",
                     // Devoluciones (solo las propias ventas)
                     "VER_DEVOLUCIONES", "CREAR_DEVOLUCION",
                     // Notas de crédito (validar en POS y emitir las propias)
                     "VER_NOTAS_CREDITO", "EMITIR_NOTA_CREDITO",
-                    // Facturación
-                    "VER_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE",
+                    // Facturación (VER_MIS_FACTURACION = solo sus propias ventas)
+                    "VER_MIS_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE",
                     // Clientes (vendedor puede crear y ver clientes para las ventas)
                     "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE"
             );
