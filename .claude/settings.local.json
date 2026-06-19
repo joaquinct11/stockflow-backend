@@ -93,7 +93,8 @@
       "Bash(find \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\TK_MF_BONUS-main\" -type f | head -80)",
       "WebFetch(domain:lucode.pe)",
       "WebFetch(domain:docs.apisunat.pe)",
-      "mcp__visualize__show_widget"
+      "mcp__visualize__show_widget",
+      "Bash(xargs grep -l \"permisos\\\\|permissions\\\\|puede\\\\|canAccess\")"
     ]
   }
 }

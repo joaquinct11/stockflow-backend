@@ -87,7 +87,7 @@ public class CajaController {
 
     /** POST /cajas/{id}/retiro — registrar un retiro parcial de efectivo */
     @PostMapping("/{id}/retiro")
-    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_ABRIR_CAJA')")
+    @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_RETIRO_CAJA')")
     public ResponseEntity<RetiroCajaDTO> registrarRetiro(@PathVariable Long id,
                                                           @Valid @RequestBody RegistrarRetiroRequestDTO request,
                                                           Authentication auth) {

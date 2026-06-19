@@ -53,6 +53,9 @@ public class MovimientoInventario {
     @Column(name = "costo_unitario", precision = 10, scale = 2)
     private BigDecimal costoUnitario;
 
+    @Column(name = "precio_venta", precision = 10, scale = 2)
+    private BigDecimal precioVenta;
+
     @Column(length = 100)
     private String lote;
 
