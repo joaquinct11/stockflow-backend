@@ -186,7 +186,16 @@ public class ApiSunatService {
             String msg = e.getMessage();
             if (msg != null && msg.startsWith("APISUNAT_ERROR:")) {
                 String[] parts = msg.split(":", 3);
-                throw new RuntimeException("ApiSunat devolvió error " + parts[1] + ": " + parts[2]);
+                String responseBody = parts.length > 2 ? parts[2] : "";
+                try {
+                    com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(responseBody);
+                    if (node.has("message")) {
+                        throw new BadRequestException("ApiSunat: " + node.get("message").asText());
+                    }
+                } catch (BadRequestException be) {
+                    throw be;
+                } catch (Exception ignored) {}
+                throw new BadRequestException("ApiSunat devolvió error " + parts[1] + ": " + responseBody);
             }
             throw e;
         } catch (Exception e) {
@@ -203,7 +212,8 @@ public class ApiSunatService {
 
         String docTipo   = resolveDocType(c.getReceptorDocTipo());
         String docNumero = resolveDocNumero(docTipo, c.getReceptorDocNumero());
-        String nombre    = notBlank(c.getReceptorNombre()) ? c.getReceptorNombre().trim() : "CLIENTES VARIOS";
+        String nombre    = notBlank(c.getReceptorNombre()) ? c.getReceptorNombre().trim() : "CONSUMIDOR FINAL";
+        if (nombre.length() < 3) nombre = nombre + "-".repeat(3 - nombre.length());
 
         // FACTURA requiere RUC válido (11 dígitos)
         if (!esBoleta && !"6".equals(docTipo)) {
