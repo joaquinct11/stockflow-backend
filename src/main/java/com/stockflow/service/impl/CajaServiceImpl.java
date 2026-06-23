@@ -3,6 +3,7 @@ package com.stockflow.service.impl;
 import com.stockflow.dto.AbrirCajaRequestDTO;
 import com.stockflow.dto.CajaDTO;
 import com.stockflow.dto.CerrarCajaRequestDTO;
+import com.stockflow.dto.CorregirCierreRequestDTO;
 import com.stockflow.dto.RegistrarRetiroRequestDTO;
 import com.stockflow.dto.RetiroCajaDTO;
 import com.stockflow.entity.Caja;
@@ -198,6 +199,37 @@ public class CajaServiceImpl implements CajaService {
         }
 
         return resultado;
+    }
+
+    @Override
+    public CajaDTO corregirCierre(Long cajaId, CorregirCierreRequestDTO request, String tenantId) {
+        Caja caja = cajaRepository.findByIdAndTenantId(cajaId, tenantId)
+                .orElseThrow(() -> new BadRequestException("Caja no encontrada"));
+
+        if (!"CERRADA".equals(caja.getEstado())) {
+            throw new BadRequestException("Solo se puede corregir una caja ya cerrada");
+        }
+
+        BigDecimal montoContado = request.getMontoContado().setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal totalRetiros = retiroCajaRepository.findByCajaIdOrderByFechaAsc(cajaId).stream()
+                .map(RetiroCaja::getMonto)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal apertura   = caja.getMontoApertura() != null ? caja.getMontoApertura() : BigDecimal.ZERO;
+        BigDecimal efectivo   = caja.getTotalEfectivo() != null ? caja.getTotalEfectivo() : BigDecimal.ZERO;
+        BigDecimal esperado   = apertura.add(efectivo).subtract(totalRetiros);
+        BigDecimal diferencia = montoContado.subtract(esperado).setScale(2, RoundingMode.HALF_UP);
+
+        caja.setMontoContado(montoContado);
+        caja.setDiferencia(diferencia);
+        if (request.getObservaciones() != null) {
+            caja.setObservaciones(request.getObservaciones());
+        }
+
+        log.info("✏️ Corrección de cierre de caja ID={} por ADMIN: montoContado={} diferencia={} tenant={}", cajaId, montoContado, diferencia, tenantId);
+        return toDTO(cajaRepository.save(caja));
     }
 
     @Override

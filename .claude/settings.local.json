@@ -94,7 +94,11 @@
       "WebFetch(domain:lucode.pe)",
       "WebFetch(domain:docs.apisunat.pe)",
       "mcp__visualize__show_widget",
-      "Bash(xargs grep -l \"permisos\\\\|permissions\\\\|puede\\\\|canAccess\")"
+      "Bash(xargs grep -l \"permisos\\\\|permissions\\\\|puede\\\\|canAccess\")",
+      "Bash(npx --prefix \"D:/projects/abc/stockflow-frontend\" tsc -p \"D:/projects/abc/stockflow-frontend/tsconfig.json\" --noEmit)",
+      "Bash(grep -E \"^[0-9]{3,4}:\")",
+      "Bash(xargs grep -n \"variante\")",
+      "Bash(xargs grep -ln \"varianteDescripcion\\\\|detalle\\\\|DetalleVenta\")"
     ]
   }
 }

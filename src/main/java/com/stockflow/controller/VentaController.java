@@ -12,9 +12,11 @@ import com.stockflow.service.ComprobanteService;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.NotaCreditoService;
 import com.stockflow.service.NotificacionService;
+import com.stockflow.service.ProductoVarianteService;
 import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
+import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.util.TenantContext;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
@@ -49,6 +51,7 @@ public class VentaController {
     private final ComprobanteService comprobanteService;
     private final NotaCreditoService notaCreditoService;
     private final NotificacionService notificacionService;
+    private final ProductoVarianteRepository productoVarianteRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
@@ -167,12 +170,19 @@ public class VentaController {
                     Producto producto = productoService.obtenerProductoPorId(detalleDTO.getProductoId())
                             .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado: " + detalleDTO.getProductoId()));
 
-                    // Validar que el producto pertenezca al tenant actual (aislamiento multi-tenant)
                     if (!tenantId.equals(producto.getTenantId())) {
                         throw new BadRequestException("Producto no encontrado: " + detalleDTO.getProductoId());
                     }
-                    if (producto.getStockActual() < detalleDTO.getCantidad()) {
-                        throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
+
+                    // Si viene varianteId, validar stock de la variante; si no, validar stock del producto
+                    if (detalleDTO.getVarianteId() != null) {
+                        productoVarianteRepository.findByIdAndTenantId(detalleDTO.getVarianteId(), tenantId)
+                                .filter(v -> v.getStockActual() >= detalleDTO.getCantidad())
+                                .orElseThrow(() -> new BadRequestException("Stock insuficiente para la variante seleccionada de: " + producto.getNombre()));
+                    } else {
+                        if (producto.getStockActual() < detalleDTO.getCantidad()) {
+                            throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
+                        }
                     }
 
                     return DetalleVenta.builder()
@@ -180,6 +190,8 @@ public class VentaController {
                             .cantidad(detalleDTO.getCantidad())
                             .precioUnitario(detalleDTO.getPrecioUnitario())
                             .subtotal(detalleDTO.getPrecioUnitario().multiply(BigDecimal.valueOf(detalleDTO.getCantidad())))
+                            .varianteId(detalleDTO.getVarianteId())
+                            .varianteDescripcion(detalleDTO.getVarianteDescripcion())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -242,9 +254,23 @@ public class VentaController {
         for (DetalleVenta detalle : detalles) {
             Producto producto = detalle.getProducto();
 
-            // Descontar stock
-            producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
-            productoService.actualizarProducto(producto.getId(), producto);
+            if (detalle.getVarianteId() != null) {
+                // Descontar de la variante y sincronizar stock del producto padre
+                productoVarianteRepository.findById(detalle.getVarianteId()).ifPresent(v -> {
+                    v.setStockActual(v.getStockActual() - detalle.getCantidad());
+                    productoVarianteRepository.save(v);
+                    // Recalcular stock del producto padre
+                    int total = productoVarianteRepository
+                            .findByProductoIdAndActivoTrueAndTenantId(producto.getId(), tenantId)
+                            .stream().mapToInt(pv -> pv.getStockActual() != null ? pv.getStockActual() : 0).sum();
+                    producto.setStockActual(total);
+                    productoService.actualizarProducto(producto.getId(), producto);
+                });
+            } else {
+                // Sin variante: descontar directo del producto
+                producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
+                productoService.actualizarProducto(producto.getId(), producto);
+            }
 
             // Crear movimiento por producto
             MovimientoInventario movimiento = MovimientoInventario.builder()

@@ -42,8 +42,11 @@ public class ProductoServiceImpl implements ProductoService {
     @Override
     @Transactional
     public Producto crearProducto(Producto producto) {
-        // ── Validar límite de plan ───────────────────────────────────────────
         planLimitService.validarLimiteProductos(producto.getTenantId());
+
+        if (producto.getCodigoBarras() != null && producto.getCodigoBarras().isBlank()) {
+            producto.setCodigoBarras(null);
+        }
 
         Producto productoCreado = productoRepository.save(producto);
 
@@ -106,7 +109,8 @@ public class ProductoServiceImpl implements ProductoService {
         productoRepository.findById(id)
                 .map(producto -> {
                     producto.setNombre(productoActualizado.getNombre());
-                    producto.setCodigoBarras(productoActualizado.getCodigoBarras());
+                    String cb = productoActualizado.getCodigoBarras();
+                    producto.setCodigoBarras(cb != null && cb.isBlank() ? null : cb);
                     producto.setCategoriaRef(productoActualizado.getCategoriaRef());
                     producto.setCostoUnitario(productoActualizado.getCostoUnitario());
                     producto.setPrecioVenta(productoActualizado.getPrecioVenta());

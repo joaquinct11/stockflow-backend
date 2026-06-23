@@ -31,4 +31,7 @@ public class DetalleVentaDTO {
     private BigDecimal precioUnitario;
 
     private BigDecimal subtotal;
+
+    private Long varianteId;
+    private String varianteDescripcion;
 }
