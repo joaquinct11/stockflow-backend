@@ -7,6 +7,7 @@ import com.stockflow.entity.Producto;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.MovimientoInventarioMapper;
 import com.stockflow.repository.MovimientoInventarioRepository;
+import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
@@ -37,6 +38,7 @@ public class MovimientoInventarioController {
     private final ProductoService                    productoService;
     private final UsuarioService                     usuarioService;
     private final MovimientoInventarioMapper         movimientoMapper;
+    private final ProductoVarianteRepository         productoVarianteRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -150,12 +152,26 @@ public class MovimientoInventarioController {
         java.time.LocalDate fechaVencimiento = (esEntrada || esDevolucion) ? movimientoDTO.getFechaVencimiento() : null;
         String registroSanitario = esEntrada ? movimientoDTO.getRegistroSanitario() : null;
 
+        // Si viene varianteId, incluir talla/color en la descripción para que sea visible en el Kardex
+        String descripcionFinal = movimientoDTO.getDescripcion() != null ? movimientoDTO.getDescripcion() : "";
+        if (movimientoDTO.getVarianteId() != null) {
+            String varDesc = productoVarianteRepository
+                    .findByIdAndTenantId(movimientoDTO.getVarianteId(), tenantId)
+                    .map(v -> {
+                        java.util.List<String> parts = new java.util.ArrayList<>();
+                        if (v.getTalla() != null && !v.getTalla().isBlank()) parts.add(v.getTalla());
+                        if (v.getColor() != null && !v.getColor().isBlank()) parts.add(v.getColor());
+                        return parts.isEmpty() ? "" : " [" + String.join(" / ", parts) + "]";
+                    }).orElse("");
+            descripcionFinal = descripcionFinal + varDesc;
+        }
+
         MovimientoInventario movimiento = MovimientoInventario.builder()
                 .producto(producto)
                 .usuario(usuario)
                 .tipo(movimientoDTO.getTipo())
                 .cantidad(movimientoDTO.getCantidad())
-                .descripcion(movimientoDTO.getDescripcion())
+                .descripcion(descripcionFinal)
                 .referencia(movimientoDTO.getReferencia())
                 .tenantId(tenantId)
                 .proveedorId(proveedorId)
@@ -168,35 +184,43 @@ public class MovimientoInventarioController {
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);
 
-        // Actualizar stock del producto según tipo de movimiento
-        int nuevoStock = producto.getStockActual();
-        switch (movimientoDTO.getTipo()) {
-            case "ENTRADA":
-            case "DEVOLUCION":
-                nuevoStock += movimientoDTO.getCantidad();
-                break;
-            case "SALIDA":
-                nuevoStock -= movimientoDTO.getCantidad();
-                break;
-            case "AJUSTE":
-                nuevoStock = movimientoDTO.getCantidad();
-                break;
+        // Actualizar stock: si hay varianteId → afectar variante y re-sincronizar producto padre
+        if (movimientoDTO.getVarianteId() != null) {
+            productoVarianteRepository.findByIdAndTenantId(movimientoDTO.getVarianteId(), tenantId)
+                    .ifPresentOrElse(variante -> {
+                        int sv = variante.getStockActual() != null ? variante.getStockActual() : 0;
+                        switch (movimientoDTO.getTipo()) {
+                            case "ENTRADA": case "DEVOLUCION": sv += movimientoDTO.getCantidad(); break;
+                            case "SALIDA":  sv -= movimientoDTO.getCantidad(); break;
+                            case "AJUSTE":  sv  = movimientoDTO.getCantidad(); break;
+                        }
+                        variante.setStockActual(sv);
+                        productoVarianteRepository.save(variante);
+                        int totalPadre = productoVarianteRepository
+                                .findByProductoIdAndActivoTrueAndTenantId(producto.getId(), tenantId)
+                                .stream().mapToInt(v -> v.getStockActual() != null ? v.getStockActual() : 0).sum();
+                        producto.setStockActual(totalPadre);
+                    }, () -> { throw new ResourceNotFoundException("Variante no encontrada"); });
+        } else {
+            int nuevoStock = producto.getStockActual();
+            switch (movimientoDTO.getTipo()) {
+                case "ENTRADA": case "DEVOLUCION": nuevoStock += movimientoDTO.getCantidad(); break;
+                case "SALIDA":  nuevoStock -= movimientoDTO.getCantidad(); break;
+                case "AJUSTE":  nuevoStock  = movimientoDTO.getCantidad(); break;
+            }
+            producto.setStockActual(nuevoStock);
         }
 
-        producto.setStockActual(nuevoStock);
-
-        // Si es ENTRADA y costoUnitario fue provisto, actualizar el último costo del producto
         if (esEntrada && costoUnitario != null && costoUnitario.compareTo(BigDecimal.ZERO) > 0) {
             producto.setCostoUnitario(costoUnitario);
         }
-        // Si es ENTRADA y precioVenta fue provisto, actualizar el precio de venta del producto
         if (esEntrada && precioVenta != null && precioVenta.compareTo(BigDecimal.ZERO) > 0) {
             producto.setPrecioVenta(precioVenta);
         }
 
         productoService.actualizarProducto(producto.getId(), producto);
 
-        log.info("✅ Movimiento creado: {} - Nuevo stock: {}", movimientoDTO.getTipo(), nuevoStock);
+        log.info("✅ Movimiento creado: {} - Nuevo stock: {}", movimientoDTO.getTipo(), producto.getStockActual());
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(movimientoMapper.toDTO(movimientoCreado));

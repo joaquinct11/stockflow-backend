@@ -21,6 +21,8 @@ public interface ProductoMapper {
     @Mapping(source = "imagenUrl", target = "imagenUrl")
     @Mapping(source = "esGenerico", target = "esGenerico")
     @Mapping(source = "unidadesPorCaja", target = "unidadesPorCaja")
+    @Mapping(source = "talla", target = "talla")
+    @Mapping(source = "color", target = "color")
     ProductoDTO toDTO(Producto producto);
 
     // DTO → ENTITY
@@ -43,6 +45,8 @@ public interface ProductoMapper {
     @Mapping(source = "imagenUrl", target = "imagenUrl")
     @Mapping(source = "esGenerico", target = "esGenerico")
     @Mapping(source = "unidadesPorCaja", target = "unidadesPorCaja")
+    @Mapping(source = "talla", target = "talla")
+    @Mapping(source = "color", target = "color")
     void updateEntityFromDTO(ProductoDTO dto, @MappingTarget Producto producto);
 
     // 🔑 Long → UnidadMedida

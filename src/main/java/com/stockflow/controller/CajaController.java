@@ -3,6 +3,7 @@ package com.stockflow.controller;
 import com.stockflow.dto.AbrirCajaRequestDTO;
 import com.stockflow.dto.CajaDTO;
 import com.stockflow.dto.CerrarCajaRequestDTO;
+import com.stockflow.dto.CorregirCierreRequestDTO;
 import com.stockflow.dto.RegistrarRetiroRequestDTO;
 import com.stockflow.dto.RetiroCajaDTO;
 import com.stockflow.service.CajaService;
@@ -82,6 +83,17 @@ public class CajaController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔒 Cerrando caja ID={} tenant={}", id, tenantId);
         CajaDTO caja = cajaService.cerrar(id, request, tenantId);
+        return ResponseEntity.ok(caja);
+    }
+
+    /** PUT /cajas/{id}/corregir-cierre — solo ADMIN puede corregir el monto contado de una caja cerrada */
+    @PutMapping("/{id}/corregir-cierre")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CajaDTO> corregirCierre(@PathVariable Long id,
+                                                   @Valid @RequestBody CorregirCierreRequestDTO request) {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("✏️ Admin corrigiendo cierre de caja ID={} tenant={}", id, tenantId);
+        CajaDTO caja = cajaService.corregirCierre(id, request, tenantId);
         return ResponseEntity.ok(caja);
     }
 

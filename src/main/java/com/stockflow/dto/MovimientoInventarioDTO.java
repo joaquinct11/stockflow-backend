@@ -53,4 +53,6 @@ public class MovimientoInventarioDTO {
 
     private String registroSanitario;
 
+    private Long varianteId;
+
 }

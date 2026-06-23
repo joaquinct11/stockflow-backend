@@ -36,6 +36,12 @@ public class DetalleVenta {
     @Column(name = "subtotal", nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
 
+    @Column(name = "variante_id")
+    private Long varianteId;
+
+    @Column(name = "variante_descripcion")
+    private String varianteDescripcion;
+
     @PrePersist
     @PreUpdate
     public void calcularSubtotal() {
