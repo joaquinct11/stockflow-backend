@@ -64,6 +64,12 @@ public class Producto {
     @Column(name = "unidades_por_caja")
     private Integer unidadesPorCaja;
 
+    @Column(name = "talla", length = 50)
+    private String talla;
+
+    @Column(name = "color", length = 100)
+    private String color;
+
     @Column(name = "tenant_id")
     private String tenantId;
 

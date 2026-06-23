@@ -61,6 +61,12 @@ public class ProductoDTO {
     /** Cuántas unidades trae cada caja/presentación (ej: 100 tabletas/caja). Informativo. */
     private Integer unidadesPorCaja;
 
+    /** Talla del producto (ej: S, M, L, XL). Solo para rubros de ropa. */
+    private String talla;
+
+    /** Color del producto (ej: Azul, Rojo). Solo para rubros de ropa. */
+    private String color;
+
     private String tenantId;
 
     /** Fecha del lote más próximo a vencer (calculado en el servidor, solo lectura). */
