@@ -54,7 +54,9 @@ public class RolePermissionDefaults {
             // Clientes
             "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE", "ELIMINAR_CLIENTE", "CAMBIAR_ESTADO_CLIENTE",
             // Gastos / Egresos
-            "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO", "ELIMINAR_GASTO"
+            "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO", "ELIMINAR_GASTO",
+            // Certificados (BOTICA/FARMACIA)
+            "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO", "ELIMINAR_CERTIFICADO"
     );
 
     /**
@@ -109,7 +111,9 @@ public class RolePermissionDefaults {
                     // Clientes
                     "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE", "CAMBIAR_ESTADO_CLIENTE",
                     // Gastos (gerente puede registrar y ver gastos)
-                    "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO"
+                    "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO",
+                    // Certificados
+                    "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO"
             );
 
             // Foco en inventario: compras, recepciones, productos y proveedores.
