@@ -21,7 +21,8 @@ public class UnidadMedidaServiceImpl implements UnidadMedidaService {
 
     @Override
     public List<UnidadMedidaResponseDTO> listar() {
-        return repository.findAll()
+        String tenantId = TenantContext.getCurrentTenant();
+        return repository.findAllByTenantIdOrGlobal(tenantId)
                 .stream()
                 .map(u -> new UnidadMedidaResponseDTO(u.getId(), u.getNombre()))
                 .toList();
@@ -29,9 +30,10 @@ public class UnidadMedidaServiceImpl implements UnidadMedidaService {
 
     @Override
     public UnidadMedidaResponseDTO obtenerPorId(Long id) {
-        UnidadMedida unidad = repository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        UnidadMedida unidad = repository.findAllByTenantIdOrGlobal(tenantId)
+                .stream().filter(u -> u.getId().equals(id)).findFirst()
                 .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
-
         return new UnidadMedidaResponseDTO(unidad.getId(), unidad.getNombre());
     }
 
@@ -40,26 +42,26 @@ public class UnidadMedidaServiceImpl implements UnidadMedidaService {
         UnidadMedida unidad = new UnidadMedida();
         unidad.setNombre(request.getNombre());
         unidad.setTenantId(TenantContext.getCurrentTenant());
-
         return map(repository.save(unidad));
     }
 
     @Override
     public UnidadMedidaResponseDTO actualizar(Long id, UnidadMedidaRequestDTO request) {
-        UnidadMedida unidad = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Unidad no encontrada"));
-
+        String tenantId = TenantContext.getCurrentTenant();
+        UnidadMedida unidad = repository.findByTenantId(tenantId)
+                .stream().filter(u -> u.getId().equals(id)).findFirst()
+                .orElseThrow(() -> new RuntimeException("Unidad no encontrada o no pertenece a tu cuenta"));
         unidad.setNombre(request.getNombre());
-
         return map(repository.save(unidad));
     }
 
     @Override
     public void eliminar(Long id) {
-        if (!repository.existsById(id)) {
-            throw new RuntimeException("Unidad no encontrada");
-        }
-        repository.deleteById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        UnidadMedida unidad = repository.findByTenantId(tenantId)
+                .stream().filter(u -> u.getId().equals(id)).findFirst()
+                .orElseThrow(() -> new RuntimeException("Unidad no encontrada o no pertenece a tu cuenta"));
+        repository.deleteById(unidad.getId());
     }
 
     private UnidadMedidaResponseDTO map(UnidadMedida unidad) {
