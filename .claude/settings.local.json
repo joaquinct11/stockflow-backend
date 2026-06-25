@@ -98,7 +98,21 @@
       "Bash(npx --prefix \"D:/projects/abc/stockflow-frontend\" tsc -p \"D:/projects/abc/stockflow-frontend/tsconfig.json\" --noEmit)",
       "Bash(grep -E \"^[0-9]{3,4}:\")",
       "Bash(xargs grep -n \"variante\")",
-      "Bash(xargs grep -ln \"varianteDescripcion\\\\|detalle\\\\|DetalleVenta\")"
+      "Bash(xargs grep -ln \"varianteDescripcion\\\\|detalle\\\\|DetalleVenta\")",
+      "Bash(xargs grep -l \"Plan\\\\|plan\\\\|suscripci\")",
+      "Bash(xargs ls)",
+      "Bash(xargs grep -n \"count\\\\|findBy\")",
+      "Bash(xargs grep -l \"suscripcion\\\\|plan\\\\|billing\\\\|SuscripcionEstado\")",
+      "Bash(xargs grep -l \"suscripcion\\\\|Suscripcion\\\\|plan\\\\|billing\")",
+      "Bash(cmd /c \"cd /d D:\\\\projects\\\\abc\\\\stockflow-frontend && npx tsc --noEmit 2>&1\")",
+      "Bash(node \"D:/projects/abc/stockflow-frontend/node_modules/typescript/bin/tsc\" --noEmit --project \"D:/projects/abc/stockflow-frontend/tsconfig.json\")",
+      "Bash(xargs grep -l \"crearProducto\\\\|nombre.*producto\\\\|ProductoForm\\\\|NuevoProducto\\\\|CrearProducto\")",
+      "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff --name-only HEAD)",
+      "Bash(git -C \"D:/projects/abc/stockflow-frontend\" status --short)",
+      "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff HEAD src/hooks/usePermissions.ts)",
+      "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff HEAD src/types/index.ts)",
+      "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff HEAD src/App.tsx)",
+      "Bash(rm -rf \"D:/projects/abc/stockflow-frontend/node_modules/.vite\" && echo \"Cache eliminado\")"
     ]
   }
 }
