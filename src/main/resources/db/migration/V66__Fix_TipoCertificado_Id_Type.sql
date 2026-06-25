@@ -1,0 +1,1 @@
+ALTER TABLE tipos_certificado ALTER COLUMN id TYPE BIGINT;
