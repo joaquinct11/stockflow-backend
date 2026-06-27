@@ -204,6 +204,46 @@ public class ApiSunatService {
         }
     }
 
+    /**
+     * Consulta el estado actual de un comprobante ya enviado a SUNAT.
+     * Usa POST /api/v3/status con { documento, serie, numero }.
+     */
+    public ApiSunatComprobanteResponse consultarEstado(String tipo, String serie, Integer numero, String oseToken) {
+        String url = apiSunatBaseUrl + "/api/v3/status";
+        String documento = "BOLETA".equals(tipo) ? "boleta" : "factura";
+
+        java.util.Map<String, Object> body = java.util.Map.of(
+                "documento", documento,
+                "serie",     serie,
+                "numero",    numero
+        );
+
+        log.info("🔍 Consultando estado SUNAT [{}-{}] en {}", serie, numero, url);
+
+        try {
+            String rawJson = http.post()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + oseToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(
+                            status -> status.is4xxClientError() || status.is5xxServerError(),
+                            (req, resp) -> {
+                                byte[] bytes = resp.getBody().readAllBytes();
+                                log.warn("ApiSunat /status error {}: {}", resp.getStatusCode(), new String(bytes));
+                                throw new RuntimeException("APISUNAT_STATUS_ERROR:" + resp.getStatusCode());
+                            })
+                    .body(String.class);
+
+            return mapper.readValue(rawJson, ApiSunatComprobanteResponse.class);
+
+        } catch (Exception e) {
+            log.warn("No se pudo consultar estado SUNAT para {}-{}: {}", serie, numero, e.getMessage());
+            throw new RuntimeException("Error consultando estado: " + e.getMessage(), e);
+        }
+    }
+
     // ── Builder ───────────────────────────────────────────────────────────────
 
     private ApiSunatComprobanteRequest buildRequest(Comprobante c, Tenant tenant) {
