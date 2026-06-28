@@ -124,12 +124,12 @@ public class MovimientoInventarioController {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         // Validar tipo de movimiento
-        if (!movimientoDTO.getTipo().matches("ENTRADA|SALIDA|AJUSTE|DEVOLUCION")) {
-            throw new BadRequestException("Tipo de movimiento inválido. Use: ENTRADA, SALIDA, AJUSTE, DEVOLUCION");
+        if (!movimientoDTO.getTipo().matches("ENTRADA|SALIDA|AJUSTE|AJUSTE_PRECIO|DEVOLUCION")) {
+            throw new BadRequestException("Tipo de movimiento inválido.");
         }
 
-        // Validar cantidad
-        if (movimientoDTO.getCantidad() <= 0) {
+        // AJUSTE_PRECIO no requiere cantidad; los demás sí
+        if (!"AJUSTE_PRECIO".equals(movimientoDTO.getTipo()) && movimientoDTO.getCantidad() <= 0) {
             throw new BadRequestException("La cantidad debe ser mayor a 0");
         }
 
@@ -141,13 +141,16 @@ public class MovimientoInventarioController {
         }
 
         // Crear movimiento
-        boolean esEntrada = "ENTRADA".equals(movimientoDTO.getTipo());
-        boolean esDevolucion = "DEVOLUCION".equals(movimientoDTO.getTipo());
+        boolean esEntrada      = "ENTRADA".equals(movimientoDTO.getTipo());
+        boolean esDevolucion   = "DEVOLUCION".equals(movimientoDTO.getTipo());
+        boolean esAjuste       = "AJUSTE".equals(movimientoDTO.getTipo());
+        boolean esAjustePrecio = "AJUSTE_PRECIO".equals(movimientoDTO.getTipo());
 
-        // Solo ENTRADA y DEVOLUCION pueden llevar datos de lote/proveedor/costo
+        // Solo ENTRADA y DEVOLUCION llevan lote/proveedor
         Long proveedorId = (esEntrada || esDevolucion) ? movimientoDTO.getProveedorId() : null;
-        BigDecimal costoUnitario = (esEntrada || esDevolucion) ? movimientoDTO.getCostoUnitario() : null;
-        BigDecimal precioVenta = esEntrada ? movimientoDTO.getPrecioVenta() : null;
+        // ENTRADA, DEVOLUCION, AJUSTE y AJUSTE_PRECIO pueden actualizar precios
+        BigDecimal costoUnitario = (esEntrada || esDevolucion || esAjuste || esAjustePrecio) ? movimientoDTO.getCostoUnitario() : null;
+        BigDecimal precioVenta   = (esEntrada || esAjuste || esAjustePrecio)                  ? movimientoDTO.getPrecioVenta()   : null;
         String lote = (esEntrada || esDevolucion) ? movimientoDTO.getLote() : null;
         java.time.LocalDate fechaVencimiento = (esEntrada || esDevolucion) ? movimientoDTO.getFechaVencimiento() : null;
         String registroSanitario = esEntrada ? movimientoDTO.getRegistroSanitario() : null;
@@ -170,7 +173,7 @@ public class MovimientoInventarioController {
                 .producto(producto)
                 .usuario(usuario)
                 .tipo(movimientoDTO.getTipo())
-                .cantidad(movimientoDTO.getCantidad())
+                .cantidad(esAjustePrecio ? 0 : movimientoDTO.getCantidad())
                 .descripcion(descripcionFinal)
                 .referencia(movimientoDTO.getReferencia())
                 .tenantId(tenantId)
@@ -184,37 +187,40 @@ public class MovimientoInventarioController {
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);
 
-        // Actualizar stock: si hay varianteId → afectar variante y re-sincronizar producto padre
-        if (movimientoDTO.getVarianteId() != null) {
-            productoVarianteRepository.findByIdAndTenantId(movimientoDTO.getVarianteId(), tenantId)
-                    .ifPresentOrElse(variante -> {
-                        int sv = variante.getStockActual() != null ? variante.getStockActual() : 0;
-                        switch (movimientoDTO.getTipo()) {
-                            case "ENTRADA": case "DEVOLUCION": sv += movimientoDTO.getCantidad(); break;
-                            case "SALIDA":  sv -= movimientoDTO.getCantidad(); break;
-                            case "AJUSTE":  sv  = movimientoDTO.getCantidad(); break;
-                        }
-                        variante.setStockActual(sv);
-                        productoVarianteRepository.save(variante);
-                        int totalPadre = productoVarianteRepository
-                                .findByProductoIdAndActivoTrueAndTenantId(producto.getId(), tenantId)
-                                .stream().mapToInt(v -> v.getStockActual() != null ? v.getStockActual() : 0).sum();
-                        producto.setStockActual(totalPadre);
-                    }, () -> { throw new ResourceNotFoundException("Variante no encontrada"); });
-        } else {
-            int nuevoStock = producto.getStockActual();
-            switch (movimientoDTO.getTipo()) {
-                case "ENTRADA": case "DEVOLUCION": nuevoStock += movimientoDTO.getCantidad(); break;
-                case "SALIDA":  nuevoStock -= movimientoDTO.getCantidad(); break;
-                case "AJUSTE":  nuevoStock  = movimientoDTO.getCantidad(); break;
+        // Actualizar stock (AJUSTE_PRECIO no toca el stock)
+        if (!esAjustePrecio) {
+            if (movimientoDTO.getVarianteId() != null) {
+                productoVarianteRepository.findByIdAndTenantId(movimientoDTO.getVarianteId(), tenantId)
+                        .ifPresentOrElse(variante -> {
+                            int sv = variante.getStockActual() != null ? variante.getStockActual() : 0;
+                            switch (movimientoDTO.getTipo()) {
+                                case "ENTRADA": case "DEVOLUCION": sv += movimientoDTO.getCantidad(); break;
+                                case "SALIDA":  sv -= movimientoDTO.getCantidad(); break;
+                                case "AJUSTE":  sv  = movimientoDTO.getCantidad(); break;
+                            }
+                            variante.setStockActual(sv);
+                            productoVarianteRepository.save(variante);
+                            int totalPadre = productoVarianteRepository
+                                    .findByProductoIdAndActivoTrueAndTenantId(producto.getId(), tenantId)
+                                    .stream().mapToInt(v -> v.getStockActual() != null ? v.getStockActual() : 0).sum();
+                            producto.setStockActual(totalPadre);
+                        }, () -> { throw new ResourceNotFoundException("Variante no encontrada"); });
+            } else {
+                int nuevoStock = producto.getStockActual();
+                switch (movimientoDTO.getTipo()) {
+                    case "ENTRADA": case "DEVOLUCION": nuevoStock += movimientoDTO.getCantidad(); break;
+                    case "SALIDA":  nuevoStock -= movimientoDTO.getCantidad(); break;
+                    case "AJUSTE":  nuevoStock  = movimientoDTO.getCantidad(); break;
+                }
+                producto.setStockActual(nuevoStock);
             }
-            producto.setStockActual(nuevoStock);
         }
 
-        if (esEntrada && costoUnitario != null && costoUnitario.compareTo(BigDecimal.ZERO) > 0) {
+        // Actualizar precios si vienen informados
+        if (costoUnitario != null && costoUnitario.compareTo(BigDecimal.ZERO) > 0) {
             producto.setCostoUnitario(costoUnitario);
         }
-        if (esEntrada && precioVenta != null && precioVenta.compareTo(BigDecimal.ZERO) > 0) {
+        if (precioVenta != null && precioVenta.compareTo(BigDecimal.ZERO) > 0) {
             producto.setPrecioVenta(precioVenta);
         }
 

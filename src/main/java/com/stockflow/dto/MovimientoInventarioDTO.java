@@ -24,7 +24,7 @@ public class MovimientoInventarioDTO {
     private Long productoId;
 
     @NotNull(message = "La cantidad es requerida")
-    @Min(value = 1, message = "La cantidad debe ser mayor a 0")
+    @Min(value = 0, message = "La cantidad no puede ser negativa")
     private Integer cantidad;
 
     @NotBlank(message = "El tipo de movimiento es requerido")
