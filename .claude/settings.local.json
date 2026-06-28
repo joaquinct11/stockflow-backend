@@ -112,7 +112,9 @@
       "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff HEAD src/hooks/usePermissions.ts)",
       "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff HEAD src/types/index.ts)",
       "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff HEAD src/App.tsx)",
-      "Bash(rm -rf \"D:/projects/abc/stockflow-frontend/node_modules/.vite\" && echo \"Cache eliminado\")"
+      "Bash(rm -rf \"D:/projects/abc/stockflow-frontend/node_modules/.vite\" && echo \"Cache eliminado\")",
+      "Bash(git checkout *)",
+      "Bash(grep -E \"\\\\.java$\")"
     ]
   }
 }
