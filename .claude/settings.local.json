@@ -123,7 +123,8 @@
       "Bash(xargs grep -l \"ordenCompraService\\\\|recepcionService\\\\|notaCreditoService\\\\|movimientoService\\\\|comisionesService\\\\|comisionService\")",
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(xargs grep -l \"CertificadoDTO\")",
-      "Bash(xargs grep -l \"Catálogo de Servicios\\\\|catalogo.*servicio\\\\|CATALOGO_SERVICIOS\")"
+      "Bash(xargs grep -l \"Catálogo de Servicios\\\\|catalogo.*servicio\\\\|CATALOGO_SERVICIOS\")",
+      "Bash(grep -v \"//\\\\|import\\\\|log\\\\.\")"
     ]
   }
 }
