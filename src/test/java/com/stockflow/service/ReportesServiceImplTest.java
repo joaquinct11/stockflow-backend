@@ -365,10 +365,10 @@ class ReportesServiceImplTest {
 
     @Test
     void comprasPorProveedor_sinDatos_devuelveListaVacia() {
-        when(recepcionRepository.findComprasPorProveedor(eq(TENANT), any(), any()))
+        when(recepcionRepository.findComprasPorProveedor(eq(TENANT), any(), any(), any()))
                 .thenReturn(Collections.emptyList());
 
-        List<CompraProveedorDTO> resultado = reportesService.comprasPorProveedor(TENANT, DESDE, HASTA, 20);
+        List<CompraProveedorDTO> resultado = reportesService.comprasPorProveedor(TENANT, null, DESDE, HASTA, 20);
 
         assertThat(resultado).isNotNull().isEmpty();
     }
@@ -376,10 +376,10 @@ class ReportesServiceImplTest {
     @Test
     void comprasPorProveedor_conDatos_devuelveDatosCorrectamente() {
         Object[] row = new Object[]{5L, "Proveedor Uno", 3L, 120L, new BigDecimal("2400.00")};
-        when(recepcionRepository.findComprasPorProveedor(eq(TENANT), any(), any()))
+        when(recepcionRepository.findComprasPorProveedor(eq(TENANT), any(), any(), any()))
                 .thenReturn(List.<Object[]>of(row));
 
-        List<CompraProveedorDTO> resultado = reportesService.comprasPorProveedor(TENANT, DESDE, HASTA, 20);
+        List<CompraProveedorDTO> resultado = reportesService.comprasPorProveedor(TENANT, null, DESDE, HASTA, 20);
 
         assertThat(resultado).hasSize(1);
         CompraProveedorDTO dto = resultado.get(0);
