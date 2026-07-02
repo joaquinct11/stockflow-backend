@@ -1,0 +1,1 @@
+ALTER TABLE comisiones ADD COLUMN IF NOT EXISTS sucursal_id BIGINT;
