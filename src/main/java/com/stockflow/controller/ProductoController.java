@@ -6,6 +6,8 @@ import com.stockflow.dto.ProductoImportRowDTO;
 import com.stockflow.entity.Producto;
 import com.stockflow.mapper.ProductoMapper;
 import com.stockflow.repository.MovimientoInventarioRepository;
+import com.stockflow.repository.ProductoStockSucursalRepository;
+import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
 import com.stockflow.service.ProductoService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -29,18 +31,53 @@ public class ProductoController {
     private final ProductoService productoService;
     private final ProductoMapper productoMapper;
     private final MovimientoInventarioRepository movimientoRepository;
+    private final ProductoStockSucursalRepository stockSucursalRepository;
+    private final ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene productos del tenant actual automáticamente
      */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
-    public ResponseEntity<List<ProductoDTO>> obtenerTodos() {
+    public ResponseEntity<List<ProductoDTO>> obtenerTodos(
+            @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("📦 Obteniendo productos para tenant: {}", tenantId);
+        log.info("📦 Obteniendo productos para tenant: {} sucursalId={}", tenantId, sucursalId);
 
         List<ProductoDTO> dtos = productoMapper.toDTOList(
                 productoService.obtenerProductosPorTenant(tenantId));
+
+        // Si viene sucursalId, sobreescribir stockActual con el stock de esa sucursal
+        if (sucursalId != null) {
+            // Productos sin variantes → producto_stock_sucursal
+            Map<Long, Integer> stockSinVariante = stockSucursalRepository
+                    .findBySucursalIdAndTenantId(sucursalId, tenantId)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            s -> s.getProducto().getId(),
+                            s -> s.getStockActual()
+                    ));
+
+            // Productos CON variantes → suma de producto_variante_stock_sucursal
+            Map<Long, Integer> stockConVariante = varianteStockSucursalRepository
+                    .sumStockPorProductoYSucursal(sucursalId, tenantId)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            row -> ((Number) row[0]).longValue(),
+                            row -> ((Number) row[1]).intValue()
+                    ));
+
+            dtos.forEach(dto -> {
+                if (dto.getId() == null) return;
+                if (stockConVariante.containsKey(dto.getId())) {
+                    // Tiene variantes: usar suma de pvss
+                    dto.setStockActual(stockConVariante.get(dto.getId()));
+                } else if (stockSinVariante.containsKey(dto.getId())) {
+                    // Sin variantes: usar producto_stock_sucursal
+                    dto.setStockActual(stockSinVariante.get(dto.getId()));
+                }
+            });
+        }
 
         // Enriquecer con la próxima fecha de vencimiento de cada lote (1 query extra)
         Map<Long, LocalDate> vencMap = movimientoRepository

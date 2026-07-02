@@ -16,7 +16,11 @@ import com.stockflow.service.ProductoVarianteService;
 import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
+import com.stockflow.entity.ProductoVarianteStockSucursal;
+import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
+import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
+import com.stockflow.repository.SucursalRepository;
 import com.stockflow.util.TenantContext;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
@@ -51,7 +55,10 @@ public class VentaController {
     private final ComprobanteService comprobanteService;
     private final NotaCreditoService notaCreditoService;
     private final NotificacionService notificacionService;
-    private final ProductoVarianteRepository productoVarianteRepository;
+    private final ProductoVarianteRepository                productoVarianteRepository;
+    private final ProductoVarianteStockSucursalRepository   varianteStockSucursalRepository;
+    private final ProductoStockSucursalRepository           stockSucursalRepository;
+    private final SucursalRepository                        sucursalRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
@@ -59,13 +66,16 @@ public class VentaController {
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_VENTAS')")
-    public ResponseEntity<List<VentaDTO>> obtenerTodas() {
+    public ResponseEntity<List<VentaDTO>> obtenerTodas(
+            @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("💰 Obteniendo ventas para tenant: {}", tenantId);
+        log.info("💰 Obteniendo ventas para tenant: {} sucursalId={}", tenantId, sucursalId);
 
-        return ResponseEntity.ok(
-                ventaMapper.toDTOList(ventaService.obtenerVentasPorTenant(tenantId))
-        );
+        List<Venta> ventas = sucursalId != null
+                ? ventaService.obtenerVentasPorTenantYSucursal(tenantId, sucursalId)
+                : ventaService.obtenerVentasPorTenant(tenantId);
+
+        return ResponseEntity.ok(ventaMapper.toDTOList(ventas));
     }
 
     @GetMapping("/{id}")
@@ -174,14 +184,29 @@ public class VentaController {
                         throw new BadRequestException("Producto no encontrado: " + detalleDTO.getProductoId());
                     }
 
-                    // Si viene varianteId, validar stock de la variante; si no, validar stock del producto
-                    if (detalleDTO.getVarianteId() != null) {
-                        productoVarianteRepository.findByIdAndTenantId(detalleDTO.getVarianteId(), tenantId)
-                                .filter(v -> v.getStockActual() >= detalleDTO.getCantidad())
-                                .orElseThrow(() -> new BadRequestException("Stock insuficiente para la variante seleccionada de: " + producto.getNombre()));
-                    } else {
-                        if (producto.getStockActual() < detalleDTO.getCantidad()) {
-                            throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
+                    // Los servicios (tipo=SERVICIO) no tienen stock — saltar validación
+                    boolean esServicio = "SERVICIO".equals(producto.getTipo());
+                    if (!esServicio) {
+                        if (detalleDTO.getVarianteId() != null) {
+                            Long sucId = ventaDTO.getSucursalId();
+                            if (sucId != null) {
+                                // Plan PRO: validar stock por sucursal
+                                ProductoVarianteStockSucursal entry = varianteStockSucursalRepository
+                                        .findByVarianteIdAndSucursalId(detalleDTO.getVarianteId(), sucId)
+                                        .orElseThrow(() -> new BadRequestException("Stock insuficiente para la variante seleccionada de: " + producto.getNombre()));
+                                if (entry.getStockActual() < detalleDTO.getCantidad()) {
+                                    throw new BadRequestException("Stock insuficiente para la variante seleccionada de: " + producto.getNombre());
+                                }
+                            } else {
+                                // Plan BÁSICO: validar stock global de la variante
+                                productoVarianteRepository.findByIdAndTenantId(detalleDTO.getVarianteId(), tenantId)
+                                        .filter(v -> v.getStockActual() >= detalleDTO.getCantidad())
+                                        .orElseThrow(() -> new BadRequestException("Stock insuficiente para la variante seleccionada de: " + producto.getNombre()));
+                            }
+                        } else {
+                            if (producto.getStockActual() < detalleDTO.getCantidad()) {
+                                throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
+                            }
                         }
                     }
 
@@ -233,6 +258,7 @@ public class VentaController {
                 .createdAt(LocalDateTime.now())
                 .cajaId(ventaDTO.getCajaId())
                 .clienteId(ventaDTO.getClienteId())
+                .sucursalId(ventaDTO.getSucursalId())
                 .descuentoNotaCredito(descuentoNc.compareTo(BigDecimal.ZERO) > 0 ? descuentoNc : null)
                 .build();
 
@@ -251,39 +277,80 @@ public class VentaController {
         log.info("✅ Venta creada exitosamente: ID {}", ventaCreada.getId());
 
         // 4) Por cada detalle: descontar stock + crear movimiento SALIDA
+        //    Los servicios (tipo = SERVICIO) no tocan el inventario.
         for (DetalleVenta detalle : detalles) {
             Producto producto = detalle.getProducto();
+            boolean esServicio = "SERVICIO".equals(producto.getTipo());
 
-            if (detalle.getVarianteId() != null) {
-                // Descontar de la variante y sincronizar stock del producto padre
-                productoVarianteRepository.findById(detalle.getVarianteId()).ifPresent(v -> {
-                    v.setStockActual(v.getStockActual() - detalle.getCantidad());
-                    productoVarianteRepository.save(v);
-                    // Recalcular stock del producto padre
-                    int total = productoVarianteRepository
-                            .findByProductoIdAndActivoTrueAndTenantId(producto.getId(), tenantId)
-                            .stream().mapToInt(pv -> pv.getStockActual() != null ? pv.getStockActual() : 0).sum();
-                    producto.setStockActual(total);
+            if (!esServicio) {
+                if (detalle.getVarianteId() != null) {
+                    productoVarianteRepository.findById(detalle.getVarianteId()).ifPresent(v -> {
+                        Long sucId = ventaCreada.getSucursalId();
+                        if (sucId != null) {
+                            // Plan PRO: descontar del stock por sucursal
+                            ProductoVarianteStockSucursal entry = varianteStockSucursalRepository
+                                    .findByVarianteIdAndSucursalId(v.getId(), sucId)
+                                    .orElseGet(() -> ProductoVarianteStockSucursal.builder()
+                                            .varianteId(v.getId())
+                                            .sucursalId(sucId)
+                                            .tenantId(tenantId)
+                                            .stockActual(0)
+                                            .stockMinimo(v.getStockMinimo() != null ? v.getStockMinimo() : 0)
+                                            .build());
+                            int nuevoSuc = Math.max(0, (entry.getStockActual() != null ? entry.getStockActual() : 0) - detalle.getCantidad());
+                            entry.setStockActual(nuevoSuc);
+                            varianteStockSucursalRepository.save(entry);
+                            // Stock global de la variante = suma de todos los locales
+                            int totalVariante = varianteStockSucursalRepository
+                                    .sumStockByVarianteIdAndTenantId(v.getId(), tenantId);
+                            v.setStockActual(totalVariante);
+                        } else {
+                            // Plan BÁSICO: descontar del stock global
+                            v.setStockActual(v.getStockActual() - detalle.getCantidad());
+                        }
+                        productoVarianteRepository.save(v);
+                        int total = productoVarianteRepository
+                                .findByProductoIdAndActivoTrueAndTenantId(producto.getId(), tenantId)
+                                .stream().mapToInt(pv -> pv.getStockActual() != null ? pv.getStockActual() : 0).sum();
+                        producto.setStockActual(total);
+                        productoService.actualizarProducto(producto.getId(), producto);
+                    });
+                } else {
+                    producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
                     productoService.actualizarProducto(producto.getId(), producto);
-                });
-            } else {
-                // Sin variante: descontar directo del producto
-                producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
-                productoService.actualizarProducto(producto.getId(), producto);
+
+                    // Actualizar stock por sucursal si la venta tiene sucursalId
+                    if (ventaCreada.getSucursalId() != null) {
+                        sucursalRepository.findById(ventaCreada.getSucursalId()).ifPresent(sucursal -> {
+                            ProductoStockSucursal entry = stockSucursalRepository
+                                    .findByProductoIdAndSucursalId(producto.getId(), sucursal.getId())
+                                    .orElseGet(() -> ProductoStockSucursal.builder()
+                                            .producto(producto)
+                                            .sucursal(sucursal)
+                                            .tenantId(tenantId)
+                                            .stockActual(0)
+                                            .build());
+                            int stockSuc = (entry.getStockActual() != null ? entry.getStockActual() : 0) - detalle.getCantidad();
+                            entry.setStockActual(Math.max(0, stockSuc));
+                            stockSucursalRepository.save(entry);
+                        });
+                    }
+                }
+
+                String varDesc = detalle.getVarianteDescripcion() != null
+                        ? " [" + detalle.getVarianteDescripcion() + "]" : "";
+                MovimientoInventario movimiento = MovimientoInventario.builder()
+                        .producto(producto)
+                        .usuario(vendedor)
+                        .tipo("SALIDA")
+                        .cantidad(detalle.getCantidad())
+                        .descripcion("Venta #" + ventaCreada.getId() + varDesc)
+                        .referencia("Venta #" + ventaCreada.getId())
+                        .tenantId(tenantId)
+                        .sucursalId(ventaCreada.getSucursalId())
+                        .build();
+                movimientoService.crearMovimiento(movimiento);
             }
-
-            // Crear movimiento por producto
-            MovimientoInventario movimiento = MovimientoInventario.builder()
-                    .producto(producto)
-                    .usuario(vendedor)
-                    .tipo("SALIDA")
-                    .cantidad(detalle.getCantidad())
-                    .descripcion("Venta #" + ventaCreada.getId())
-                    .referencia("Venta #" + ventaCreada.getId())
-                    .tenantId(tenantId)
-                    .build();
-
-            movimientoService.crearMovimiento(movimiento);
         }
 
         return ResponseEntity.status(HttpStatus.CREATED)

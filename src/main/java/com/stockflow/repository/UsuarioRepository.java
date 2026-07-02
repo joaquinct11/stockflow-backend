@@ -41,4 +41,13 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     @Modifying
     @Query("UPDATE Usuario u SET u.activo = true WHERE u.tenantId = :tenantId")
     void activarPorTenant(@Param("tenantId") String tenantId);
+
+    /**
+     * Al inicializar la sucursal principal (upgrade PRO), asigna la sucursal
+     * solo a usuarios no-ADMIN que aún no tienen sucursal asignada.
+     * El ADMIN mantiene sucursal_id = NULL para poder ver todos los locales.
+     */
+    @Modifying
+    @Query(value = "UPDATE usuarios SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL AND rol_id != (SELECT id FROM roles WHERE nombre = 'ADMIN' LIMIT 1)", nativeQuery = true)
+    void asignarSucursalAdminNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
 }

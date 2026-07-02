@@ -73,6 +73,13 @@ public class Producto {
     @Column(name = "tenant_id")
     private String tenantId;
 
+    /**
+     * PRODUCTO (default) = tiene stock, se descuenta al vender.
+     * SERVICIO = sin stock, no genera movimiento de inventario.
+     */
+    @Column(nullable = false, length = 20)
+    private String tipo = "PRODUCTO";
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

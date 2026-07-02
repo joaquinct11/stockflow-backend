@@ -14,7 +14,7 @@ public interface CajaService {
     CajaDTO cerrar(Long cajaId, CerrarCajaRequestDTO request, String tenantId);
     RetiroCajaDTO registrarRetiro(Long cajaId, RegistrarRetiroRequestDTO request, Long usuarioId, String usuarioNombre, String tenantId);
     CajaDTO corregirCierre(Long cajaId, CorregirCierreRequestDTO request, String tenantId);
-    Optional<CajaDTO> getActiva(String tenantId);
-    List<CajaDTO> getAll(String tenantId);
+    Optional<CajaDTO> getActiva(String tenantId, Long sucursalId);
+    List<CajaDTO> getAll(String tenantId, Long sucursalId);
     Optional<CajaDTO> getById(Long id, String tenantId);
 }

@@ -66,6 +66,9 @@ public class Recepcion {
     @Builder.Default
     private List<RecepcionDetalle> detalles = new ArrayList<>();
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @PrePersist
     protected void prePersist() {
         if (createdAt == null) createdAt = LocalDateTime.now();

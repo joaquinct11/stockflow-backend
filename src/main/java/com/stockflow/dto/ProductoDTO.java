@@ -69,6 +69,9 @@ public class ProductoDTO {
 
     private String tenantId;
 
+    /** PRODUCTO (default) | SERVICIO. Los servicios no descuentan stock. */
+    private String tipo = "PRODUCTO";
+
     /** Fecha del lote más próximo a vencer (calculado en el servidor, solo lectura). */
     private LocalDate proximaFechaVencimiento;
 }

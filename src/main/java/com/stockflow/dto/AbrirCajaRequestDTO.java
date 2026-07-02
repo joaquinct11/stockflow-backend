@@ -7,4 +7,5 @@ import java.math.BigDecimal;
 public class AbrirCajaRequestDTO {
     private BigDecimal montoApertura = BigDecimal.ZERO;
     private String observaciones;
+    private Long sucursalId;
 }

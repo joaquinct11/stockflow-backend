@@ -5,11 +5,14 @@ import com.stockflow.dto.ProductoImportRowDTO;
 import com.stockflow.entity.Categoria;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
+import com.stockflow.entity.ProductoStockSucursal;
 import com.stockflow.entity.UnidadMedida;
 import com.stockflow.entity.Usuario;
 import com.stockflow.repository.CategoriaRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.ProductoStockSucursalRepository;
+import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.UnidadMedidaRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.service.PlanLimitService;
@@ -38,6 +41,8 @@ public class ProductoServiceImpl implements ProductoService {
     private final UnidadMedidaRepository unidadMedidaRepository;
     private final CategoriaRepository categoriaRepository;
     private final PlanLimitService planLimitService;
+    private final SucursalRepository sucursalRepository;
+    private final ProductoStockSucursalRepository stockSucursalRepository;
 
     @Override
     @Transactional
@@ -66,6 +71,22 @@ public class ProductoServiceImpl implements ProductoService {
                 .build();
 
         movimientoInventarioRepository.save(mov);
+
+        // Inicializar stock por sucursal para tenants multi-local (plan Pro)
+        int stockInicial = productoCreado.getStockActual() != null ? productoCreado.getStockActual() : 0;
+        sucursalRepository.findByTenantIdAndActivoTrueOrderByEsPrincipalDescNombreAsc(productoCreado.getTenantId())
+                .forEach(sucursal -> {
+                    boolean esPrincipal = Boolean.TRUE.equals(sucursal.getEsPrincipal());
+                    stockSucursalRepository.findByProductoIdAndSucursalId(productoCreado.getId(), sucursal.getId())
+                            .orElseGet(() -> stockSucursalRepository.save(
+                                    ProductoStockSucursal.builder()
+                                            .producto(productoCreado)
+                                            .sucursal(sucursal)
+                                            .tenantId(productoCreado.getTenantId())
+                                            .stockActual(esPrincipal ? stockInicial : 0)
+                                            .build()
+                            ));
+                });
 
         // Recargar con JOIN FETCH para que categoriaRef y unidadMedida estén
         // completamente inicializados en el DTO de respuesta.
@@ -135,8 +156,17 @@ public class ProductoServiceImpl implements ProductoService {
     }
 
     @Override
+    @Transactional
     public void eliminarProducto(Long id) {
-        productoRepository.deleteById(id);
+        Producto producto = productoRepository.findById(id)
+                .orElseThrow(() -> new com.stockflow.exception.ResourceNotFoundException("Producto no encontrado"));
+        boolean tieneHistorial = productoRepository.tieneRegistrosRelacionados(id);
+        if (tieneHistorial) {
+            producto.setActivo(false);
+            productoRepository.save(producto);
+        } else {
+            productoRepository.deleteById(id);
+        }
     }
 
     @Override

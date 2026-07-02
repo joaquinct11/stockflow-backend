@@ -10,6 +10,7 @@ import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.*;
 import com.stockflow.service.DevolucionService;
 import com.stockflow.service.NotaCreditoService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,10 @@ public class DevolucionServiceImpl implements DevolucionService {
     private final UsuarioRepository usuarioRepository;
     private final MovimientoInventarioRepository movimientoRepository;
     private final NotaCreditoService notaCreditoService;
+    private final ProductoStockSucursalRepository stockSucursalRepository;
+    private final SucursalRepository sucursalRepository;
+    private final ProductoVarianteRepository productoVarianteRepository;
+    private final ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
 
     @Override
     public DevolucionDTO crear(CrearDevolucionDTO dto, Long usuarioId, String tenantId) {
@@ -115,6 +120,7 @@ public class DevolucionServiceImpl implements DevolucionService {
                 .totalDevuelto(totalDevuelto)
                 .reponerStock(dto.isReponerStock())
                 .estado("PROCESADA")
+                .sucursalId(venta.getSucursalId())
                 .build();
 
         for (DevolucionDetalle det : detalles) {
@@ -129,18 +135,65 @@ public class DevolucionServiceImpl implements DevolucionService {
 
         // 7. Reponer stock if requested
         if (dto.isReponerStock()) {
+            Long sucursalId = venta.getSucursalId();
             for (DevolucionDetalle det : detalles) {
                 Producto producto = det.getProducto();
                 producto.setStockActual(producto.getStockActual() + det.getCantidadDevuelta());
                 productoRepository.save(producto);
 
+                // Reponer también en producto_stock_sucursal
+                if (sucursalId != null) {
+                    final Producto prod = producto;
+                    final int cant = det.getCantidadDevuelta();
+                    sucursalRepository.findById(sucursalId).ifPresent(sucursal -> {
+                        ProductoStockSucursal entry = stockSucursalRepository
+                                .findByProductoIdAndSucursalId(prod.getId(), sucursal.getId())
+                                .orElseGet(() -> ProductoStockSucursal.builder()
+                                        .producto(prod)
+                                        .sucursal(sucursal)
+                                        .tenantId(tenantId)
+                                        .stockActual(0)
+                                        .build());
+                        entry.setStockActual((entry.getStockActual() != null ? entry.getStockActual() : 0) + cant);
+                        stockSucursalRepository.save(entry);
+                    });
+                }
+
+                DetalleVenta dvOrigen = detallesPorProducto.get(det.getProducto().getId());
+                String varDesc = (dvOrigen != null && dvOrigen.getVarianteDescripcion() != null)
+                        ? " [" + dvOrigen.getVarianteDescripcion() + "]" : "";
+
+                // Reponer stock de variante si aplica
+                if (dvOrigen != null && dvOrigen.getVarianteId() != null) {
+                    final Long varianteId = dvOrigen.getVarianteId();
+                    final int cantDev = det.getCantidadDevuelta();
+                    productoVarianteRepository.findById(varianteId).ifPresent(pv -> {
+                        pv.setStockActual((pv.getStockActual() != null ? pv.getStockActual() : 0) + cantDev);
+                        productoVarianteRepository.save(pv);
+                    });
+                    if (sucursalId != null) {
+                        sucursalRepository.findById(sucursalId).ifPresent(sucursal -> {
+                            ProductoVarianteStockSucursal pvss = varianteStockSucursalRepository
+                                    .findByVarianteIdAndSucursalId(varianteId, sucursal.getId())
+                                    .orElseGet(() -> ProductoVarianteStockSucursal.builder()
+                                            .varianteId(varianteId)
+                                            .sucursalId(sucursal.getId())
+                                            .tenantId(tenantId)
+                                            .stockActual(0)
+                                            .build());
+                            pvss.setStockActual((pvss.getStockActual() != null ? pvss.getStockActual() : 0) + cantDev);
+                            varianteStockSucursalRepository.save(pvss);
+                        });
+                    }
+                }
                 MovimientoInventario mov = MovimientoInventario.builder()
                         .producto(producto)
                         .cantidad(det.getCantidadDevuelta())
                         .tipo("DEVOLUCION")
                         .usuario(usuario)
                         .tenantId(tenantId)
-                        .descripcion("Devolución venta #" + venta.getId() + " - " + dto.getMotivo())
+                        .sucursalId(sucursalId)
+                        .descripcion("Devolución venta #" + venta.getId() + varDesc + " - " + dto.getMotivo())
                         .referencia("DEV-" + devolucion.getId())
                         .build();
                 movimientoRepository.save(mov);

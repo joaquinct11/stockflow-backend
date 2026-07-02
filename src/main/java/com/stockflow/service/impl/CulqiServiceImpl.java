@@ -191,21 +191,68 @@ public class CulqiServiceImpl implements CulqiService {
 
     @Override
     public String crearPlan(String nombre, long montoCentavos) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("name",           nombre);
-        body.put("amount",         montoCentavos);
-        body.put("currency_code",  "PEN");
-        body.put("interval",       "month");
-        body.put("interval_count", 1);
-        body.put("limit",          0);
+        // Ciclos iniciales requeridos por Culqi
+        Map<String, Object> initialCycles = new HashMap<>();
+        initialCycles.put("count",               0);
+        initialCycles.put("has_initial_charge",  false);
+        initialCycles.put("amount",              0);
+        initialCycles.put("interval_unit_time",  3); // 3 = mensual
 
-        Map<String, Object> response = post("/recurrent/plans", body, false);
+        // Slug corto derivado del nombre (sin espacios, solo alfanumérico + guion)
+        String shortName = nombre.toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-|-$", "");
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("name",               nombre);
+        body.put("short_name",         shortName);
+        body.put("description",        nombre);
+        body.put("amount",             montoCentavos);
+        body.put("currency",           "PEN");
+        body.put("interval_unit_time", 3);   // 3 = mensual
+        body.put("interval_count",     1);
+        body.put("initial_cycles",     initialCycles);
+
+        Map<String, Object> response = post("/recurrent/plans/create", body, false);
         String planId = (String) response.get("id");
         log.info("✅ Culqi plan creado: {}", planId);
         return planId;
     }
 
     // ── HTTP helpers ──────────────────────────────────────────────────────────
+
+    private Map<String, Object> postToSecure(String path, Map<String, Object> body) {
+        try {
+            String json  = objectMapper.writeValueAsString(body);
+            String url   = culqiProperties.getSecureBaseUrl() + path;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + culqiProperties.getSecretKey())
+                    .header("Content-Type",  "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            String responseBody = response.body();
+            log.info("📥 Culqi POST secure {}: status={}, body={}", path, response.statusCode(), responseBody);
+
+            Map<String, Object> responseMap = objectMapper.readValue(
+                    responseBody, new TypeReference<Map<String, Object>>() {});
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                String mensaje = extractMensajeError(responseMap);
+                throw new BadRequestException("Error Culqi secure [" + path + "]: " + mensaje);
+            }
+            return responseMap;
+
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Error en Culqi POST secure {}: {}", path, e.getMessage(), e);
+            throw new BadRequestException("Error de comunicación con Culqi: " + e.getMessage());
+        }
+    }
 
     private Map<String, Object> post(String path, Map<String, Object> body, boolean useRsa) {
         try {

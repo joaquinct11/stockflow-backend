@@ -14,7 +14,7 @@ public interface MovimientoInventarioService {
 
     List<MovimientoInventario> obtenerMovimientosPorUsuario(Long usuarioId);
 
-    List<MovimientoInventario> obtenerMovimientosPorTenant(String tenantId);
+    List<MovimientoInventario> obtenerMovimientosPorTenant(String tenantId, Long sucursalId);
 
     void eliminarMovimiento(Long id);
 

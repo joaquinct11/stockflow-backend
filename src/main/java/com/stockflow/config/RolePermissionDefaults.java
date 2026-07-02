@@ -131,7 +131,9 @@ public class RolePermissionDefaults {
                     // Recepciones
                     "VER_RECEPCIONES", "CREAR_RECEPCION", "CONFIRMAR_RECEPCION",
                     // Reportes (Kardex y movimientos de stock)
-                    "VER_REPORTES"
+                    "VER_REPORTES",
+                    // Sucursales — necesario para que AppLayout cargue las sedes
+                    "VER_SUCURSALES"
             );
 
             // Foco en ventas: ver productos, crear ventas propias y emitir comprobantes.
@@ -149,7 +151,9 @@ public class RolePermissionDefaults {
                     // Facturación (VER_MIS_FACTURACION = solo sus propias ventas)
                     "VER_MIS_FACTURACION", "EMITIR_COMPROBANTE", "VER_COMPROBANTE",
                     // Clientes (vendedor puede crear y ver clientes para las ventas)
-                    "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE"
+                    "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE",
+                    // Sucursales — necesario para que AppLayout cargue las sedes
+                    "VER_SUCURSALES"
             );
 
             default -> Set.of();

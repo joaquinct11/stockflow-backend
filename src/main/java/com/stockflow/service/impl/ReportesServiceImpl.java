@@ -3,9 +3,11 @@ package com.stockflow.service.impl;
 import com.stockflow.dto.reportes.*;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
+import com.stockflow.entity.ProductoStockSucursal;
 import com.stockflow.repository.GastoRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.RecepcionRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.ReportesService;
@@ -32,15 +34,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReportesServiceImpl implements ReportesService {
 
-    private final ProductoRepository             productoRepository;
-    private final MovimientoInventarioRepository movimientoRepository;
-    private final RecepcionRepository            recepcionRepository;
-    private final VentaRepository                ventaRepository;
-    private final GastoRepository                gastoRepository;
+    private final ProductoRepository                productoRepository;
+    private final ProductoStockSucursalRepository   stockSucursalRepository;
+    private final MovimientoInventarioRepository    movimientoRepository;
+    private final RecepcionRepository               recepcionRepository;
+    private final VentaRepository                   ventaRepository;
+    private final GastoRepository                   gastoRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public ReportesResumenDTO obtenerResumen(String tenantId, LocalDate desde, LocalDate hasta) {
+    public ReportesResumenDTO obtenerResumen(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta) {
         log.info("📊 Generando resumen de reportes para tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
@@ -48,16 +51,16 @@ public class ReportesServiceImpl implements ReportesService {
 
         return ReportesResumenDTO.builder()
                 .rango(RangoDTO.builder().desde(desde).hasta(hasta).build())
-                .inventario(buildInventario(tenantId))
-                .movimientos(buildMovimientos(tenantId, inicio, fin))
-                .comprasRecepciones(buildComprasRecepciones(tenantId, inicio, fin))
-                .ventas(buildVentas(tenantId, inicio, fin))
+                .inventario(buildInventario(tenantId, sucursalId))
+                .movimientos(buildMovimientos(tenantId, sucursalId, inicio, fin))
+                .comprasRecepciones(buildComprasRecepciones(tenantId, sucursalId, inicio, fin))
+                .ventas(buildVentas(tenantId, sucursalId, inicio, fin))
                 .build();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<VentaTendenciaDTO> tendenciaVentas(String tenantId, LocalDate desde, LocalDate hasta,
+    public List<VentaTendenciaDTO> tendenciaVentas(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta,
                                                     String agrupacion) {
         log.info("📈 Tendencia ventas tenant={} rango=[{}, {}] agrupacion={}", tenantId, desde, hasta, agrupacion);
 
@@ -65,9 +68,9 @@ public class ReportesServiceImpl implements ReportesService {
         LocalDateTime fin = hasta.atTime(LocalTime.MAX);
 
         List<Object[]> raw = switch (agrupacion.toUpperCase()) {
-            case "SEMANA" -> ventaRepository.findTendenciaSemanal(tenantId, inicio, fin);
-            case "MES"    -> ventaRepository.findTendenciaMensual(tenantId, inicio, fin);
-            default       -> ventaRepository.findTendenciaDiaria(tenantId, inicio, fin);
+            case "SEMANA" -> ventaRepository.findTendenciaSemanal(tenantId, inicio, fin, sucursalId);
+            case "MES"    -> ventaRepository.findTendenciaMensual(tenantId, inicio, fin, sucursalId);
+            default       -> ventaRepository.findTendenciaDiaria(tenantId, inicio, fin, sucursalId);
         };
 
         return raw.stream()
@@ -81,13 +84,13 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<VentaVendedorDTO> ventasPorVendedor(String tenantId, LocalDate desde, LocalDate hasta, int limit) {
+    public List<VentaVendedorDTO> ventasPorVendedor(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit) {
         log.info("👤 Ventas por vendedor tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin = hasta.atTime(LocalTime.MAX);
 
-        List<Object[]> raw = ventaRepository.findVentasPorVendedor(tenantId, inicio, fin);
+        List<Object[]> raw = ventaRepository.findVentasPorVendedor(tenantId, inicio, fin, sucursalId);
 
         return raw.stream()
                 .limit(limit)
@@ -110,13 +113,13 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<VentaCategoriaDTO> ventasPorCategoria(String tenantId, LocalDate desde, LocalDate hasta, int limit) {
+    public List<VentaCategoriaDTO> ventasPorCategoria(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit) {
         log.info("🏷️ Ventas por categoría tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin = hasta.atTime(LocalTime.MAX);
 
-        List<Object[]> raw = ventaRepository.findVentasPorCategoria(tenantId, inicio, fin);
+        List<Object[]> raw = ventaRepository.findVentasPorCategoria(tenantId, inicio, fin, sucursalId);
 
         return raw.stream()
                 .limit(limit)
@@ -131,13 +134,13 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<VentaMetodoPagoDTO> ventasPorMetodoPago(String tenantId, LocalDate desde, LocalDate hasta) {
+    public List<VentaMetodoPagoDTO> ventasPorMetodoPago(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta) {
         log.info("💳 Ventas por método de pago tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin = hasta.atTime(LocalTime.MAX);
 
-        List<Object[]> raw = ventaRepository.findVentasPorMetodoPago(tenantId, inicio, fin);
+        List<Object[]> raw = ventaRepository.findVentasPorMetodoPago(tenantId, inicio, fin, sucursalId);
 
         BigDecimal totalIngresos = raw.stream()
                 .map(row -> toBigDecimal(row[2]))
@@ -162,7 +165,7 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProductoVentaDTO> productosVendidos(String tenantId, LocalDate desde, LocalDate hasta,
+    public List<ProductoVentaDTO> productosVendidos(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta,
                                                      int limit, String orden, String metrica) {
         log.info("📦 Productos vendidos tenant={} rango=[{}, {}] orden={} metrica={}", tenantId, desde, hasta, orden, metrica);
 
@@ -174,13 +177,13 @@ public class ReportesServiceImpl implements ReportesService {
 
         List<Object[]> raw;
         if (esMas && esIngresos) {
-            raw = ventaRepository.findTopProductosVendidosPorIngresos(tenantId, inicio, fin);
+            raw = ventaRepository.findTopProductosVendidosPorIngresos(tenantId, inicio, fin, sucursalId);
         } else if (esMas) {
-            raw = ventaRepository.findTopProductosVendidos(tenantId, inicio, fin);
+            raw = ventaRepository.findTopProductosVendidos(tenantId, inicio, fin, sucursalId);
         } else if (esIngresos) {
-            raw = ventaRepository.findBottomProductosVendidosPorIngresos(tenantId, inicio, fin);
+            raw = ventaRepository.findBottomProductosVendidosPorIngresos(tenantId, inicio, fin, sucursalId);
         } else {
-            raw = ventaRepository.findBottomProductosVendidosPorUnidades(tenantId, inicio, fin);
+            raw = ventaRepository.findBottomProductosVendidosPorUnidades(tenantId, inicio, fin, sucursalId);
         }
 
         return raw.stream()
@@ -196,14 +199,14 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProductoAbcDTO> clasificacionAbc(String tenantId, LocalDate desde, LocalDate hasta, int limit) {
+    public List<ProductoAbcDTO> clasificacionAbc(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit) {
         log.info("🔡 Clasificación ABC tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin = hasta.atTime(LocalTime.MAX);
 
         // Obtener todos los productos ordenados por ingresos desc (sin límite para calcular % correctos)
-        List<Object[]> raw = ventaRepository.findTopProductosVendidosPorIngresos(tenantId, inicio, fin);
+        List<Object[]> raw = ventaRepository.findTopProductosVendidosPorIngresos(tenantId, inicio, fin, sucursalId);
 
         if (raw.isEmpty()) {
             return Collections.emptyList();
@@ -276,13 +279,13 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CoberturaProductoDTO> coberturaInventario(String tenantId, LocalDate desde, LocalDate hasta, int limit) {
+    public List<CoberturaProductoDTO> coberturaInventario(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit) {
         log.info("📐 Cobertura inventario tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin = hasta.atTime(LocalTime.MAX);
 
-        List<Object[]> salidasRaw = movimientoRepository.findSalidasPorProductoEnRango(tenantId, inicio, fin);
+        List<Object[]> salidasRaw = movimientoRepository.findSalidasPorProductoEnRango(tenantId, inicio, fin, sucursalId);
 
         long diasRango = ChronoUnit.DAYS.between(desde, hasta) + 1;
 
@@ -324,13 +327,13 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CompraProveedorDTO> comprasPorProveedor(String tenantId, LocalDate desde, LocalDate hasta, int limit) {
+    public List<CompraProveedorDTO> comprasPorProveedor(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit) {
         log.info("🛒 Compras por proveedor tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin = hasta.atTime(LocalTime.MAX);
 
-        List<Object[]> raw = recepcionRepository.findComprasPorProveedor(tenantId, inicio, fin);
+        List<Object[]> raw = recepcionRepository.findComprasPorProveedor(tenantId, inicio, fin, sucursalId);
 
         return raw.stream()
                 .limit(limit)
@@ -348,19 +351,19 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public FinancieroDTO getFinanciero(String tenantId, LocalDate desde, LocalDate hasta) {
+    public FinancieroDTO getFinanciero(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta) {
         log.info("💰 Financiero tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin    = hasta.atTime(LocalTime.MAX);
 
         // Ingresos
-        long       ventasCount    = ventaRepository.countByTenantIdAndPeriodo(tenantId, inicio, fin);
-        BigDecimal ingresosVentas = ventaRepository.sumTotalByTenantIdAndPeriodo(tenantId, inicio, fin);
+        long       ventasCount    = ventaRepository.countByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
+        BigDecimal ingresosVentas = ventaRepository.sumTotalByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
         if (ingresosVentas == null) ingresosVentas = BigDecimal.ZERO;
 
         // Costo de ventas
-        BigDecimal costoVentas = ventaRepository.sumCostoVentasByTenantIdAndPeriodo(tenantId, inicio, fin);
+        BigDecimal costoVentas = ventaRepository.sumCostoVentasByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
         if (costoVentas == null) costoVentas = BigDecimal.ZERO;
 
         // Utilidad bruta
@@ -371,8 +374,9 @@ public class ReportesServiceImpl implements ReportesService {
                 : null;
 
         // Gastos operativos del período
-        List<com.stockflow.entity.Gasto> gastos = gastoRepository
-                .findByTenantIdAndFechaGastoBetween(tenantId, desde, hasta);
+        List<com.stockflow.entity.Gasto> gastos = sucursalId != null
+                ? gastoRepository.findByTenantIdAndSucursalIdAndFechaGastoBetween(tenantId, sucursalId, desde, hasta)
+                : gastoRepository.findByTenantIdAndFechaGastoBetween(tenantId, desde, hasta);
 
         BigDecimal gastosTotales = gastos.stream()
                 .map(com.stockflow.entity.Gasto::getMonto)
@@ -508,13 +512,13 @@ public class ReportesServiceImpl implements ReportesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ClienteReporteDTO> getTopClientes(String tenantId, LocalDate desde, LocalDate hasta, int limit) {
+    public List<ClienteReporteDTO> getTopClientes(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit) {
         log.info("👤 Top clientes tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
         LocalDateTime inicio = desde.atStartOfDay();
         LocalDateTime fin    = hasta.atTime(LocalTime.MAX);
 
-        List<Object[]> raw = ventaRepository.findTopClientesPorGasto(tenantId, inicio, fin);
+        List<Object[]> raw = ventaRepository.findTopClientesPorGasto(tenantId, inicio, fin, sucursalId);
 
         return raw.stream()
                 .limit(limit)
@@ -544,21 +548,36 @@ public class ReportesServiceImpl implements ReportesService {
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    private InventarioResumenDTO buildInventario(String tenantId) {
-        long totalProductos = productoRepository.countByTenantId(tenantId);
-
-        List<Producto> bajoStock = productoRepository.findProductosBajoStock(tenantId);
-        List<ProductoBajoStockDTO> productosBajoStock = bajoStock.stream()
-                .limit(10)
-                .map(p -> ProductoBajoStockDTO.builder()
-                        .productoId(p.getId())
-                        .nombre(p.getNombre())
-                        .stockActual(p.getStockActual())
-                        .stockMinimo(p.getStockMinimo())
-                        .build())
-                .toList();
-
+    private InventarioResumenDTO buildInventario(String tenantId, Long sucursalId) {
+        long totalProductos = productoRepository.countByTenantIdAndActivoTrue(tenantId);
         BigDecimal valorizacion = productoRepository.calcularValorizacionStock(tenantId);
+
+        List<ProductoBajoStockDTO> productosBajoStock;
+        if (sucursalId != null) {
+            productosBajoStock = stockSucursalRepository
+                    .findBajoStockEfectivoBySucursal(sucursalId, tenantId)
+                    .stream()
+                    .map(row -> ProductoBajoStockDTO.builder()
+                            .productoId(((Number) row[0]).longValue())
+                            .nombre((String) row[1])
+                            .stockActual(((Number) row[2]).intValue())
+                            .stockMinimo(((Number) row[3]).intValue())
+                            .tipo(row[4] != null ? row[4].toString() : null)
+                            .build())
+                    .toList();
+        } else {
+            List<Producto> bajoStock = productoRepository.findProductosBajoStock(tenantId);
+            productosBajoStock = bajoStock.stream()
+                    .limit(10)
+                    .map(p -> ProductoBajoStockDTO.builder()
+                            .productoId(p.getId())
+                            .nombre(p.getNombre())
+                            .stockActual(p.getStockActual())
+                            .stockMinimo(p.getStockMinimo())
+                            .tipo(p.getTipo())
+                            .build())
+                    .toList();
+        }
 
         return InventarioResumenDTO.builder()
                 .totalProductos(totalProductos)
@@ -567,11 +586,11 @@ public class ReportesServiceImpl implements ReportesService {
                 .build();
     }
 
-    private MovimientosResumenDTO buildMovimientos(String tenantId, LocalDateTime inicio, LocalDateTime fin) {
-        long entradas = movimientoRepository.sumCantidadByTenantIdAndTipoAndPeriodo(tenantId, "ENTRADA", inicio, fin);
-        long salidas = movimientoRepository.sumCantidadByTenantIdAndTipoAndPeriodo(tenantId, "SALIDA", inicio, fin);
+    private MovimientosResumenDTO buildMovimientos(String tenantId, Long sucursalId, LocalDateTime inicio, LocalDateTime fin) {
+        long entradas = movimientoRepository.sumCantidadByTenantIdAndTipoAndPeriodo(tenantId, "ENTRADA", inicio, fin, sucursalId);
+        long salidas = movimientoRepository.sumCantidadByTenantIdAndTipoAndPeriodo(tenantId, "SALIDA", inicio, fin, sucursalId);
 
-        List<Object[]> rawTop = movimientoRepository.findTopMovimientosProductos(tenantId, inicio, fin);
+        List<Object[]> rawTop = movimientoRepository.findTopMovimientosProductos(tenantId, inicio, fin, sucursalId);
         List<TopMovimientoProductoDTO> topMovimientos = new ArrayList<>();
         int limitMov = Math.min(rawTop.size(), 10);
         for (int i = 0; i < limitMov; i++) {
@@ -591,10 +610,10 @@ public class ReportesServiceImpl implements ReportesService {
                 .build();
     }
 
-    private ComprasRecepcionesResumenDTO buildComprasRecepciones(String tenantId, LocalDateTime inicio, LocalDateTime fin) {
-        long recepcionesConfirmadas = recepcionRepository.countConfirmadasByTenantIdAndPeriodo(tenantId, inicio, fin);
-        long unidadesRecibidas = recepcionRepository.sumUnidadesRecibidasByTenantIdAndPeriodo(tenantId, inicio, fin);
-        BigDecimal montoCompras = recepcionRepository.sumMontoComprasByTenantIdAndPeriodo(tenantId, inicio, fin);
+    private ComprasRecepcionesResumenDTO buildComprasRecepciones(String tenantId, Long sucursalId, LocalDateTime inicio, LocalDateTime fin) {
+        long recepcionesConfirmadas = recepcionRepository.countConfirmadasByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
+        long unidadesRecibidas = recepcionRepository.sumUnidadesRecibidasByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
+        BigDecimal montoCompras = recepcionRepository.sumMontoComprasByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
 
         return ComprasRecepcionesResumenDTO.builder()
                 .recepcionesConfirmadasCount(recepcionesConfirmadas)
@@ -603,21 +622,21 @@ public class ReportesServiceImpl implements ReportesService {
                 .build();
     }
 
-    private VentasResumenDTO buildVentas(String tenantId, LocalDateTime inicio, LocalDateTime fin) {
-        long ventasCount = ventaRepository.countByTenantIdAndPeriodo(tenantId, inicio, fin);
+    private VentasResumenDTO buildVentas(String tenantId, Long sucursalId, LocalDateTime inicio, LocalDateTime fin) {
+        long ventasCount = ventaRepository.countByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
 
         if (ventasCount == 0) {
             return null;
         }
 
-        BigDecimal ingresosTotal = ventaRepository.sumTotalByTenantIdAndPeriodo(tenantId, inicio, fin);
+        BigDecimal ingresosTotal = ventaRepository.sumTotalByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
         if (ingresosTotal == null) ingresosTotal = BigDecimal.ZERO;
 
         BigDecimal ticketPromedio = ventasCount > 0
                 ? ingresosTotal.divide(BigDecimal.valueOf(ventasCount), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
-        List<Object[]> rawTop = ventaRepository.findTopProductosVendidos(tenantId, inicio, fin);
+        List<Object[]> rawTop = ventaRepository.findTopProductosVendidos(tenantId, inicio, fin, sucursalId);
         List<TopProductoVendidoDTO> topProductos = new ArrayList<>();
         int limitTop = Math.min(rawTop.size(), 10);
         for (int i = 0; i < limitTop; i++) {
@@ -630,7 +649,7 @@ public class ReportesServiceImpl implements ReportesService {
                     .build());
         }
 
-        BigDecimal costoTotal = ventaRepository.sumCostoVentasByTenantIdAndPeriodo(tenantId, inicio, fin);
+        BigDecimal costoTotal = ventaRepository.sumCostoVentasByTenantIdAndPeriodo(tenantId, inicio, fin, sucursalId);
         BigDecimal margen = costoTotal != null ? ingresosTotal.subtract(costoTotal) : null;
 
         return VentasResumenDTO.builder()

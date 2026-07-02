@@ -41,15 +41,3 @@ springdoc:
     operationsSorter: method
     tagsSorter: alpha
     display-request-duration: true
-
-
-culqi:
-  plan-id-basico: "REEMPLAZA_CON_EL_ID_QUE_DEVUELVE_crear-plan"   # pln_test_xxx
-  rsa-id: "f6a1f9fb-e784-450c-8c25-c54cc995e4e7"
-  rsa-public-key: |
-    -----BEGIN PUBLIC KEY-----
-    MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCRHH49gmcizkl7el2iStM+Kso
-    uJ+uVQeeeCSApjdELZJY3otv7+kRCyDGX2UQuRTU1Q9JXVFAE1raRDES7xwuDaLU
-    HGLElHL8QC8ipJk7oJ6Z36/6YhcCYy5R7yK8PlTADLQHbMDRqDuMweqlCYFZIcy0
-    ZtZY2CfH5fQJ7nmtZQIDAQAB
-    -----END PUBLIC KEY-----

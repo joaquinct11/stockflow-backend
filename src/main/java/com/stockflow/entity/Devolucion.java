@@ -49,6 +49,9 @@ public class Devolucion {
     @Column(nullable = false, length = 20)
     private String estado = "PROCESADA";
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @Column(name = "fecha_devolucion")
     private LocalDateTime fechaDevolucion;
 

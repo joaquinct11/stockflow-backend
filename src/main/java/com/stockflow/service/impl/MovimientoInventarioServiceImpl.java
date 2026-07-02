@@ -35,7 +35,8 @@ public class MovimientoInventarioServiceImpl implements MovimientoInventarioServ
     }
 
     @Override
-    public List<MovimientoInventario> obtenerMovimientosPorTenant(String tenantId) {
+    public List<MovimientoInventario> obtenerMovimientosPorTenant(String tenantId, Long sucursalId) {
+        if (sucursalId != null) return movimientoRepository.findByTenantIdAndSucursalId(tenantId, sucursalId);
         return movimientoRepository.findByTenantId(tenantId);
     }
 

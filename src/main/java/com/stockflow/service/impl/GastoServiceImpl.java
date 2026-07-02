@@ -23,12 +23,18 @@ public class GastoServiceImpl implements GastoService {
     private final GastoRepository gastoRepository;
 
     @Override
-    public List<Gasto> obtenerTodos(String tenantId) {
+    public List<Gasto> obtenerTodos(String tenantId, Long sucursalId) {
+        if (sucursalId != null) {
+            return gastoRepository.findByTenantIdAndSucursalIdAndDeletedAtIsNull(tenantId, sucursalId);
+        }
         return gastoRepository.findByTenantIdAndDeletedAtIsNullOrderByFechaGastoDesc(tenantId);
     }
 
     @Override
-    public List<Gasto> obtenerActivos(String tenantId) {
+    public List<Gasto> obtenerActivos(String tenantId, Long sucursalId) {
+        if (sucursalId != null) {
+            return gastoRepository.findByTenantIdAndSucursalIdAndActivoTrueAndDeletedAtIsNull(tenantId, sucursalId);
+        }
         return gastoRepository.findByTenantIdAndActivoTrueAndDeletedAtIsNullOrderByFechaGastoDesc(tenantId);
     }
 
@@ -94,7 +100,10 @@ public class GastoServiceImpl implements GastoService {
     }
 
     @Override
-    public BigDecimal totalPorPeriodo(String tenantId, LocalDate inicio, LocalDate fin) {
+    public BigDecimal totalPorPeriodo(String tenantId, Long sucursalId, LocalDate inicio, LocalDate fin) {
+        if (sucursalId != null) {
+            return gastoRepository.sumMontoByTenantIdAndSucursalIdAndFechaBetween(tenantId, sucursalId, inicio, fin);
+        }
         return gastoRepository.sumMontoByTenantIdAndFechaBetween(tenantId, inicio, fin);
     }
 

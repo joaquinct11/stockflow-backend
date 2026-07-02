@@ -19,7 +19,7 @@ public interface NotaCreditoService {
     /** Restaura la NC usada en una venta anulada a estado PENDIENTE */
     void restaurarPorVentaAnulada(Long notaCreditoId, String tenantId);
 
-    List<NotaCreditoDTO> getAll(String tenantId);
+    List<NotaCreditoDTO> getAll(String tenantId, Long sucursalId);
 
     byte[] generarPdf(Long id, String tenantId, Tenant tenant, String formato);
 }

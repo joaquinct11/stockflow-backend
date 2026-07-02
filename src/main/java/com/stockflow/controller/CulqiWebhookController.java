@@ -10,6 +10,7 @@ import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.WebhookLogRepository;
 import com.stockflow.service.EmailService;
+import com.stockflow.service.SucursalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +45,7 @@ public class CulqiWebhookController {
     private final UsuarioRepository     usuarioRepository;
     private final WebhookLogRepository  webhookLogRepository;
     private final EmailService          emailService;
+    private final SucursalService       sucursalService;
     private final ObjectMapper          objectMapper;
 
     // ── Endpoint principal ────────────────────────────────────────────────────
@@ -131,6 +133,16 @@ public class CulqiWebhookController {
 
         log.info("✅ [Culqi] charge.succeeded — suscripción id={} renovada. Próximo cobro: {}",
                 s.getId(), proxCobro);
+
+        // Safety net: si es plan PRO e inicializarPrincipal no se ejecutó aún, hacerlo ahora
+        if ("PRO".equalsIgnoreCase(s.getPlanId())) {
+            try {
+                sucursalService.inicializarPrincipal(s.getTenantId());
+                log.info("✅ [Culqi] Sucursal principal verificada/inicializada para tenant={}", s.getTenantId());
+            } catch (Exception e) {
+                log.warn("⚠️ [Culqi] No se pudo inicializar sucursal principal (ya existe o error): {}", e.getMessage());
+            }
+        }
 
         // Email opcional de confirmación de renovación
         enviarEmailSuscripcion(s, "ACTIVA");

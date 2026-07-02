@@ -46,6 +46,7 @@ public class NotaCreditoServiceImpl implements NotaCreditoService {
                 .estado("PENDIENTE")
                 .fechaEmision(ahora)
                 .fechaVencimiento(ahora.plusDays(90))
+                .sucursalId(devolucion.getSucursalId())
                 .build();
 
         NotaCredito saved = notaCreditoRepository.save(nc);
@@ -137,11 +138,11 @@ public class NotaCreditoServiceImpl implements NotaCreditoService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<NotaCreditoDTO> getAll(String tenantId) {
-        return notaCreditoRepository.findByTenantIdOrderByFechaEmisionDesc(tenantId)
-                .stream()
-                .map(this::toDTO)
-                .toList();
+    public List<NotaCreditoDTO> getAll(String tenantId, Long sucursalId) {
+        List<NotaCredito> list = sucursalId != null
+                ? notaCreditoRepository.findByTenantIdAndSucursalId(tenantId, sucursalId)
+                : notaCreditoRepository.findByTenantIdOrderByFechaEmisionDesc(tenantId);
+        return list.stream().map(this::toDTO).toList();
     }
 
     @Override

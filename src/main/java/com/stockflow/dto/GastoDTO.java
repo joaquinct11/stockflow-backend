@@ -46,4 +46,6 @@ public class GastoDTO {
     private String registradoPor;
 
     private LocalDateTime createdAt;
+
+    private Long sucursalId;
 }

@@ -144,6 +144,9 @@ public class UsuarioController {
                     if (updateDTO.getNumeroCelular() != null)
                         usuario.setNumeroCelular(updateDTO.getNumeroCelular());
 
+                    // ADMIN (sin sucursal) puede asignar/cambiar sucursal al vendedor
+                    usuario.setSucursalId(updateDTO.getSucursalId());
+
                     Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())
                             .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + updateDTO.getRolNombre()));
                     usuario.setRol(rol);

@@ -15,67 +15,30 @@ public interface ReportesService {
      * @param hasta    fecha de fin del rango (inclusive)
      * @return DTO con métricas de inventario, movimientos, compras/recepciones y ventas
      */
-    ReportesResumenDTO obtenerResumen(String tenantId, LocalDate desde, LocalDate hasta);
+    ReportesResumenDTO obtenerResumen(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta);
 
-    /**
-     * Tendencia de ventas agrupada por DIA, SEMANA o MES.
-     *
-     * @param agrupacion "DIA", "SEMANA" o "MES"
-     */
-    List<VentaTendenciaDTO> tendenciaVentas(String tenantId, LocalDate desde, LocalDate hasta, String agrupacion);
+    List<VentaTendenciaDTO> tendenciaVentas(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, String agrupacion);
 
-    /** Ventas agrupadas por vendedor, ordenadas por ingresos desc. */
-    List<VentaVendedorDTO> ventasPorVendedor(String tenantId, LocalDate desde, LocalDate hasta, int limit);
+    List<VentaVendedorDTO> ventasPorVendedor(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit);
 
-    /** Ventas agrupadas por categoría de producto, null/blank → "Sin categoría". */
-    List<VentaCategoriaDTO> ventasPorCategoria(String tenantId, LocalDate desde, LocalDate hasta, int limit);
+    List<VentaCategoriaDTO> ventasPorCategoria(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit);
 
-    /** Ventas agrupadas por método de pago con porcentaje sobre el total. */
-    List<VentaMetodoPagoDTO> ventasPorMetodoPago(String tenantId, LocalDate desde, LocalDate hasta);
+    List<VentaMetodoPagoDTO> ventasPorMetodoPago(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta);
 
-    /**
-     * Productos vendidos ordenados por metrica (UNIDADES o INGRESOS) y dirección (MAS desc / MENOS asc).
-     *
-     * @param orden   "MAS" (desc) o "MENOS" (asc)
-     * @param metrica "UNIDADES" o "INGRESOS"
-     */
-    List<ProductoVentaDTO> productosVendidos(String tenantId, LocalDate desde, LocalDate hasta, int limit,
+    List<ProductoVentaDTO> productosVendidos(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit,
                                              String orden, String metrica);
 
-    /**
-     * Clasificación ABC de productos por ingresos en el período.
-     * A = acumulado 0-80%, B = 80-95%, C = 95-100%.
-     */
-    List<ProductoAbcDTO> clasificacionAbc(String tenantId, LocalDate desde, LocalDate hasta, int limit);
+    List<ProductoAbcDTO> clasificacionAbc(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit);
 
-    /**
-     * Productos activos con stock > 0 y sin movimientos SALIDA desde hace diasSinSalida días.
-     */
     List<SlowMoverDTO> slowMovers(String tenantId, int diasSinSalida, int limit);
 
-    /**
-     * Cobertura de inventario: días que dura el stock actual al ritmo de salidas del período.
-     * diasCobertura = null cuando promedioSalidasDiarias = 0.
-     */
-    List<CoberturaProductoDTO> coberturaInventario(String tenantId, LocalDate desde, LocalDate hasta, int limit);
+    List<CoberturaProductoDTO> coberturaInventario(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit);
 
-    /** Compras (recepciones confirmadas) agrupadas por proveedor. */
-    List<CompraProveedorDTO> comprasPorProveedor(String tenantId, LocalDate desde, LocalDate hasta, int limit);
+    List<CompraProveedorDTO> comprasPorProveedor(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit);
 
-    /**
-     * Estado de resultados del período:
-     * Ingresos → Costo de ventas → Utilidad bruta → Gastos operativos → Utilidad neta.
-     */
-    FinancieroDTO getFinanciero(String tenantId, LocalDate desde, LocalDate hasta);
+    FinancieroDTO getFinanciero(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta);
 
-    /**
-     * Capital en riesgo de vencimiento, agrupado por urgencia (vencido / 7d / 30d / 90d).
-     * No depende de rango: evalúa todos los lotes activos del tenant.
-     */
     VencimientosRiesgoDTO getVencimientosRiesgo(String tenantId);
 
-    /**
-     * Top clientes del período ordenados por monto comprado descendente.
-     */
-    List<ClienteReporteDTO> getTopClientes(String tenantId, LocalDate desde, LocalDate hasta, int limit);
+    List<ClienteReporteDTO> getTopClientes(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit);
 }

@@ -37,4 +37,7 @@ public class RegistrationRequestDTO {
     private String tipoDocumento;
     private String numeroDocumento;
     private String numeroCelular;
+
+    // Tipo de negocio — define los módulos visibles al iniciar sesión
+    private String rubro;
 }

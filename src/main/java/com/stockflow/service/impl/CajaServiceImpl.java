@@ -45,10 +45,18 @@ public class CajaServiceImpl implements CajaService {
 
     @Override
     public CajaDTO abrir(AbrirCajaRequestDTO request, Long usuarioId, String usuarioNombre, String tenantId) {
-        cajaRepository.findFirstByTenantIdAndEstadoOrderByFechaAperturaDesc(tenantId, "ABIERTA")
-                .ifPresent(c -> {
-                    throw new BadRequestException("Ya hay una caja abierta por " + c.getUsuarioNombre() + ". Ciérrala antes de abrir una nueva.");
-                });
+        Long sucursalId = request.getSucursalId();
+        if (sucursalId != null) {
+            cajaRepository.findFirstByTenantIdAndSucursalIdAndEstadoOrderByFechaAperturaDesc(tenantId, sucursalId, "ABIERTA")
+                    .ifPresent(c -> {
+                        throw new BadRequestException("Ya hay una caja abierta por " + c.getUsuarioNombre() + ". Ciérrala antes de abrir una nueva.");
+                    });
+        } else {
+            cajaRepository.findFirstByTenantIdAndEstadoOrderByFechaAperturaDesc(tenantId, "ABIERTA")
+                    .ifPresent(c -> {
+                        throw new BadRequestException("Ya hay una caja abierta por " + c.getUsuarioNombre() + ". Ciérrala antes de abrir una nueva.");
+                    });
+        }
 
         BigDecimal montoApertura = request.getMontoApertura() != null
                 ? request.getMontoApertura().setScale(2, RoundingMode.HALF_UP)
@@ -63,6 +71,7 @@ public class CajaServiceImpl implements CajaService {
                 .observaciones(request.getObservaciones())
                 .fechaApertura(LocalDateTime.now())
                 .cantidadVentas(0)
+                .sucursalId(sucursalId)
                 .build();
 
         return toDTO(cajaRepository.save(caja));
@@ -233,17 +242,21 @@ public class CajaServiceImpl implements CajaService {
     }
 
     @Override
-    public Optional<CajaDTO> getActiva(String tenantId) {
+    public Optional<CajaDTO> getActiva(String tenantId, Long sucursalId) {
+        if (sucursalId != null) {
+            return cajaRepository.findFirstByTenantIdAndSucursalIdAndEstadoOrderByFechaAperturaDesc(tenantId, sucursalId, "ABIERTA")
+                    .map(this::toDTO);
+        }
         return cajaRepository.findFirstByTenantIdAndEstadoOrderByFechaAperturaDesc(tenantId, "ABIERTA")
                 .map(this::toDTO);
     }
 
     @Override
-    public List<CajaDTO> getAll(String tenantId) {
-        return cajaRepository.findByTenantIdOrderByFechaAperturaDesc(tenantId)
-                .stream()
-                .map(this::toDTO)
-                .toList();
+    public List<CajaDTO> getAll(String tenantId, Long sucursalId) {
+        List<Caja> cajas = sucursalId != null
+                ? cajaRepository.findByTenantIdAndSucursalIdOrderByFechaAperturaDesc(tenantId, sucursalId)
+                : cajaRepository.findByTenantIdOrderByFechaAperturaDesc(tenantId);
+        return cajas.stream().map(this::toDTO).toList();
     }
 
     @Override
@@ -321,6 +334,7 @@ public class CajaServiceImpl implements CajaService {
                 .fechaApertura(c.getFechaApertura())
                 .fechaCierre(c.getFechaCierre())
                 .cerradoPorNombre(c.getCerradoPorNombre())
+                .sucursalId(c.getSucursalId())
                 .build();
     }
 

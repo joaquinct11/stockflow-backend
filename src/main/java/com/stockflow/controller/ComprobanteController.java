@@ -43,6 +43,7 @@ public class ComprobanteController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(required = false) Long ventaId,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long sucursalId,
             Authentication authentication) {
 
         String tenantId = TenantContext.getCurrentTenant();
@@ -50,9 +51,9 @@ public class ComprobanteController {
                 .anyMatch(a -> a.getAuthority().equals("PERM_VER_FACTURACION") || a.getAuthority().equals("ROLE_ADMIN"));
         Long vendedorId = verTodos ? null : TenantContext.getCurrentUserId();
 
-        log.info("📋 Listando comprobantes para tenant: {} vendedorId: {}", tenantId, vendedorId);
+        log.info("📋 Listando comprobantes para tenant: {} vendedorId: {} sucursal: {}", tenantId, vendedorId, sucursalId);
         return ResponseEntity.ok(
-                comprobanteService.listar(tenantId, vendedorId, tipo, estado, from, to, ventaId, search));
+                comprobanteService.listar(tenantId, sucursalId, vendedorId, tipo, estado, from, to, ventaId, search));
     }
 
     /**
