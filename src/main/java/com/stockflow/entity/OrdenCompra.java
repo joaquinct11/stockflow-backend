@@ -49,6 +49,9 @@ public class OrdenCompra {
     @Builder.Default
     private List<OrdenCompraDetalle> detalles = new ArrayList<>();
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @PrePersist
     protected void prePersist() {
         if (createdAt == null) createdAt = LocalDateTime.now();

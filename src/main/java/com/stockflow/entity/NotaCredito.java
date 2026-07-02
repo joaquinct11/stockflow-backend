@@ -53,6 +53,9 @@ public class NotaCredito {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = LocalDateTime.now();

@@ -3,12 +3,15 @@ package com.stockflow.service.impl;
 import com.stockflow.entity.DetalleVenta;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
+import com.stockflow.entity.ProductoStockSucursal;
 import com.stockflow.entity.Usuario;
 import com.stockflow.entity.Venta;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.ProductoStockSucursalRepository;
+import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.MovimientoInventarioService;
@@ -29,12 +32,14 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class VentaServiceImpl implements VentaService {
 
-    private final VentaRepository               ventaRepository;
-    private final DetalleVentaRepository        detalleVentaRepository;
-    private final ProductoRepository            productoRepository;
-    private final UsuarioRepository             usuarioRepository;
-    private final MovimientoInventarioService   movimientoInventarioService;
-    private final NotaCreditoService            notaCreditoService;
+    private final VentaRepository                   ventaRepository;
+    private final DetalleVentaRepository            detalleVentaRepository;
+    private final ProductoRepository                productoRepository;
+    private final UsuarioRepository                 usuarioRepository;
+    private final MovimientoInventarioService       movimientoInventarioService;
+    private final NotaCreditoService                notaCreditoService;
+    private final ProductoStockSucursalRepository   stockSucursalRepository;
+    private final SucursalRepository                sucursalRepository;
 
     @Override
     @Transactional
@@ -59,6 +64,11 @@ public class VentaServiceImpl implements VentaService {
     @Override
     public List<Venta> obtenerVentasPorTenant(String tenantId) {
         return ventaRepository.findByTenantId(tenantId);
+    }
+
+    @Override
+    public List<Venta> obtenerVentasPorTenantYSucursal(String tenantId, Long sucursalId) {
+        return ventaRepository.findByTenantIdAndSucursalId(tenantId, sucursalId);
     }
 
     @Override
@@ -105,6 +115,22 @@ public class VentaServiceImpl implements VentaService {
             producto.setStockActual(producto.getStockActual() + detalle.getCantidad());
             productoRepository.save(producto);
 
+            // Reponer también en producto_stock_sucursal si la venta tiene sucursalId
+            if (venta.getSucursalId() != null) {
+                sucursalRepository.findById(venta.getSucursalId()).ifPresent(sucursal -> {
+                    ProductoStockSucursal entry = stockSucursalRepository
+                            .findByProductoIdAndSucursalId(producto.getId(), sucursal.getId())
+                            .orElseGet(() -> ProductoStockSucursal.builder()
+                                    .producto(producto)
+                                    .sucursal(sucursal)
+                                    .tenantId(tenantId)
+                                    .stockActual(0)
+                                    .build());
+                    entry.setStockActual((entry.getStockActual() != null ? entry.getStockActual() : 0) + detalle.getCantidad());
+                    stockSucursalRepository.save(entry);
+                });
+            }
+
             MovimientoInventario mov = MovimientoInventario.builder()
                     .producto(producto)
                     .usuario(usuario)
@@ -113,6 +139,7 @@ public class VentaServiceImpl implements VentaService {
                     .descripcion("Anulación venta #" + venta.getId())
                     .referencia("ANUL-" + venta.getId())
                     .tenantId(tenantId)
+                    .sucursalId(venta.getSucursalId())
                     .build();
             movimientoInventarioService.crearMovimiento(mov);
 

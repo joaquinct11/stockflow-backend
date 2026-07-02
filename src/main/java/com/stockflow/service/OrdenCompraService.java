@@ -13,7 +13,7 @@ public interface OrdenCompraService {
 
     Optional<OrdenCompraResponseDTO> obtenerPorId(Long id);
 
-    List<OrdenCompraResponseDTO> listar(String tenantId, String estado, Long proveedorId);
+    List<OrdenCompraResponseDTO> listar(String tenantId, String estado, Long proveedorId, Long sucursalId);
 
     /** Returns the pending items (with received/pending quantities) for a given OC. */
     List<OrdenCompraItemDTO> obtenerItemsConPendientes(Long ocId);

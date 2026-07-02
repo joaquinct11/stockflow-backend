@@ -115,6 +115,7 @@ public class AuthServiceImpl implements AuthService {
                 .tenantId(usuario.getTenantId())
                 .expiresIn((int) (jwtProperties.getExpiration() / 1000))
                 .suscripcion(suscripcionDTO)
+                .sucursalId(usuario.getSucursalId())
                 .build();
     }
 
@@ -130,7 +131,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 2. Crear TENANT
-        Tenant tenant = tenantService.crearTenant(request.getNombreFarmacia());
+        Tenant tenant = tenantService.crearTenant(request.getNombreFarmacia(), request.getRubro());
         log.info("✅ Tenant creado: {}", tenant.getTenantId());
 
         // 3. Crear USUARIO (rol ADMIN)
@@ -262,6 +263,7 @@ public class AuthServiceImpl implements AuthService {
                 .rol(usuario.getRol().getNombre())
                 .tenantId(usuario.getTenantId())
                 .suscripcion(suscripcionDTO)
+                .sucursalId(usuario.getSucursalId())
                 .build();
     }
 
@@ -274,10 +276,13 @@ public class AuthServiceImpl implements AuthService {
 
 
     private BigDecimal obtenerPrecioPlan(String planId) {
-        if (!"BASICO".equals(planId)) {
-            throw new BadRequestException("Plan inválido: " + planId + ". Solo se permite: BASICO");
+        if ("PRO".equals(planId)) {
+            return culqiProperties.getPrecioPro();
         }
-        return culqiProperties.getPrecioBasico();
+        if ("BASICO".equals(planId)) {
+            return culqiProperties.getPrecioBasico();
+        }
+        throw new BadRequestException("Plan inválido: " + planId + ". Planes válidos: BASICO, PRO");
     }
 
     private SuscripcionDTO mapToSuscripcionDTO(Suscripcion suscripcion) {
@@ -321,6 +326,7 @@ public class AuthServiceImpl implements AuthService {
                 .tipoDocumento(usuario.getTipoDocumento())
                 .numeroDocumento(usuario.getNumeroDocumento())
                 .numeroCelular(usuario.getNumeroCelular())
+                .sucursalId(usuario.getSucursalId())
                 .build();
     }
 

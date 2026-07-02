@@ -26,4 +26,5 @@ public class CajaDTO {
     private LocalDateTime fechaApertura;
     private LocalDateTime fechaCierre;
     private String cerradoPorNombre;
+    private Long sucursalId;
 }

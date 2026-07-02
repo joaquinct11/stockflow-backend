@@ -53,6 +53,9 @@ public class Venta {
     @Column(name = "cliente_id")
     private Long clienteId;
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @Column(name = "descuento_nota_credito", precision = 12, scale = 2)
     private java.math.BigDecimal descuentoNotaCredito;
 

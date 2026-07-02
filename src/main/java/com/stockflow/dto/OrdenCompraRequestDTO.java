@@ -21,6 +21,8 @@ public class OrdenCompraRequestDTO {
 
     private String observaciones;
 
+    private Long sucursalId;
+
     @NotEmpty(message = "La OC debe tener al menos un ítem")
     @Valid
     private List<OrdenCompraItemDTO> items;

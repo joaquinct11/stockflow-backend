@@ -21,12 +21,14 @@ public class ProductoVarianteController {
 
     private final ProductoVarianteService varianteService;
 
-    /** GET /producto-variantes/producto/{productoId} */
+    /** GET /producto-variantes/producto/{productoId}?sucursalId= */
     @GetMapping("/producto/{productoId}")
     @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_PRODUCTOS')")
-    public ResponseEntity<List<ProductoVarianteDTO>> getByProducto(@PathVariable Long productoId) {
+    public ResponseEntity<List<ProductoVarianteDTO>> getByProducto(
+            @PathVariable Long productoId,
+            @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(varianteService.getByProducto(productoId, tenantId));
+        return ResponseEntity.ok(varianteService.getByProducto(productoId, tenantId, sucursalId));
     }
 
     /** POST /producto-variantes */

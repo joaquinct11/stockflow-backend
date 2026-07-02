@@ -34,9 +34,9 @@ public class CertificadoController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_CERTIFICADOS')")
-    public ResponseEntity<List<CertificadoDTO>> listar() {
+    public ResponseEntity<List<CertificadoDTO>> listar(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(certificadoService.listar(tenantId));
+        return ResponseEntity.ok(certificadoService.listar(tenantId, sucursalId));
     }
 
     @GetMapping("/alertas")

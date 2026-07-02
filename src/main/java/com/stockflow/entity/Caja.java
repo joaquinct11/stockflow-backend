@@ -61,4 +61,7 @@ public class Caja {
 
     @Column(name = "cerrado_por_nombre", length = 200)
     private String cerradoPorNombre;
+
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
 }

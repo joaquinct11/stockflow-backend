@@ -17,6 +17,7 @@ public interface ComprobanteService {
 
     List<ComprobanteDTO> listar(
             String tenantId,
+            Long sucursalId,
             Long vendedorId,
             String tipo,
             String estado,

@@ -10,6 +10,7 @@ import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.OrdenCompra;
 import com.stockflow.entity.OrdenCompraDetalle;
 import com.stockflow.entity.Producto;
+import com.stockflow.entity.ProductoStockSucursal;
 import com.stockflow.entity.Proveedor;
 import com.stockflow.entity.Recepcion;
 import com.stockflow.entity.RecepcionDetalle;
@@ -21,9 +22,11 @@ import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.OrdenCompraDetalleRepository;
 import com.stockflow.repository.OrdenCompraRepository;
 import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.RecepcionDetalleRepository;
 import com.stockflow.repository.RecepcionRepository;
+import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.service.RecepcionService;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +55,8 @@ public class RecepcionServiceImpl implements RecepcionService {
     private final UsuarioRepository usuarioRepository;
     private final MovimientoInventarioRepository movimientoRepository;
     private final GastoRepository gastoRepository;
+    private final ProductoStockSucursalRepository stockSucursalRepository;
+    private final SucursalRepository sucursalRepository;
 
     @Override
     @Transactional
@@ -93,6 +98,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                 .usuarioReceptor(receptor)
                 .estado("BORRADOR")
                 .observaciones(request.getObservaciones())
+                .sucursalId(request.getSucursalId())
                 .build();
 
         Recepcion saved = recepcionRepository.save(recepcion);
@@ -131,10 +137,11 @@ public class RecepcionServiceImpl implements RecepcionService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RecepcionResponseDTO> listar(String tenantId) {
-        return recepcionRepository.findByTenantId(tenantId).stream()
-                .map(this::toResponseDTO)
-                .collect(Collectors.toList());
+    public List<RecepcionResponseDTO> listar(String tenantId, Long sucursalId) {
+        List<Recepcion> list = sucursalId != null
+                ? recepcionRepository.findByTenantIdAndSucursalId(tenantId, sucursalId)
+                : recepcionRepository.findByTenantId(tenantId);
+        return list.stream().map(this::toResponseDTO).collect(Collectors.toList());
     }
 
     @Override
@@ -285,6 +292,25 @@ public class RecepcionServiceImpl implements RecepcionService {
                 producto.setPrecioVenta(detalle.getPrecioVenta());
             }
             productoRepository.save(producto);
+
+            // Actualizar stock por sucursal si la recepción tiene sucursalId
+            if (recepcion.getSucursalId() != null) {
+                final Producto prod = producto;
+                final int cant = detalle.getCantidadRecibida();
+                sucursalRepository.findById(recepcion.getSucursalId()).ifPresent(sucursal -> {
+                    ProductoStockSucursal entry = stockSucursalRepository
+                            .findByProductoIdAndSucursalId(prod.getId(), sucursal.getId())
+                            .orElseGet(() -> ProductoStockSucursal.builder()
+                                    .producto(prod)
+                                    .sucursal(sucursal)
+                                    .tenantId(recepcion.getTenantId())
+                                    .stockActual(0)
+                                    .build());
+                    entry.setStockActual((entry.getStockActual() != null ? entry.getStockActual() : 0) + cant);
+                    stockSucursalRepository.save(entry);
+                });
+            }
+
             log.info("📦 Producto #{} '{}': stock +{} → {}, costo actualizado → {}",
                     producto.getId(), producto.getNombre(),
                     detalle.getCantidadRecibida(), producto.getStockActual(), costoUnitario);
@@ -323,6 +349,7 @@ public class RecepcionServiceImpl implements RecepcionService {
                     .numeroComprobante(refComprobante)
                     .notas("Generado automáticamente al confirmar Recepción #" + recepcionId)
                     .tenantId(recepcion.getTenantId())
+                    .sucursalId(recepcion.getSucursalId())
                     .registradoPor(usuario.getNombre())
                     .activo(true)
                     .createdAt(LocalDateTime.now())

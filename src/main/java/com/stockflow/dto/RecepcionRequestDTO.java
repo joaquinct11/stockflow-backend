@@ -19,4 +19,6 @@ public class RecepcionRequestDTO {
     private Long proveedorId;
 
     private String observaciones;
+
+    private Long sucursalId;
 }

@@ -23,12 +23,15 @@ public class CertificadoServiceImpl implements CertificadoService {
     private final UsuarioRepository     usuarioRepository;
 
     @Override
-    public List<CertificadoDTO> listar(String tenantId) {
+    public List<CertificadoDTO> listar(String tenantId, Long sucursalId) {
+        if (sucursalId != null) {
+            return certificadoRepository
+                    .findByTenantIdAndSucursalIdAndActivoTrueOrderByFechaVencimientoAsc(tenantId, sucursalId)
+                    .stream().map(this::toDTO).toList();
+        }
         return certificadoRepository
                 .findByTenantIdAndActivoTrueOrderByFechaVencimientoAsc(tenantId)
-                .stream()
-                .map(this::toDTO)
-                .toList();
+                .stream().map(this::toDTO).toList();
     }
 
     @Override
@@ -36,6 +39,7 @@ public class CertificadoServiceImpl implements CertificadoService {
         validarDTO(dto);
         CertificadoEstablecimiento cert = CertificadoEstablecimiento.builder()
                 .tenantId(tenantId)
+                .sucursalId(dto.getSucursalId())
                 .tipo(dto.getTipo())
                 .descripcion(dto.getDescripcion().trim())
                 .usuarioId(dto.getUsuarioId())
@@ -101,6 +105,7 @@ public class CertificadoServiceImpl implements CertificadoService {
 
         return CertificadoDTO.builder()
                 .id(c.getId())
+                .sucursalId(c.getSucursalId())
                 .tipo(c.getTipo())
                 .descripcion(c.getDescripcion())
                 .usuarioId(c.getUsuarioId())

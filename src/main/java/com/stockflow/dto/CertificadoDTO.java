@@ -26,6 +26,8 @@ public class CertificadoDTO {
     private Integer   diasAlerta;
     private String    observaciones;
 
+    private Long sucursalId;
+
     /** VIGENTE | POR_VENCER | VENCIDO — calculado, no almacenado */
     private String estado;
 

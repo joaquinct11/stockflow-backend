@@ -29,23 +29,23 @@ public class CajaController {
     private final CajaService cajaService;
     private final UsuarioService usuarioService;
 
-    /** GET /cajas/activa — la caja abierta del tenant (compartida, 404 si no hay ninguna) */
+    /** GET /cajas/activa — la caja abierta del tenant (filtrada por sucursal si se provee) */
     @GetMapping("/activa")
     @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
-    public ResponseEntity<CajaDTO> getActiva() {
+    public ResponseEntity<CajaDTO> getActiva(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("📦 Buscando caja activa para tenant={}", tenantId);
-        return cajaService.getActiva(tenantId)
+        log.info("📦 Buscando caja activa para tenant={} sucursal={}", tenantId, sucursalId);
+        return cajaService.getActiva(tenantId, sucursalId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** GET /cajas — historial de cajas del tenant */
+    /** GET /cajas — historial de cajas del tenant, filtrado por sucursal si se provee */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','GERENTE','VENDEDOR') or hasAuthority('PERM_VER_CAJA')")
-    public ResponseEntity<List<CajaDTO>> getAll() {
+    public ResponseEntity<List<CajaDTO>> getAll(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(cajaService.getAll(tenantId));
+        return ResponseEntity.ok(cajaService.getAll(tenantId, sucursalId));
     }
 
     /** GET /cajas/{id} */

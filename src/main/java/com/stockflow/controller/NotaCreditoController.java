@@ -28,10 +28,10 @@ public class NotaCreditoController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_NOTAS_CREDITO')")
-    public ResponseEntity<List<NotaCreditoDTO>> getAll() {
+    public ResponseEntity<List<NotaCreditoDTO>> getAll(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("Listando notas de credito para tenant: {}", tenantId);
-        return ResponseEntity.ok(notaCreditoService.getAll(tenantId));
+        return ResponseEntity.ok(notaCreditoService.getAll(tenantId, sucursalId));
     }
 
     @GetMapping("/validar")

@@ -10,6 +10,7 @@ import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.service.CulqiService;
+import com.stockflow.service.SucursalService;
 import com.stockflow.service.SuscripcionService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
@@ -35,6 +36,7 @@ public class CulqiController {
     private final SuscripcionService suscripcionService;
     private final SuscripcionRepository suscripcionRepository;
     private final UsuarioService usuarioService;
+    private final SucursalService sucursalService;
 
     // ── Config pública ────────────────────────────────────────────────────────
 
@@ -45,12 +47,14 @@ public class CulqiController {
      */
     @GetMapping("/config")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<CulqiConfigResponseDTO> obtenerConfig() {
+    public ResponseEntity<CulqiConfigResponseDTO> obtenerConfig(
+            @RequestParam(defaultValue = "BASICO") String plan) {
+        boolean isPro = "PRO".equalsIgnoreCase(plan);
         return ResponseEntity.ok(CulqiConfigResponseDTO.builder()
                 .publicKey(culqiProperties.getPublicKey())
-                .planId(culqiProperties.getPlanIdBasico())
-                .precioMensual(culqiProperties.getPrecioBasico())
-                .nombrePlan("Plan Básico")
+                .planId(isPro ? culqiProperties.getPlanIdPro() : culqiProperties.getPlanIdBasico())
+                .precioMensual(isPro ? culqiProperties.getPrecioPro() : culqiProperties.getPrecioBasico())
+                .nombrePlan(isPro ? "Plan Pro" : "Plan Básico")
                 .build());
     }
 
@@ -89,15 +93,15 @@ public class CulqiController {
             throw new BadRequestException("Ya tienes una suscripción activa. Cancélala antes de contratar una nueva.");
         }
 
-        // 3. Determinar planId de Culqi (siempre usar el configurado en el servidor)
-        // El frontend puede enviar "BASICO"/"PRO" como identificador interno,
-        // pero Culqi necesita el ID real: pln_test_xxx / pln_live_xxx
-        String culqiPlanId = culqiProperties.getPlanIdBasico();
+        // 3. Determinar planId de Culqi según el plan solicitado
+        boolean isPro = "PRO".equalsIgnoreCase(request.getPlanId());
+        String culqiPlanId = isPro ? culqiProperties.getPlanIdPro() : culqiProperties.getPlanIdBasico();
         if (culqiPlanId == null || culqiPlanId.isBlank()) {
-            throw new BadRequestException("No hay un plan Culqi configurado en el servidor. " +
-                    "Ve a Culqi Panel → Suscripciones → Planes y copia el ID en CULQI_PLAN_ID_BASICO.");
+            throw new BadRequestException(isPro
+                    ? "No hay un plan Pro de Culqi configurado. Ejecuta POST /api/culqi/admin/crear-plan-pro primero y guarda el ID en CULQI_PLAN_ID_PRO."
+                    : "No hay un plan Culqi configurado. Ve a Culqi Panel → Suscripciones → Planes y copia el ID en CULQI_PLAN_ID_BASICO.");
         }
-        log.info("📋 [Culqi] Usando planId de Culqi: {}", culqiPlanId);
+        log.info("📋 [Culqi] Usando planId de Culqi: {} ({})", culqiPlanId, isPro ? "PRO" : "BASICO");
 
         // 4. Culqi: crear cliente → tarjeta → suscripción
         log.info("📡 [Culqi] Creando customer para email={}", email);
@@ -112,13 +116,15 @@ public class CulqiController {
         // 5. Persistir / actualizar suscripción local
         LocalDateTime ahora        = LocalDateTime.now();
         LocalDateTime proximoCobro = ahora.plusMonths(1);
-        BigDecimal    precio       = culqiProperties.getPrecioBasico();
+        String        planIdLocal  = isPro ? "PRO" : "BASICO";
+        BigDecimal    precio       = isPro ? culqiProperties.getPrecioPro() : culqiProperties.getPrecioBasico();
 
         Suscripcion suscripcion;
         if (existente.isPresent()) {
             // Reactivar la existente (ej: trial expirado o cancelada)
             suscripcion = existente.get();
             suscripcion.setEstado("ACTIVA");
+            suscripcion.setPlanId(planIdLocal);
             suscripcion.setPreapprovalId(culqiSubscriptionId);   // reutilizamos campo para el sub_id de Culqi
             suscripcion.setFechaInicio(ahora);
             suscripcion.setFechaProximoCobro(proximoCobro);
@@ -127,13 +133,13 @@ public class CulqiController {
             suscripcion.setMetodoPago("CULQI");
             suscripcion.setPrecioMensual(precio);
             suscripcion.setTrialEndDate(null);
-            log.info("♻️ [Culqi] Reactivando suscripción existente id={}", suscripcion.getId());
+            log.info("♻️ [Culqi] Reactivando suscripción existente id={} plan={}", suscripcion.getId(), planIdLocal);
         } else {
             // Crear nueva suscripción local
             suscripcion = Suscripcion.builder()
                     .usuarioPrincipal(usuario)
                     .tenantId(tenantId)
-                    .planId("BASICO")
+                    .planId(planIdLocal)
                     .precioMensual(precio)
                     .estado("ACTIVA")
                     .preapprovalId(culqiSubscriptionId)   // sub_live_xxx de Culqi
@@ -149,6 +155,16 @@ public class CulqiController {
         Suscripcion guardada = suscripcionRepository.save(suscripcion);
         log.info("✅ [Culqi] Suscripción activada localmente id={}, culqiSubId={}", guardada.getId(), culqiSubscriptionId);
 
+        // Si el plan es PRO, inicializar la sucursal principal para habilitar multi-local
+        if (isPro) {
+            sucursalService.inicializarPrincipal(tenantId);
+            log.info("🏢 [Culqi] Sucursal principal inicializada para tenant PRO={}", tenantId);
+        }
+
+        String mensaje = isPro
+                ? "¡Suscripción Pro activada exitosamente! Ya puedes gestionar hasta 5 sucursales."
+                : "¡Suscripción activada exitosamente! Tu plan Básico está activo.";
+
         return ResponseEntity.ok(CulqiSuscribirResponseDTO.builder()
                 .suscripcionId(guardada.getId())
                 .estado(guardada.getEstado())
@@ -157,7 +173,92 @@ public class CulqiController {
                 .fechaInicio(guardada.getFechaInicio())
                 .fechaProximoCobro(guardada.getFechaProximoCobro())
                 .culqiSubscriptionId(culqiSubscriptionId)
-                .mensaje("¡Suscripción activada exitosamente! Tu plan Básico está activo.")
+                .mensaje(mensaje)
+                .build());
+    }
+
+    // ── Upgrade a PRO ─────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/culqi/upgrade-pro
+     * Flujo de upgrade Básico → Pro:
+     *   1. Cancela la suscripción actual en Culqi
+     *   2. Crea nueva suscripción con plan PRO
+     *   3. Actualiza plan_id = "PRO" en tabla suscripciones
+     *   4. Inicializa la sucursal principal y migra todos los datos existentes
+     */
+    @PostMapping("/upgrade-pro")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CulqiSuscribirResponseDTO> upgradePro(
+            @Valid @RequestBody CulqiSuscribirRequestDTO request) {
+
+        String tenantId  = TenantContext.getCurrentTenant();
+        Long   usuarioId = TenantContext.getCurrentUserId();
+        log.info("⬆️  [Culqi] Upgrade a PRO para tenant={}", tenantId);
+
+        String culqiPlanIdPro = culqiProperties.getPlanIdPro();
+        if (culqiPlanIdPro == null || culqiPlanIdPro.isBlank()) {
+            throw new BadRequestException(
+                    "El plan Pro no está configurado en el servidor. " +
+                    "Ejecuta POST /api/culqi/admin/crear-plan-pro primero y guarda el ID en CULQI_PLAN_ID_PRO.");
+        }
+
+        Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado: " + usuarioId));
+
+        // Cancelar suscripción Básico vigente en Culqi si existe
+        suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId).ifPresent(s -> {
+            if (s.getPreapprovalId() != null && "ACTIVA".equals(s.getEstado())) {
+                try {
+                    culqiService.cancelarSuscripcion(s.getPreapprovalId());
+                    log.info("✅ [Culqi] Suscripción Básico cancelada en Culqi: {}", s.getPreapprovalId());
+                } catch (Exception e) {
+                    log.warn("⚠️ [Culqi] No se pudo cancelar suscripción anterior en Culqi (continuando): {}", e.getMessage());
+                }
+            }
+        });
+
+        // Crear cliente + tarjeta + suscripción PRO en Culqi
+        String customerId = culqiService.crearCliente(
+                usuario.getEmail(), usuario.getNombre(),
+                usuario.getApellido(), usuario.getNumeroCelular());
+        String cardId = culqiService.crearTarjeta(customerId, request.getTokenId());
+        String culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdPro);
+
+        // Actualizar suscripción local a PRO
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime proxCobro = ahora.plusMonths(1);
+        BigDecimal precioPro = culqiProperties.getPrecioPro();
+
+        Suscripcion suscripcion = suscripcionRepository
+                .findFirstByTenantIdOrderByIdDesc(tenantId)
+                .orElse(Suscripcion.builder().usuarioPrincipal(usuario).tenantId(tenantId).build());
+
+        suscripcion.setPlanId("PRO");
+        suscripcion.setEstado("ACTIVA");
+        suscripcion.setPreapprovalId(culqiSubId);
+        suscripcion.setFechaInicio(ahora);
+        suscripcion.setFechaProximoCobro(proxCobro);
+        suscripcion.setCurrentPeriodStart(ahora);
+        suscripcion.setCurrentPeriodEnd(proxCobro);
+        suscripcion.setMetodoPago("CULQI");
+        suscripcion.setPrecioMensual(precioPro);
+        Suscripcion guardada = suscripcionRepository.save(suscripcion);
+
+        // Inicializar sucursal principal y migrar todos los datos existentes
+        sucursalService.inicializarPrincipal(tenantId);
+
+        log.info("✅ [Culqi] Upgrade PRO completado para tenant={}. SubId={}", tenantId, culqiSubId);
+
+        return ResponseEntity.ok(CulqiSuscribirResponseDTO.builder()
+                .suscripcionId(guardada.getId())
+                .estado(guardada.getEstado())
+                .planId(guardada.getPlanId())
+                .precioMensual(guardada.getPrecioMensual())
+                .fechaInicio(guardada.getFechaInicio())
+                .fechaProximoCobro(guardada.getFechaProximoCobro())
+                .culqiSubscriptionId(culqiSubId)
+                .mensaje("¡Upgrade exitoso! Tu plan Pro está activo. Se creó tu sucursal principal y todos tus datos fueron migrados.")
                 .build());
     }
 
@@ -165,10 +266,7 @@ public class CulqiController {
 
     /**
      * POST /api/culqi/admin/crear-plan
-     * Operación de setup ONE-TIME: crea el plan en Culqi y devuelve su ID.
-     * Guarda ese ID en application.yml / variables de entorno como culqi.plan-id-basico.
-     *
-     * Solo accesible por ROL ADMIN.
+     * Operación de setup ONE-TIME: crea el plan Básico en Culqi.
      */
     @PostMapping("/admin/crear-plan")
     @PreAuthorize("hasRole('ADMIN')")
@@ -177,10 +275,28 @@ public class CulqiController {
                 .multiply(BigDecimal.valueOf(100))
                 .longValue();
 
-        log.info("🔧 [Culqi Admin] Creando plan: nombre='Plan Básico Fluxus', monto={}c", montoCentavos);
+        log.info("🔧 [Culqi Admin] Creando plan Básico: monto={}c", montoCentavos);
         String planId = culqiService.crearPlan("Plan Básico Fluxus", montoCentavos);
-        log.info("✅ [Culqi Admin] Plan creado: {}", planId);
+        log.info("✅ [Culqi Admin] Plan Básico creado: {}", planId);
 
-        return ResponseEntity.ok("Plan creado exitosamente. Guarda este ID en culqi.plan-id-basico: " + planId);
+        return ResponseEntity.ok("Plan Básico creado. Guarda este ID en CULQI_PLAN_ID_BASICO: " + planId);
+    }
+
+    /**
+     * POST /api/culqi/admin/crear-plan-pro
+     * Operación de setup ONE-TIME: crea el plan Pro en Culqi.
+     */
+    @PostMapping("/admin/crear-plan-pro")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<String> crearPlanPro() {
+        long montoCentavos = culqiProperties.getPrecioPro()
+                .multiply(BigDecimal.valueOf(100))
+                .longValue();
+
+        log.info("🔧 [Culqi Admin] Creando plan Pro: monto={}c", montoCentavos);
+        String planId = culqiService.crearPlan("Plan Pro Fluxus", montoCentavos);
+        log.info("✅ [Culqi Admin] Plan Pro creado: {}", planId);
+
+        return ResponseEntity.ok("Plan Pro creado. Guarda este ID en CULQI_PLAN_ID_PRO: " + planId);
     }
 }

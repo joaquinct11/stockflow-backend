@@ -15,7 +15,13 @@ public interface CertificadoRepository extends JpaRepository<CertificadoEstablec
 
     List<CertificadoEstablecimiento> findByTenantIdAndActivoTrueOrderByFechaVencimientoAsc(String tenantId);
 
+    List<CertificadoEstablecimiento> findByTenantIdAndSucursalIdAndActivoTrueOrderByFechaVencimientoAsc(String tenantId, Long sucursalId);
+
     Optional<CertificadoEstablecimiento> findByIdAndTenantId(Long id, String tenantId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(value = "UPDATE certificados_establecimiento SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
+    void asignarSucursalDondeEsNulo(@org.springframework.data.repository.query.Param("sucursalId") Long sucursalId, @org.springframework.data.repository.query.Param("tenantId") String tenantId);
 
     /** Cuenta los certificados activos vencidos o por vencer (para el badge del sidebar) */
     @Query("""

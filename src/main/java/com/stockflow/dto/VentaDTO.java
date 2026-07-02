@@ -46,6 +46,8 @@ public class VentaDTO {
     /** ID del cliente registrado (null = consumidor final). */
     private Long clienteId;
 
+    private Long sucursalId;
+
     /** Nombre del cliente para mostrar en la respuesta. */
     private String clienteNombre;
 

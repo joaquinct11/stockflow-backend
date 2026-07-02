@@ -31,16 +31,16 @@ public class GastoController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_GASTOS')")
-    public ResponseEntity<List<GastoDTO>> obtenerTodos() {
+    public ResponseEntity<List<GastoDTO>> obtenerTodos(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(gastoMapper.toDTOList(gastoService.obtenerTodos(tenantId)));
+        return ResponseEntity.ok(gastoMapper.toDTOList(gastoService.obtenerTodos(tenantId, sucursalId)));
     }
 
     @GetMapping("/activos")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_GASTOS')")
-    public ResponseEntity<List<GastoDTO>> obtenerActivos() {
+    public ResponseEntity<List<GastoDTO>> obtenerActivos(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(gastoMapper.toDTOList(gastoService.obtenerActivos(tenantId)));
+        return ResponseEntity.ok(gastoMapper.toDTOList(gastoService.obtenerActivos(tenantId, sucursalId)));
     }
 
     @GetMapping("/{id}")
@@ -82,9 +82,10 @@ public class GastoController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_GASTOS')")
     public ResponseEntity<Map<String, BigDecimal>> totalPorPeriodo(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fin) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fin,
+            @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        BigDecimal total = gastoService.totalPorPeriodo(tenantId, inicio, fin);
+        BigDecimal total = gastoService.totalPorPeriodo(tenantId, sucursalId, inicio, fin);
         return ResponseEntity.ok(Map.of("total", total));
     }
 
@@ -98,6 +99,7 @@ public class GastoController {
         dto.setRegistradoPor(auth != null ? auth.getName() : "sistema");
 
         Gasto gasto = gastoMapper.toEntity(dto);
+        gasto.setSucursalId(dto.getSucursalId());
         Gasto creado = gastoService.crear(gasto);
         log.info("💸 Gasto creado ID: {} para tenant {}", creado.getId(), tenantId);
         return ResponseEntity.status(HttpStatus.CREATED).body(gastoMapper.toDTO(creado));

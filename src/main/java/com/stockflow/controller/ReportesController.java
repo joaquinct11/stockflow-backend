@@ -35,13 +35,14 @@ public class ReportesController {
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
     public ResponseEntity<ReportesResumenDTO> obtenerResumen(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📊 Solicitud de reporte resumen: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
-        ReportesResumenDTO resumen = reportesService.obtenerResumen(tenantId, desde, hasta);
+        ReportesResumenDTO resumen = reportesService.obtenerResumen(tenantId, sucursalId, desde, hasta);
         return ResponseEntity.ok(resumen);
     }
 
@@ -57,7 +58,8 @@ public class ReportesController {
     public ResponseEntity<List<VentaTendenciaDTO>> tendenciaVentas(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(defaultValue = "DIA") String agrupacion) {
+            @RequestParam(defaultValue = "DIA") String agrupacion,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         if (!List.of("DIA", "SEMANA", "MES").contains(agrupacion.toUpperCase())) {
@@ -66,7 +68,7 @@ public class ReportesController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📈 Tendencia ventas: tenant={} rango=[{}, {}] agrupacion={}", tenantId, desde, hasta, agrupacion);
 
-        return ResponseEntity.ok(reportesService.tendenciaVentas(tenantId, desde, hasta, agrupacion));
+        return ResponseEntity.ok(reportesService.tendenciaVentas(tenantId, sucursalId, desde, hasta, agrupacion));
     }
 
     /**
@@ -79,13 +81,14 @@ public class ReportesController {
     public ResponseEntity<List<VentaVendedorDTO>> ventasPorVendedor(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(defaultValue = "20") int limit) {
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👤 Ventas por vendedor: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
-        return ResponseEntity.ok(reportesService.ventasPorVendedor(tenantId, desde, hasta, limit));
+        return ResponseEntity.ok(reportesService.ventasPorVendedor(tenantId, sucursalId, desde, hasta, limit));
     }
 
     /**
@@ -98,13 +101,14 @@ public class ReportesController {
     public ResponseEntity<List<VentaCategoriaDTO>> ventasPorCategoria(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(defaultValue = "50") int limit) {
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🏷️ Ventas por categoría: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
-        return ResponseEntity.ok(reportesService.ventasPorCategoria(tenantId, desde, hasta, limit));
+        return ResponseEntity.ok(reportesService.ventasPorCategoria(tenantId, sucursalId, desde, hasta, limit));
     }
 
     /**
@@ -116,13 +120,14 @@ public class ReportesController {
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
     public ResponseEntity<List<VentaMetodoPagoDTO>> ventasPorMetodoPago(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("💳 Ventas por método de pago: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
-        return ResponseEntity.ok(reportesService.ventasPorMetodoPago(tenantId, desde, hasta));
+        return ResponseEntity.ok(reportesService.ventasPorMetodoPago(tenantId, sucursalId, desde, hasta));
     }
 
     /**
@@ -137,7 +142,8 @@ public class ReportesController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
             @RequestParam(defaultValue = "20") int limit,
             @RequestParam(defaultValue = "MAS") String orden,
-            @RequestParam(defaultValue = "UNIDADES") String metrica) {
+            @RequestParam(defaultValue = "UNIDADES") String metrica,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         if (!List.of("MAS", "MENOS").contains(orden.toUpperCase())) {
@@ -149,7 +155,7 @@ public class ReportesController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Productos vendidos: tenant={} rango=[{}, {}] orden={} metrica={}", tenantId, desde, hasta, orden, metrica);
 
-        return ResponseEntity.ok(reportesService.productosVendidos(tenantId, desde, hasta, limit, orden, metrica));
+        return ResponseEntity.ok(reportesService.productosVendidos(tenantId, sucursalId, desde, hasta, limit, orden, metrica));
     }
 
     // ── Inventario ────────────────────────────────────────────────────────────
@@ -165,13 +171,14 @@ public class ReportesController {
     public ResponseEntity<List<ProductoAbcDTO>> clasificacionAbc(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(defaultValue = "200") int limit) {
+            @RequestParam(defaultValue = "200") int limit,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔡 ABC: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
-        return ResponseEntity.ok(reportesService.clasificacionAbc(tenantId, desde, hasta, limit));
+        return ResponseEntity.ok(reportesService.clasificacionAbc(tenantId, sucursalId, desde, hasta, limit));
     }
 
     /**
@@ -204,13 +211,14 @@ public class ReportesController {
     public ResponseEntity<List<CoberturaProductoDTO>> coberturaInventario(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(defaultValue = "50") int limit) {
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📐 Cobertura inventario: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
-        return ResponseEntity.ok(reportesService.coberturaInventario(tenantId, desde, hasta, limit));
+        return ResponseEntity.ok(reportesService.coberturaInventario(tenantId, sucursalId, desde, hasta, limit));
     }
 
     // ── Compras ───────────────────────────────────────────────────────────────
@@ -226,13 +234,14 @@ public class ReportesController {
     public ResponseEntity<List<CompraProveedorDTO>> comprasPorProveedor(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(defaultValue = "20") int limit) {
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🛒 Compras por proveedor: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
 
-        return ResponseEntity.ok(reportesService.comprasPorProveedor(tenantId, desde, hasta, limit));
+        return ResponseEntity.ok(reportesService.comprasPorProveedor(tenantId, sucursalId, desde, hasta, limit));
     }
 
     // ── Financiero ────────────────────────────────────────────────────────────
@@ -245,12 +254,13 @@ public class ReportesController {
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
     public ResponseEntity<FinancieroDTO> getFinanciero(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("💰 Financiero: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
-        return ResponseEntity.ok(reportesService.getFinanciero(tenantId, desde, hasta));
+        return ResponseEntity.ok(reportesService.getFinanciero(tenantId, sucursalId, desde, hasta));
     }
 
     // ── Vencimientos en riesgo ────────────────────────────────────────────────
@@ -278,12 +288,13 @@ public class ReportesController {
     public ResponseEntity<List<ClienteReporteDTO>> getTopClientes(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(defaultValue = "20") int limit) {
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) Long sucursalId) {
 
         validarRango(desde, hasta);
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👤 Top clientes: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
-        return ResponseEntity.ok(reportesService.getTopClientes(tenantId, desde, hasta, limit));
+        return ResponseEntity.ok(reportesService.getTopClientes(tenantId, sucursalId, desde, hasta, limit));
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

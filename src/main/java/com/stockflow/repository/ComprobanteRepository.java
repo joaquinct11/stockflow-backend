@@ -2,6 +2,7 @@ package com.stockflow.repository;
 
 import com.stockflow.entity.Comprobante;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -26,6 +27,7 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
       FROM comprobantes c
       JOIN ventas v ON c.venta_id = v.id
       WHERE c.tenant_id = :tenantId
+        AND (:sucursalId IS NULL OR c.sucursal_id = :sucursalId)
         AND (:vendedorId IS NULL OR v.vendedor_id = :vendedorId)
         AND (:tipo IS NULL OR c.tipo = :tipo)
         AND (:estado IS NULL OR c.estado = :estado)
@@ -42,6 +44,7 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
     """, nativeQuery = true)
     List<Comprobante> findFiltered(
             @Param("tenantId") String tenantId,
+            @Param("sucursalId") Long sucursalId,
             @Param("vendedorId") Long vendedorId,
             @Param("tipo") String tipo,
             @Param("estado") String estado,
@@ -50,4 +53,8 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
             @Param("ventaId") Long ventaId,
             @Param("search") String search
     );
+
+    @Modifying
+    @Query(value = "UPDATE comprobantes SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
+    void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
 }

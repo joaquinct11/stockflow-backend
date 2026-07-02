@@ -72,4 +72,8 @@ public class Usuario {
 
     @Column(name = "numero_celular", length = 20)
     private String numeroCelular;
+
+    /** Local asignado. NULL = ADMIN (ve todos los locales) o plan Básico. */
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
 }
