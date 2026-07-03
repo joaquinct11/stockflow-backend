@@ -118,6 +118,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
                 .receptorDocNumero(request.getReceptorDocNumero())
                 .receptorNombre(request.getReceptorNombre())
                 .receptorDireccion(request.getReceptorDireccion())
+                .sucursalId(venta.getSucursalId())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -143,7 +144,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ComprobanteDTO> listar(String tenantId, Long vendedorId, String tipo, String estado,
+    public List<ComprobanteDTO> listar(String tenantId, Long sucursalId, Long vendedorId, String tipo, String estado,
                                        LocalDateTime from, LocalDateTime to,
                                        Long ventaId, String search) {
         search = (search == null) ? "" : search.trim();
@@ -151,7 +152,7 @@ public class ComprobanteServiceImpl implements ComprobanteService {
         estado = (estado == null || estado.isBlank()) ? null : estado.trim();
 
         return comprobanteRepository
-                .findFiltered(tenantId, vendedorId, tipo, estado, from, to, ventaId, search)
+                .findFiltered(tenantId, sucursalId, vendedorId, tipo, estado, from, to, ventaId, search)
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());

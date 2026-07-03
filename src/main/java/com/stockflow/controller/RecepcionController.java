@@ -43,9 +43,9 @@ public class RecepcionController {
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_RECEPCIONES') or hasAuthority('PERM_CREAR_RECEPCION')")
-    public ResponseEntity<List<RecepcionResponseDTO>> listar() {
+    public ResponseEntity<List<RecepcionResponseDTO>> listar(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(recepcionService.listar(tenantId));
+        return ResponseEntity.ok(recepcionService.listar(tenantId, sucursalId));
     }
 
     /**

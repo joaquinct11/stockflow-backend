@@ -55,4 +55,6 @@ public class MovimientoInventarioDTO {
 
     private Long varianteId;
 
+    private Long sucursalId;
+
 }

@@ -60,6 +60,7 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
                 .usuarioCreador(usuario)
                 .estado("BORRADOR")
                 .observaciones(request.getObservaciones())
+                .sucursalId(request.getSucursalId())
                 .build();
 
         List<OrdenCompraDetalle> detalles = request.getItems().stream().map(item -> {
@@ -88,9 +89,13 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrdenCompraResponseDTO> listar(String tenantId, String estado, Long proveedorId) {
+    public List<OrdenCompraResponseDTO> listar(String tenantId, String estado, Long proveedorId, Long sucursalId) {
         List<OrdenCompra> lista;
-        if (estado != null && proveedorId != null) {
+        if (sucursalId != null) {
+            lista = ordenCompraRepository.findByTenantIdAndSucursalId(tenantId, sucursalId);
+            if (estado != null) lista = lista.stream().filter(oc -> estado.equals(oc.getEstado())).collect(Collectors.toList());
+            if (proveedorId != null) lista = lista.stream().filter(oc -> oc.getProveedor() != null && proveedorId.equals(oc.getProveedor().getId())).collect(Collectors.toList());
+        } else if (estado != null && proveedorId != null) {
             lista = ordenCompraRepository.findByTenantIdAndEstadoAndProveedorId(tenantId, estado, proveedorId);
         } else if (estado != null) {
             lista = ordenCompraRepository.findByTenantIdAndEstado(tenantId, estado);

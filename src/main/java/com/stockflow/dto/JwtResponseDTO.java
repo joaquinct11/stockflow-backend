@@ -21,4 +21,6 @@ public class JwtResponseDTO {
     private String tenantId;
     private Integer expiresIn;
     private SuscripcionDTO suscripcion;
+    /** Sucursal fija del usuario (null = ADMIN, puede ver todas). */
+    private Long sucursalId;
 }

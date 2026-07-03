@@ -46,6 +46,9 @@ public class CertificadoEstablecimiento {
     @Column(nullable = false)
     private Boolean activo = true;
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

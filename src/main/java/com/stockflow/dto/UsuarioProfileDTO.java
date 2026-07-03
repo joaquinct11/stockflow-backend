@@ -27,4 +27,6 @@ public class UsuarioProfileDTO {
     private String tipoDocumento;
     private String numeroDocumento;
     private String numeroCelular;
+    /** Sucursal fija del usuario (null = ADMIN). */
+    private Long sucursalId;
 }

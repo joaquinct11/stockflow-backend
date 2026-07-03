@@ -70,4 +70,7 @@ public class Gasto {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
 }

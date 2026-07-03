@@ -32,4 +32,7 @@ public class UsuarioUpdateDTO {
     private String numeroDocumento;
 
     private String numeroCelular;
+
+    /** Sucursal asignada (null = sin restricción / ADMIN). */
+    private Long sucursalId;
 }

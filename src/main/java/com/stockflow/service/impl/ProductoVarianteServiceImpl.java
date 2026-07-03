@@ -22,11 +22,27 @@ public class ProductoVarianteServiceImpl implements ProductoVarianteService {
 
     private final ProductoVarianteRepository varianteRepository;
     private final ProductoRepository productoRepository;
+    private final com.stockflow.repository.ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
 
     @Override
-    public List<ProductoVarianteDTO> getByProducto(Long productoId, String tenantId) {
-        return varianteRepository.findByProductoIdAndTenantId(productoId, tenantId)
+    public List<ProductoVarianteDTO> getByProducto(Long productoId, String tenantId, Long sucursalId) {
+        List<ProductoVarianteDTO> variantes = varianteRepository.findByProductoIdAndTenantId(productoId, tenantId)
                 .stream().map(this::toDTO).toList();
+
+        if (sucursalId != null) {
+            java.util.Map<Long, Integer> stockPorVariante = varianteStockSucursalRepository
+                    .findByVarianteIdInAndSucursalId(
+                            variantes.stream().map(ProductoVarianteDTO::getId).toList(),
+                            sucursalId)
+                    .stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            pvss -> pvss.getVarianteId(),
+                            pvss -> pvss.getStockActual() != null ? pvss.getStockActual() : 0
+                    ));
+            variantes.forEach(v -> v.setStockActual(stockPorVariante.getOrDefault(v.getId(), 0)));
+        }
+
+        return variantes;
     }
 
     @Override

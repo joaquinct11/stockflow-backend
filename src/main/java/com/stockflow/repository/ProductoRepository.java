@@ -15,6 +15,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     // ── Lookups puntuales ────────────────────────────────────────────────────
     Optional<Producto> findByCodigoBarras(String codigoBarras);
     long countByTenantId(String tenantId);
+    long countByTenantIdAndActivoTrue(String tenantId);
 
     /**
      * findById con JOIN FETCH — usar después de save() para devolver el
@@ -40,6 +41,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
             LEFT JOIN FETCH p.categoriaRef
             LEFT JOIN FETCH p.unidadMedida
             WHERE p.tenantId = :tenantId
+              AND p.activo = true
             """)
     List<Producto> findByTenantId(@Param("tenantId") String tenantId);
 
@@ -50,6 +52,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
             WHERE (LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombre, '%'))
                OR  LOWER(COALESCE(p.componentes,'')) LIKE LOWER(CONCAT('%', :nombre, '%')))
               AND p.tenantId = :tenantId
+              AND p.activo = true
             """)
     List<Producto> findByNombreContainingIgnoreCaseAndTenantId(
             @Param("nombre") String nombre,
@@ -79,6 +82,16 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     /** Suma el stock actual de todos los productos del tenant — usado en onboarding. */
     @Query("SELECT COALESCE(SUM(p.stockActual), 0) FROM Producto p WHERE p.tenantId = :tenantId")
     long sumStockActualByTenantId(@Param("tenantId") String tenantId);
+
+    /** True si el producto tiene ventas o devoluciones asociadas (impide borrado físico). */
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1 FROM detalles_venta WHERE producto_id = :id
+                UNION ALL
+                SELECT 1 FROM devolucion_detalle WHERE producto_id = :id
+            )
+            """, nativeQuery = true)
+    boolean tieneRegistrosRelacionados(@Param("id") Long id);
 
     // ── Slow movers: activos con stock > 0 sin salidas desde una fecha ──
 

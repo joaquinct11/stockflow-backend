@@ -44,4 +44,7 @@ public class UsuarioDTO {
     private String numeroDocumento;
 
     private String numeroCelular;
+
+    /** ID de la sucursal asignada. NULL = ADMIN o plan Básico. */
+    private Long sucursalId;
 }

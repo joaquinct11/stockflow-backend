@@ -15,7 +15,7 @@ public interface RecepcionService {
 
     Optional<RecepcionResponseDTO> obtenerPorId(Long id, String tenantId);
 
-    List<RecepcionResponseDTO> listar(String tenantId);
+    List<RecepcionResponseDTO> listar(String tenantId, Long sucursalId);
 
     /** Upsert: creates or updates the detail row for the given producto in the recepcion. */
     RecepcionDetalleResponseDTO upsertItem(Long recepcionId, RecepcionDetalleRequestDTO request, String tenantId);

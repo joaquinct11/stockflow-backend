@@ -49,6 +49,7 @@ public class AuthServiceImpl implements AuthService {
     private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
     private final RolePermissionDefaults rolePermissionDefaults;
     private final com.stockflow.config.properties.CulqiProperties culqiProperties;
+    private final SucursalService sucursalService;
 
     @Override
     @Transactional
@@ -115,6 +116,7 @@ public class AuthServiceImpl implements AuthService {
                 .tenantId(usuario.getTenantId())
                 .expiresIn((int) (jwtProperties.getExpiration() / 1000))
                 .suscripcion(suscripcionDTO)
+                .sucursalId(usuario.getSucursalId())
                 .build();
     }
 
@@ -130,7 +132,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 2. Crear TENANT
-        Tenant tenant = tenantService.crearTenant(request.getNombreFarmacia());
+        Tenant tenant = tenantService.crearTenant(request.getNombreFarmacia(), request.getRubro());
         log.info("✅ Tenant creado: {}", tenant.getTenantId());
 
         // 3. Crear USUARIO (rol ADMIN)
@@ -175,7 +177,13 @@ public class AuthServiceImpl implements AuthService {
         log.info("✅ Suscripción creada: Plan {} para usuario {}",
                 suscripcionCreada.getPlanId(), usuarioCreado.getEmail());
 
-        // 5. Generar tokens JWT
+        // 5. Si se registra directamente con Plan PRO, crear sucursal principal
+        if ("PRO".equals(request.getPlanId())) {
+            sucursalService.inicializarPrincipal(tenant.getTenantId());
+            log.info("✅ Sucursal principal inicializada para registro PRO: {}", tenant.getTenantId());
+        }
+
+        // 7. Generar tokens JWT
         String accessToken = jwtUtil.generateToken(
                 usuarioCreado.getId(),
                 usuarioCreado.getEmail(),
@@ -188,7 +196,7 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("✅ Registro completado exitosamente para: {}", request.getEmail());
 
-        // 6. Enviar email de bienvenida (async — no bloquea)
+        // 8. Enviar email de bienvenida (async — no bloquea)
         try {
             emailService.enviarBienvenida(
                     usuarioCreado.getEmail(),
@@ -262,6 +270,7 @@ public class AuthServiceImpl implements AuthService {
                 .rol(usuario.getRol().getNombre())
                 .tenantId(usuario.getTenantId())
                 .suscripcion(suscripcionDTO)
+                .sucursalId(usuario.getSucursalId())
                 .build();
     }
 
@@ -274,10 +283,13 @@ public class AuthServiceImpl implements AuthService {
 
 
     private BigDecimal obtenerPrecioPlan(String planId) {
-        if (!"BASICO".equals(planId)) {
-            throw new BadRequestException("Plan inválido: " + planId + ". Solo se permite: BASICO");
+        if ("PRO".equals(planId)) {
+            return culqiProperties.getPrecioPro();
         }
-        return culqiProperties.getPrecioBasico();
+        if ("BASICO".equals(planId)) {
+            return culqiProperties.getPrecioBasico();
+        }
+        throw new BadRequestException("Plan inválido: " + planId + ". Planes válidos: BASICO, PRO");
     }
 
     private SuscripcionDTO mapToSuscripcionDTO(Suscripcion suscripcion) {
@@ -321,6 +333,7 @@ public class AuthServiceImpl implements AuthService {
                 .tipoDocumento(usuario.getTipoDocumento())
                 .numeroDocumento(usuario.getNumeroDocumento())
                 .numeroCelular(usuario.getNumeroCelular())
+                .sucursalId(usuario.getSucursalId())
                 .build();
     }
 

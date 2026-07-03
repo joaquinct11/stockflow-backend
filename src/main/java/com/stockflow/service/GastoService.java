@@ -9,9 +9,9 @@ import java.util.Optional;
 
 public interface GastoService {
 
-    List<Gasto> obtenerTodos(String tenantId);
+    List<Gasto> obtenerTodos(String tenantId, Long sucursalId);
 
-    List<Gasto> obtenerActivos(String tenantId);
+    List<Gasto> obtenerActivos(String tenantId, Long sucursalId);
 
     List<Gasto> obtenerPorCategoria(String tenantId, String categoria);
 
@@ -27,7 +27,7 @@ public interface GastoService {
 
     void eliminar(Long id);
 
-    BigDecimal totalPorPeriodo(String tenantId, LocalDate inicio, LocalDate fin);
+    BigDecimal totalPorPeriodo(String tenantId, Long sucursalId, LocalDate inicio, LocalDate fin);
 
     long contar(String tenantId);
 }

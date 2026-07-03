@@ -65,6 +65,9 @@ public class MovimientoInventario {
     @Column(name = "registro_sanitario", length = 100)
     private String registroSanitario;
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @PrePersist
     protected void prePersist() {
         if (createdAt == null) {

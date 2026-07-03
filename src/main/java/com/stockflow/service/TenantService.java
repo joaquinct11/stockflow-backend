@@ -5,7 +5,7 @@ import com.stockflow.entity.Tenant;
 import java.util.Optional;
 
 public interface TenantService {
-    Tenant crearTenant(String nombreFarmacia);
+    Tenant crearTenant(String nombreFarmacia, String rubro);
     Optional<Tenant> obtenerPorTenantId(String tenantId);
     Optional<Tenant> obtenerTenant(String tenantId);
     boolean existeTenant(String tenantId);

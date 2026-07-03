@@ -2,6 +2,7 @@ package com.stockflow.repository;
 
 import com.stockflow.entity.MovimientoInventario;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,9 +15,15 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
 
     List<MovimientoInventario> findByProductoId(Long productoId);
 
+    @Query(value = "SELECT * FROM movimientos_inventario WHERE producto_id = :productoId AND sucursal_id = :sucursalId ORDER BY created_at ASC", nativeQuery = true)
+    List<MovimientoInventario> findByProductoIdAndSucursalId(@Param("productoId") Long productoId, @Param("sucursalId") Long sucursalId);
+
     List<MovimientoInventario> findByUsuarioId(Long usuarioId);
 
     List<MovimientoInventario> findByTenantId(String tenantId);
+
+    @Query(value = "SELECT * FROM movimientos_inventario WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId ORDER BY created_at DESC", nativeQuery = true)
+    List<MovimientoInventario> findByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId);
 
     List<MovimientoInventario> findByTipo(String tipo);
 
@@ -31,24 +38,28 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
 
     @Query("SELECT COALESCE(SUM(m.cantidad), 0) FROM MovimientoInventario m " +
            "WHERE m.tenantId = :tenantId AND m.tipo = :tipo " +
-           "AND m.createdAt BETWEEN :inicio AND :fin")
+           "AND m.createdAt BETWEEN :inicio AND :fin " +
+           "AND (:sucursalId IS NULL OR m.sucursalId = :sucursalId)")
     long sumCantidadByTenantIdAndTipoAndPeriodo(
             @Param("tenantId") String tenantId,
             @Param("tipo") String tipo,
             @Param("inicio") LocalDateTime inicio,
-            @Param("fin") LocalDateTime fin
+            @Param("fin") LocalDateTime fin,
+            @Param("sucursalId") Long sucursalId
     );
 
     @Query("SELECT m.producto.id, m.producto.nombre, m.tipo, SUM(m.cantidad) AS total " +
            "FROM MovimientoInventario m " +
            "WHERE m.tenantId = :tenantId AND m.tipo IN ('ENTRADA','SALIDA') " +
            "AND m.createdAt BETWEEN :inicio AND :fin " +
+           "AND (:sucursalId IS NULL OR m.sucursalId = :sucursalId) " +
            "GROUP BY m.producto.id, m.producto.nombre, m.tipo " +
            "ORDER BY total DESC")
     List<Object[]> findTopMovimientosProductos(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
-            @Param("fin") LocalDateTime fin
+            @Param("fin") LocalDateTime fin,
+            @Param("sucursalId") Long sucursalId
     );
 
     // ── Vencimientos: se consultan en movimientos (ENTRADA con lote) ──────────
@@ -134,11 +145,17 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     @Query("SELECT m.producto.id, m.producto.nombre, m.producto.stockActual, SUM(m.cantidad) " +
            "FROM MovimientoInventario m " +
            "WHERE m.tenantId = :tenantId AND m.tipo = 'SALIDA' AND m.createdAt BETWEEN :inicio AND :fin " +
+           "AND (:sucursalId IS NULL OR m.sucursalId = :sucursalId) " +
            "GROUP BY m.producto.id, m.producto.nombre, m.producto.stockActual " +
            "ORDER BY SUM(m.cantidad) DESC")
     List<Object[]> findSalidasPorProductoEnRango(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
-            @Param("fin") LocalDateTime fin
+            @Param("fin") LocalDateTime fin,
+            @Param("sucursalId") Long sucursalId
     );
+
+    @Modifying
+    @Query(value = "UPDATE movimientos_inventario SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
+    void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
 }

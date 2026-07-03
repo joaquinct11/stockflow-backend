@@ -114,7 +114,17 @@
       "Bash(git -C \"D:/projects/abc/stockflow-frontend\" diff HEAD src/App.tsx)",
       "Bash(rm -rf \"D:/projects/abc/stockflow-frontend/node_modules/.vite\" && echo \"Cache eliminado\")",
       "Bash(git checkout *)",
-      "Bash(grep -E \"\\\\.java$\")"
+      "Bash(grep -E \"\\\\.java$\")",
+      "Bash(mvn flyway:validate -q)",
+      "Bash(grep -n \"DevolucionModal\\\\|ticketVenta\\\\|\\\\/\\\\* fin\\\\|return \\(\" \"D:/projects/abc/stockflow-frontend/src/pages/ventas/VentasList.tsx\")",
+      "Bash(grep -n \"isCorregirOpen\\\\|Dialog\\\\|<\\\\/div>$\" \"D:/projects/abc/stockflow-frontend/src/pages/caja/CajaPage.tsx\")",
+      "Bash(xargs grep -l \"comprobante\\\\|facturacion\\\\|Facturacion\\\\|Comprobante\")",
+      "Bash(xargs grep -l \"OrdenCompra\\\\|Recepcion\\\\|NotaCredito\\\\|Movimiento\\\\|Comision\")",
+      "Bash(xargs grep -l \"ordenCompraService\\\\|recepcionService\\\\|notaCreditoService\\\\|movimientoService\\\\|comisionesService\\\\|comisionService\")",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(xargs grep -l \"CertificadoDTO\")",
+      "Bash(xargs grep -l \"Catálogo de Servicios\\\\|catalogo.*servicio\\\\|CATALOGO_SERVICIOS\")",
+      "Bash(grep -v \"//\\\\|import\\\\|log\\\\.\")"
     ]
   }
 }

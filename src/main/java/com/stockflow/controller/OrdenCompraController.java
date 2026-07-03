@@ -45,9 +45,10 @@ public class OrdenCompraController {
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_OC') or hasAuthority('PERM_CREAR_RECEPCION')")
     public ResponseEntity<List<OrdenCompraResponseDTO>> listar(
             @RequestParam(required = false) String estado,
-            @RequestParam(required = false) Long proveedorId) {
+            @RequestParam(required = false) Long proveedorId,
+            @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        return ResponseEntity.ok(ordenCompraService.listar(tenantId, estado, proveedorId));
+        return ResponseEntity.ok(ordenCompraService.listar(tenantId, estado, proveedorId, sucursalId));
     }
 
     /**

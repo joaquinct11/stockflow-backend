@@ -14,4 +14,5 @@ public class ProductoBajoStockDTO {
     private String nombre;
     private Integer stockActual;
     private Integer stockMinimo;
+    private String tipo;
 }

@@ -101,6 +101,9 @@ public class Comprobante {
     @Column(name = "xml_url", length = 500)
     private String xmlUrl;
 
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
