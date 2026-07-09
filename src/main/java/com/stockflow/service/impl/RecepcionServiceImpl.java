@@ -57,6 +57,7 @@ public class RecepcionServiceImpl implements RecepcionService {
     private final GastoRepository gastoRepository;
     private final ProductoStockSucursalRepository stockSucursalRepository;
     private final SucursalRepository sucursalRepository;
+    private final com.stockflow.service.StockLoteService stockLoteService;
 
     @Override
     @Transactional
@@ -283,7 +284,15 @@ public class RecepcionServiceImpl implements RecepcionService {
                     .costoUnitario(costoUnitario)
                     .build();
 
-            movimientoRepository.save(mov);
+            MovimientoInventario movGuardado = movimientoRepository.save(mov);
+
+            // Si tiene fecha de vencimiento, registrar en stock_lotes para control FEFO
+            if (detalle.getFechaVencimiento() != null) {
+                stockLoteService.registrarLote(
+                        recepcion.getTenantId(), movGuardado.getId(), producto.getId(),
+                        recepcion.getSucursalId(), detalle.getLote(),
+                        detalle.getFechaVencimiento(), detalle.getCantidadRecibida());
+            }
 
             producto.setStockActual(producto.getStockActual() + detalle.getCantidadRecibida());
             // Actualizar último costo unitario del producto con el precio de esta recepción

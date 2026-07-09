@@ -57,4 +57,7 @@ public class MovimientoInventarioDTO {
 
     private Long sucursalId;
 
+    /** Si viene informado en un AJUSTE, aplica el ajuste a ese lote específico (movimientoId del lote) */
+    private Long ajusteLoteMovimientoId;
+
 }
