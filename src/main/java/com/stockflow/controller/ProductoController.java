@@ -33,6 +33,7 @@ public class ProductoController {
     private final MovimientoInventarioRepository movimientoRepository;
     private final ProductoStockSucursalRepository stockSucursalRepository;
     private final ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
+    private final com.stockflow.service.StockLoteService stockLoteService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene productos del tenant actual automáticamente
@@ -90,6 +91,20 @@ public class ProductoController {
         dtos.forEach(dto -> {
             if (dto.getId() != null) dto.setProximaFechaVencimiento(vencMap.get(dto.getId()));
         });
+
+        // Enriquecer con stock vigente (no vencido) para productos que tienen lotes FEFO
+        try {
+            List<Long> todosIds = dtos.stream()
+                    .filter(d -> d.getId() != null).map(ProductoDTO::getId).collect(Collectors.toList());
+            Map<Long, Integer> stockVigenteMap = stockLoteService.getStockVigenteBatch(tenantId, todosIds, sucursalId);
+            dtos.forEach(dto -> {
+                if (dto.getId() != null && stockVigenteMap.containsKey(dto.getId())) {
+                    dto.setStockVigente(stockVigenteMap.get(dto.getId()));
+                }
+            });
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo enriquecer stockVigente: {}", e.getMessage());
+        }
 
         return ResponseEntity.ok(dtos);
     }

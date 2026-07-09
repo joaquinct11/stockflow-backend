@@ -59,6 +59,7 @@ public class VentaController {
     private final ProductoVarianteStockSucursalRepository   varianteStockSucursalRepository;
     private final ProductoStockSucursalRepository           stockSucursalRepository;
     private final SucursalRepository                        sucursalRepository;
+    private final com.stockflow.service.StockLoteService   stockLoteService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
@@ -204,7 +205,11 @@ public class VentaController {
                                         .orElseThrow(() -> new BadRequestException("Stock insuficiente para la variante seleccionada de: " + producto.getNombre()));
                             }
                         } else {
-                            if (producto.getStockActual() < detalleDTO.getCantidad()) {
+                            // Validar contra stock vigente (no vencido) si el producto tiene lotes
+                            Integer stockVigente = stockLoteService.getStockVigente(
+                                    tenantId, producto.getId(), ventaDTO.getSucursalId());
+                            int stockDisponible = stockVigente != null ? stockVigente : producto.getStockActual();
+                            if (stockDisponible < detalleDTO.getCantidad()) {
                                 throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
                             }
                         }
@@ -318,6 +323,10 @@ public class VentaController {
                 } else {
                     producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
                     productoService.actualizarProducto(producto.getId(), producto);
+
+                    // Descuento FEFO en stock_lotes (si el producto tiene lotes con vencimiento)
+                    stockLoteService.descontarFefo(
+                            tenantId, producto.getId(), ventaCreada.getSucursalId(), detalle.getCantidad());
 
                     // Actualizar stock por sucursal si la venta tiene sucursalId
                     if (ventaCreada.getSucursalId() != null) {

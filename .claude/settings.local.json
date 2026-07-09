@@ -124,7 +124,25 @@
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(xargs grep -l \"CertificadoDTO\")",
       "Bash(xargs grep -l \"Catálogo de Servicios\\\\|catalogo.*servicio\\\\|CATALOGO_SERVICIOS\")",
-      "Bash(grep -v \"//\\\\|import\\\\|log\\\\.\")"
+      "Bash(grep -v \"//\\\\|import\\\\|log\\\\.\")",
+      "Bash(extract-text --format xlsx \"C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU29\\\\FHU29 Goleada4 y empate aburrido\\\\ws-cashback-disbursement\\\\DM_ws-cashback-disbursement_v1.0.xlsx\")",
+      "Bash(find / -iname \"extract-text*\" 2>/dev/null | head -20)",
+      "Bash(python build_dm.py)",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS' -Directory | Select-Object Name\")",
+      "Read(//c/Users/castillojoot/Desktop/DOCS/**)",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11' -Recurse -Directory | Select-Object FullName\")",
+      "Bash(xargs grep -l \"Lote\\\\|Vencim\\\\|lote\\\\|vencim\")",
+      "Bash(xargs grep -l \"LoteVencimiento\\\\|loteVencimiento\\\\|fechaVencimiento\\\\|Vencimientos\")",
+      "Bash(xargs grep -l \"Lotes y Vencimientos\\\\|lotes-vencim\\\\|LotesVenc\\\\|diasRestantes\\\\|lotesVenc\")",
+      "Bash(sort -t'V' -k2 -n)",
+      "Bash(xargs grep -l \"buscarParaPOS\\\\|/pos\\\\|POS\")",
+      "Bash(xargs grep -l \"initialize\\\\\\(\\\\\\)\")",
+      "Bash(xargs grep -li \"notif\")",
+      "Bash(grep -v \"//\\\\|import\\\\|case\\\\|icon\\\\|getMovimiento\")",
+      "Bash(pg_dump --version)",
+      "Bash(ls gradlew*)",
+      "Bash(ls *.gradle*)",
+      "Bash(./gradlew.bat test *)"
     ]
   }
 }

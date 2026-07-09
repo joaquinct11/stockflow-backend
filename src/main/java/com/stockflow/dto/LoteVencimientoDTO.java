@@ -25,6 +25,9 @@ public class LoteVencimientoDTO {
 
     private Integer cantidad;
 
+    /** Stock actual del producto (total, no por lote) */
+    private Integer stockActual;
+
     /** Días hasta vencimiento: negativo = ya vencido */
     private Long diasRestantes;
 

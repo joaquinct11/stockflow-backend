@@ -74,4 +74,10 @@ public class ProductoDTO {
 
     /** Fecha del lote más próximo a vencer (calculado en el servidor, solo lectura). */
     private LocalDate proximaFechaVencimiento;
+
+    /**
+     * Stock disponible no vencido (FEFO). Solo presente si el producto tiene lotes
+     * con fechaVencimiento registrada. El POS debe usar este valor cuando no es null.
+     */
+    private Integer stockVigente;
 }

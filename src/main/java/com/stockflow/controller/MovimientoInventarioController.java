@@ -48,6 +48,7 @@ public class MovimientoInventarioController {
     private final ProductoVarianteStockSucursalRepository   varianteStockSucursalRepository;
     private final ProductoStockSucursalRepository           stockSucursalRepository;
     private final SucursalRepository                        sucursalRepository;
+    private final com.stockflow.service.StockLoteService   stockLoteService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -199,6 +200,17 @@ public class MovimientoInventarioController {
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);
 
+        // Si es ENTRADA o DEVOLUCIÓN con fechaVencimiento, registrar en stock_lotes para control FEFO
+        if ((esEntrada || esDevolucion) && fechaVencimiento != null) {
+            stockLoteService.registrarLote(
+                    tenantId, movimientoCreado.getId(), producto.getId(),
+                    movimientoDTO.getSucursalId(), lote,
+                    fechaVencimiento, movimientoDTO.getCantidad());
+        }
+
+        // Guardar stock previo para calcular delta en ajustes FEFO
+        final int stockPrevio = producto.getStockActual();
+
         // Actualizar stock (AJUSTE_PRECIO no toca el stock)
         if (!esAjustePrecio) {
             if (movimientoDTO.getVarianteId() != null) {
@@ -285,6 +297,60 @@ public class MovimientoInventarioController {
             }
         }
 
+        // Si es SALIDA manual, descontar de stock_lotes en orden FEFO
+        if ("SALIDA".equals(movimientoDTO.getTipo()) && movimientoDTO.getVarianteId() == null) {
+            try {
+                stockLoteService.descontarFefo(tenantId, producto.getId(),
+                        movimientoDTO.getSucursalId(), movimientoDTO.getCantidad());
+            } catch (Exception e) {
+                log.warn("⚠️ No se pudo descontar FEFO en SALIDA manual: {}", e.getMessage());
+            }
+        }
+
+        // Si es AJUSTE, sincronizar stock_lotes
+        if (esAjuste && movimientoDTO.getVarianteId() == null) {
+            try {
+                if (movimientoDTO.getAjusteLoteMovimientoId() != null) {
+                    // Obtener nombre del lote para mostrarlo en el Kardex
+                    String nombreLote = movimientoRepository.findById(movimientoDTO.getAjusteLoteMovimientoId())
+                            .map(m -> m.getLote() != null ? m.getLote() : "Lote #" + movimientoDTO.getAjusteLoteMovimientoId())
+                            .orElse("Lote #" + movimientoDTO.getAjusteLoteMovimientoId());
+
+                    // Ajustar el lote y calcular el nuevo total del producto
+                    int deltaLote = stockLoteService.ajustarLoteEspecifico(
+                            movimientoDTO.getAjusteLoteMovimientoId(), movimientoDTO.getCantidad());
+                    int nuevoTotalProducto = stockPrevio + deltaLote;
+                    producto.setStockActual(nuevoTotalProducto);
+
+                    // Actualizar el movimiento: cantidad = total producto, descripción = lote ajustado
+                    movimientoCreado.setCantidad(nuevoTotalProducto);
+                    movimientoCreado.setDescripcion("Lote: " + nombreLote
+                            + " | " + movimientoDTO.getCantidad() + " uds"
+                            + (movimientoDTO.getDescripcion() != null && !movimientoDTO.getDescripcion().isBlank()
+                                ? " | " + movimientoDTO.getDescripcion() : ""));
+                    movimientoRepository.save(movimientoCreado);
+
+                    // Corregir stock de sucursal (el AJUSTE genérico lo puso en getCantidad(); el correcto es el total del producto)
+                    if (movimientoDTO.getSucursalId() != null) {
+                        final int totalFinal = nuevoTotalProducto;
+                        stockSucursalRepository
+                                .findByProductoIdAndSucursalId(producto.getId(), movimientoDTO.getSucursalId())
+                                .ifPresent(entry -> {
+                                    entry.setStockActual(totalFinal);
+                                    stockSucursalRepository.save(entry);
+                                });
+                    }
+                } else {
+                    // Sin lote seleccionado: auto-distribuir el delta en orden FEFO
+                    int delta = movimientoDTO.getCantidad() - stockPrevio;
+                    stockLoteService.ajustarStockLotes(tenantId, producto.getId(),
+                            movimientoDTO.getSucursalId(), delta);
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ No se pudo ajustar stock_lotes: {}", e.getMessage());
+            }
+        }
+
         // Actualizar precios si vienen informados
         if (costoUnitario != null && costoUnitario.compareTo(BigDecimal.ZERO) > 0) {
             producto.setCostoUnitario(costoUnitario);
@@ -312,9 +378,14 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         LocalDate hoy = LocalDate.now();
 
-        List<LoteVencimientoDTO> lotes = movimientoRepository
-                .findEntradasConVencimientoPorTenant(tenantId)
-                .stream()
+        List<MovimientoInventario> movimientos = movimientoRepository
+                .findEntradasConVencimientoPorTenant(tenantId);
+
+        // Obtener stock real por lote desde stock_lotes (una sola query batch)
+        List<Long> movIds = movimientos.stream().map(MovimientoInventario::getId).collect(Collectors.toList());
+        java.util.Map<Long, Integer> stockPorMovimiento = stockLoteService.getStockPorMovimientoIds(movIds);
+
+        List<LoteVencimientoDTO> lotes = movimientos.stream()
                 .map(m -> LoteVencimientoDTO.builder()
                         .movimientoId(m.getId())
                         .productoId(m.getProducto().getId())
@@ -323,6 +394,43 @@ public class MovimientoInventarioController {
                         .lote(m.getLote())
                         .fechaVencimiento(m.getFechaVencimiento())
                         .cantidad(m.getCantidad())
+                        // Stock real del lote específico (no el total del producto)
+                        .stockActual(stockPorMovimiento.getOrDefault(m.getId(), 0))
+                        .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
+                        .registroSanitario(m.getRegistroSanitario())
+                        .build())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(lotes);
+    }
+
+    /**
+     * Devuelve los lotes vigentes de un producto específico — para el selector de lote en ajustes.
+     */
+    @GetMapping("/lotes/producto/{productoId}")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    public ResponseEntity<List<LoteVencimientoDTO>> getLotesPorProducto(@PathVariable Long productoId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        LocalDate hoy = LocalDate.now();
+
+        List<MovimientoInventario> movimientos = movimientoRepository
+                .findEntradasConVencimientoPorTenant(tenantId)
+                .stream()
+                .filter(m -> m.getProducto().getId().equals(productoId))
+                .collect(Collectors.toList());
+
+        List<Long> movIds = movimientos.stream().map(MovimientoInventario::getId).collect(Collectors.toList());
+        java.util.Map<Long, Integer> stockPorMovimiento = stockLoteService.getStockPorMovimientoIds(movIds);
+
+        List<LoteVencimientoDTO> lotes = movimientos.stream()
+                .map(m -> LoteVencimientoDTO.builder()
+                        .movimientoId(m.getId())
+                        .productoId(m.getProducto().getId())
+                        .productoNombre(m.getProducto().getNombre())
+                        .lote(m.getLote())
+                        .fechaVencimiento(m.getFechaVencimiento())
+                        .cantidad(m.getCantidad())
+                        .stockActual(stockPorMovimiento.getOrDefault(m.getId(), 0))
                         .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
                         .registroSanitario(m.getRegistroSanitario())
                         .build())
