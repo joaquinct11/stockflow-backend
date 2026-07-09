@@ -65,14 +65,15 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     // ── Vencimientos: se consultan en movimientos (ENTRADA con lote) ──────────
     // El campo fechaVencimiento vive en MovimientoInventario, no en Producto.
 
-    /** Productos distintos con stock > 0 cuyo lote ya está vencido. */
+    /** Productos distintos cuyo lote ya está vencido Y aún tiene stock real en stock_lotes. */
     @Query("""
             SELECT DISTINCT m.producto FROM MovimientoInventario m
+            JOIN StockLote sl ON sl.movimientoId = m.id
             WHERE m.tenantId = :tenantId
-              AND m.tipo = 'ENTRADA'
+              AND m.tipo IN ('ENTRADA', 'DEVOLUCION')
               AND m.fechaVencimiento IS NOT NULL
               AND m.fechaVencimiento < :hoy
-              AND m.producto.stockActual > 0
+              AND sl.stockActual > 0
               AND m.producto.activo = true
             """)
     List<com.stockflow.entity.Producto> findProductosConLoteVencido(
@@ -80,15 +81,16 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("hoy")      LocalDate hoy
     );
 
-    /** Productos distintos con stock > 0 cuyo lote vence entre :desde y :hasta. */
+    /** Productos distintos cuyo lote vence entre :desde y :hasta Y aún tiene stock real en stock_lotes. */
     @Query("""
             SELECT DISTINCT m.producto FROM MovimientoInventario m
+            JOIN StockLote sl ON sl.movimientoId = m.id
             WHERE m.tenantId = :tenantId
-              AND m.tipo = 'ENTRADA'
+              AND m.tipo IN ('ENTRADA', 'DEVOLUCION')
               AND m.fechaVencimiento IS NOT NULL
               AND m.fechaVencimiento >= :desde
               AND m.fechaVencimiento <= :hasta
-              AND m.producto.stockActual > 0
+              AND sl.stockActual > 0
               AND m.producto.activo = true
             """)
     List<com.stockflow.entity.Producto> findProductosConLotePorVencer(

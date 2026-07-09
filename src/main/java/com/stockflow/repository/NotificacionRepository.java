@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -83,4 +84,14 @@ public interface NotificacionRepository extends JpaRepository<Notificacion, Long
     boolean existsByTenantIdAndRolDestinoAndTipoAndReferenciaIdAndLeidaFalse(
             String tenantId, String rolDestino, String tipo, Long referenciaId
     );
+
+    /** Limpieza global: elimina notificaciones leídas anteriores a una fecha. */
+    @Modifying
+    @Query("DELETE FROM Notificacion n WHERE n.leida = true AND n.createdAt < :antes")
+    int eliminarLeidasAntiguasGlobal(@Param("antes") LocalDateTime antes);
+
+    /** Limpieza global: elimina notificaciones NO leídas anteriores a una fecha (demasiado antiguas para ser útiles). */
+    @Modifying
+    @Query("DELETE FROM Notificacion n WHERE n.leida = false AND n.createdAt < :antes")
+    int eliminarNoLeidasAntiguasGlobal(@Param("antes") LocalDateTime antes);
 }

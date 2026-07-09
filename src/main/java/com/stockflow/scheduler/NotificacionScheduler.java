@@ -5,6 +5,7 @@ import com.stockflow.entity.Producto;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Tenant;
 import com.stockflow.repository.MovimientoInventarioRepository;
+import com.stockflow.repository.NotificacionRepository;
 import com.stockflow.repository.OrdenCompraRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.SuscripcionRepository;
@@ -31,6 +32,7 @@ public class NotificacionScheduler {
     private final OrdenCompraRepository          ordenCompraRepository;
     private final SuscripcionRepository          suscripcionRepository;
     private final NotificacionService            notificacionService;
+    private final NotificacionRepository         notificacionRepository;
     private final EmailService                   emailService;
 
     private static final List<String> ROLES_INVENTARIO =
@@ -237,6 +239,15 @@ public class NotificacionScheduler {
             }
         }
         log.info("⏰ [Scheduler] Verificación de suscripciones completada.");
+    }
+
+    // ── Limpieza de notificaciones antiguas — todos los días a las 3:00 AM Lima ─
+    @Scheduled(cron = "0 0 3 * * *", zone = "America/Lima")
+    @org.springframework.transaction.annotation.Transactional
+    public void limpiarNotificacionesAntiguas() {
+        int leidas    = notificacionRepository.eliminarLeidasAntiguasGlobal(LocalDateTime.now().minusDays(30));
+        int noLeidas  = notificacionRepository.eliminarNoLeidasAntiguasGlobal(LocalDateTime.now().minusDays(60));
+        log.info("🧹 [Scheduler] Notificaciones eliminadas — leídas >30d: {}, no leídas >60d: {}", leidas, noLeidas);
     }
 
 }
