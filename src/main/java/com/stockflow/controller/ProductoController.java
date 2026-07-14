@@ -216,13 +216,14 @@ public class ProductoController {
     @PostMapping("/importar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_PRODUCTO')")
     public ResponseEntity<ProductoImportResultDTO> importar(
-            @RequestBody List<ProductoImportRowDTO> filas) {
+            @RequestBody List<ProductoImportRowDTO> filas,
+            @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("📥 Importando {} productos para tenant={}", filas.size(), tenantId);
+        log.info("📥 Importando {} productos para tenant={}, sucursal={}", filas.size(), tenantId, sucursalId);
         if (filas.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
-        ProductoImportResultDTO result = productoService.importar(filas, tenantId);
+        ProductoImportResultDTO result = productoService.importar(filas, tenantId, sucursalId);
         return ResponseEntity.ok(result);
     }
 }

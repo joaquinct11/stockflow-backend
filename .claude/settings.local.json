@@ -142,7 +142,15 @@
       "Bash(pg_dump --version)",
       "Bash(ls gradlew*)",
       "Bash(ls *.gradle*)",
-      "Bash(./gradlew.bat test *)"
+      "Bash(./gradlew.bat test *)",
+      "Bash(python build_dm_xtremepush.py)",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\ws-xtremepush-integration' | Out-Null; Copy-Item 'C:\\\\Users\\\\CASTIL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--projects-abc-stockflow-backend\\\\c58723df-b704-41f7-80de-f1777465d8cd\\\\scratchpad\\\\DM_ws-xtremepush-integration_v1.0.xlsx' 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\ws-xtremepush-integration\\\\DM_ws-xtremepush-integration_v1.0.xlsx' -Force; Get-Item 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\ws-xtremepush-integration\\\\DM_ws-xtremepush-integration_v1.0.xlsx' | Select-Object FullName, Length\")",
+      "Bash(python build_dm_customer_increment.py)",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-customer-increment' | Out-Null; Copy-Item 'C:\\\\Users\\\\CASTIL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--projects-abc-stockflow-backend\\\\c58723df-b704-41f7-80de-f1777465d8cd\\\\scratchpad\\\\DM_as-customer-increment_v1.0.xlsx' 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-customer-increment\\\\DM_as-customer-increment_v1.0.xlsx' -Force; Get-Item 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-customer-increment\\\\DM_as-customer-increment_v1.0.xlsx' | Select-Object FullName, Length\")",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-xp-transaction' | Out-Null; Copy-Item 'C:\\\\Users\\\\CASTIL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--projects-abc-stockflow-backend\\\\c58723df-b704-41f7-80de-f1777465d8cd\\\\scratchpad\\\\DM_as-xp-transaction_v1.0.xlsx' 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-xp-transaction\\\\DM_as-xp-transaction_v1.0.xlsx' -Force; Get-Item 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-xp-transaction\\\\DM_as-xp-transaction_v1.0.xlsx' | Select-Object FullName, Length\")",
+      "Bash(python build_dm_compulsivegambler.py)",
+      "Bash(powershell -Command \"New-Item -ItemType Directory -Force -Path 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-compulsivegambler' | Out-Null; Copy-Item 'C:\\\\Users\\\\CASTIL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--projects-abc-stockflow-backend\\\\c58723df-b704-41f7-80de-f1777465d8cd\\\\scratchpad\\\\DM_as-compulsivegambler_v1.0.xlsx' 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-compulsivegambler\\\\DM_as-compulsivegambler_v1.0.xlsx' -Force; Get-Item 'C:\\\\Users\\\\castillojoot\\\\Desktop\\\\DOCS\\\\FHU11\\\\as-compulsivegambler\\\\DM_as-compulsivegambler_v1.0.xlsx' | Select-Object FullName, Length\")",
+      "WebSearch"
     ]
   }
 }

@@ -40,12 +40,27 @@ public class ProductoImportRowDTO {
     /** Nombre de la categoría (ej. "Medicamentos", "Limpieza") */
     private String categoria;
 
-    /** Número de lote — permite múltiples filas del mismo producto con distinto lote */
+    /** Número de lote — FARMACIA/BOTICA: múltiples filas por lote */
     private String lote;
 
-    /** Fecha de vencimiento del lote (YYYY-MM-DD) */
+    /** Fecha de vencimiento del lote — FARMACIA/BOTICA */
     private LocalDate fechaVencimiento;
 
-    /** Registro sanitario del lote */
+    /** Registro sanitario — FARMACIA/BOTICA */
     private String registroSanitario;
+
+    /** Talla de la variante — TIENDA */
+    private String talla;
+
+    /** Color de la variante — TIENDA */
+    private String color;
+
+    /** SKU de la variante — TIENDA */
+    private String skuVariante;
+
+    /** Stock inicial de la variante — TIENDA */
+    private Integer stockVariante;
+
+    /** Stock mínimo de la variante — TIENDA */
+    private Integer stockMinimoVariante;
 }
