@@ -26,7 +26,7 @@ public class CulqiProperties {
     private String planIdPro;
 
     /** Precio mensual plan Pro en soles */
-    private BigDecimal precioPro = new BigDecimal("176.00");
+    private BigDecimal precioPro = new BigDecimal("169.00");
 
     /**
      * Llave pública RSA de Culqi (Desarrollo → RSA Keys en el panel).

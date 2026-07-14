@@ -27,5 +27,5 @@ public interface ProductoService {
     void eliminarProducto(Long id);
 
     /** Importación masiva desde Excel/CSV. Crea o actualiza según codigoBarras. */
-    ProductoImportResultDTO importar(List<ProductoImportRowDTO> filas, String tenantId);
+    ProductoImportResultDTO importar(List<ProductoImportRowDTO> filas, String tenantId, Long sucursalId);
 }
