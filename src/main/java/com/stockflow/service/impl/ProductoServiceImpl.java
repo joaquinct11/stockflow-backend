@@ -6,17 +6,22 @@ import com.stockflow.entity.Categoria;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.ProductoStockSucursal;
+import com.stockflow.entity.ProductoVariante;
+import com.stockflow.entity.ProductoVarianteStockSucursal;
 import com.stockflow.entity.UnidadMedida;
 import com.stockflow.entity.Usuario;
 import com.stockflow.repository.CategoriaRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
+import com.stockflow.repository.ProductoVarianteRepository;
+import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
 import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.UnidadMedidaRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.service.PlanLimitService;
 import com.stockflow.service.ProductoService;
+import com.stockflow.service.StockLoteService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +48,9 @@ public class ProductoServiceImpl implements ProductoService {
     private final PlanLimitService planLimitService;
     private final SucursalRepository sucursalRepository;
     private final ProductoStockSucursalRepository stockSucursalRepository;
+    private final StockLoteService stockLoteService;
+    private final ProductoVarianteRepository varianteRepository;
+    private final ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
 
     @Override
     @Transactional
@@ -171,12 +179,14 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     @Transactional
-    public ProductoImportResultDTO importar(List<ProductoImportRowDTO> filas, String tenantId) {
+    public ProductoImportResultDTO importar(List<ProductoImportRowDTO> filas, String tenantId, Long sucursalId) {
         int creados = 0, actualizados = 0;
         List<ProductoImportResultDTO.FilaError> errores = new ArrayList<>();
 
-        // Rastrear qué códigos/nombres ya se procesaron en este batch para soportar multi-lote
+        // Rastrear qué códigos/nombres ya se procesaron en este batch para soportar multi-lote / multi-variante
         Set<String> processedInBatch = new HashSet<>();
+        // Para productos sin código de barras, guardar referencia al producto recién creado por clave-nombre
+        java.util.Map<String, Producto> createdInBatch = new java.util.HashMap<>();
 
         // Unidad fallback: primera del tenant o global
         UnidadMedida unidadFallback = unidadMedidaRepository.findFirstByTenantIdOrGlobal(tenantId).orElse(null);
@@ -195,11 +205,12 @@ public class ProductoServiceImpl implements ProductoService {
                 continue;
             }
 
-            // Clave única para detectar el mismo producto en filas consecutivas (multi-lote)
+            // Clave única para detectar el mismo producto en filas consecutivas (multi-lote / multi-variante)
             String claveProducto = (fila.getCodigoBarras() != null && !fila.getCodigoBarras().isBlank())
                     ? "cod:" + fila.getCodigoBarras().trim().toLowerCase()
                     : "nom:" + fila.getNombre().trim().toLowerCase();
-            boolean esLoteAdicional = processedInBatch.contains(claveProducto);
+            boolean esFilaAdicional = processedInBatch.contains(claveProducto);
+            boolean esVariante = fila.getTalla() != null || fila.getColor() != null || fila.getSkuVariante() != null;
 
             // ── Resolver unidad de medida ─────────────────────────────────
             UnidadMedida unidad = null;
@@ -207,7 +218,7 @@ public class ProductoServiceImpl implements ProductoService {
                 List<UnidadMedida> matches = unidadMedidaRepository
                         .findByNombreAndTenantIdOrGlobal(fila.getUnidadMedida().trim(), tenantId);
                 if (!matches.isEmpty()) {
-                    unidad = matches.get(0); // prioriza la del tenant
+                    unidad = matches.get(0);
                 } else {
                     unidad = unidadMedidaRepository.findAll().stream()
                             .filter(u -> u.getTenantId() == null || u.getTenantId().equals(tenantId))
@@ -253,23 +264,224 @@ public class ProductoServiceImpl implements ProductoService {
                 Usuario usuario = usuarioRepository.findById(userId)
                         .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
 
-                if (esLoteAdicional && existente.isPresent()) {
-                    // ── LOTE ADICIONAL del mismo producto ─────────────────
-                    // Suma la cantidad al stock ya existente y crea movimiento con los datos del lote
-                    Producto p = existente.get();
-                    int cantidadLote = fila.getStockActual() != null ? fila.getStockActual() : 0;
-                    if (cantidadLote > 0) {
-                        p.setStockActual((p.getStockActual() != null ? p.getStockActual() : 0) + cantidadLote);
+                // Para filas adicionales sin código de barras, recuperar el producto creado en este batch
+                Optional<Producto> existenteEfectivo = existente.isPresent()
+                        ? existente
+                        : Optional.ofNullable(createdInBatch.get(claveProducto));
+
+                if (esFilaAdicional && existenteEfectivo.isPresent()) {
+                    // ── FILA ADICIONAL (lote extra o variante extra) ──────
+                    Producto p = existenteEfectivo.get();
+                    if (esVariante) {
+                        crearOActualizarVariante(fila, p.getId(), tenantId, sucursalId);
+                        syncVarianteStock(p.getId(), tenantId);
+                        int stockVar = fila.getStockVariante() != null ? fila.getStockVariante() : 0;
+                        if (stockVar > 0) {
+                            BigDecimal costoVar = fila.getCostoUnitario() != null ? fila.getCostoUnitario()
+                                    : (p.getCostoUnitario() != null ? p.getCostoUnitario() : BigDecimal.ZERO);
+                            movimientoInventarioRepository.save(MovimientoInventario.builder()
+                                    .producto(p)
+                                    .usuario(usuario)
+                                    .tipo("SALDO_INICIAL")
+                                    .cantidad(stockVar)
+                                    .descripcion("Saldo inicial — importación masiva" +
+                                            (fila.getTalla() != null || fila.getColor() != null
+                                                    ? " (" + (fila.getTalla() != null ? fila.getTalla() : "") +
+                                                      (fila.getColor() != null ? " " + fila.getColor() : "") + ")" : ""))
+                                    .referencia("IMPORTACION")
+                                    .tenantId(tenantId)
+                                    .sucursalId(sucursalId)
+                                    .costoUnitario(costoVar)
+                                    .build());
+                        }
+                    } else {
+                        int cantidadLote = fila.getStockActual() != null ? fila.getStockActual() : 0;
+                        if (cantidadLote > 0) {
+                            p.setStockActual((p.getStockActual() != null ? p.getStockActual() : 0) + cantidadLote);
+                            Producto saved = productoRepository.save(p);
+                            BigDecimal costo = fila.getCostoUnitario() != null ? fila.getCostoUnitario()
+                                    : (saved.getCostoUnitario() != null ? saved.getCostoUnitario() : BigDecimal.ZERO);
+                            MovimientoInventario mov = MovimientoInventario.builder()
+                                    .producto(saved)
+                                    .usuario(usuario)
+                                    .tipo("SALDO_INICIAL")
+                                    .cantidad(cantidadLote)
+                                    .descripcion("Saldo inicial — importación masiva (lote adicional: " +
+                                            (fila.getLote() != null ? fila.getLote() : "sin lote") + ")")
+                                    .referencia("IMPORTACION")
+                                    .tenantId(tenantId)
+                                    .costoUnitario(costo)
+                                    .lote(fila.getLote())
+                                    .fechaVencimiento(fila.getFechaVencimiento())
+                                    .registroSanitario(fila.getRegistroSanitario())
+                                    .build();
+                            MovimientoInventario movGuardado = movimientoInventarioRepository.save(mov);
+                            if (fila.getFechaVencimiento() != null) {
+                                try {
+                                    stockLoteService.registrarLote(tenantId, movGuardado.getId(),
+                                            saved.getId(), sucursalId, fila.getLote(),
+                                            fila.getFechaVencimiento(), cantidadLote);
+                                } catch (Exception e) {
+                                    log.warn("⚠️ No se pudo registrar stock_lote para fila {}: {}", numFila, e.getMessage());
+                                }
+                            }
+                            if (sucursalId != null) {
+                                actualizarStockSucursal(saved.getId(), sucursalId, cantidadLote);
+                            }
+                        }
+                    }
+                    actualizados++;
+
+                } else if (existenteEfectivo.isPresent()) {
+                    // ── UPDATE — primera aparición de producto ya en BD ────
+                    Producto p = existenteEfectivo.get();
+                    if (!p.getTenantId().equals(tenantId)) {
+                        errores.add(err(numFila, fila.getNombre(), "Código de barras pertenece a otro tenant"));
+                        continue;
+                    }
+
+                    p.setNombre(fila.getNombre().trim());
+                    p.setPrecioVenta(fila.getPrecioVenta());
+                    if (fila.getCostoUnitario() != null) p.setCostoUnitario(fila.getCostoUnitario());
+                    if (fila.getStockMinimo() != null)   p.setStockMinimo(fila.getStockMinimo());
+                    if (fila.getStockMaximo() != null)   p.setStockMaximo(fila.getStockMaximo());
+                    p.setUnidadMedida(unidad);
+                    if (categoria != null) p.setCategoriaRef(categoria);
+
+                    if (esVariante) {
+                        // Stock calculado desde variantes — no sobreescribir directamente
                         Producto saved = productoRepository.save(p);
-                        BigDecimal costo = fila.getCostoUnitario() != null ? fila.getCostoUnitario()
-                                : (saved.getCostoUnitario() != null ? saved.getCostoUnitario() : BigDecimal.ZERO);
+                        crearOActualizarVariante(fila, saved.getId(), tenantId, sucursalId);
+                        syncVarianteStock(saved.getId(), tenantId);
+                        int stockVar = fila.getStockVariante() != null ? fila.getStockVariante() : 0;
+                        if (stockVar > 0) {
+                            BigDecimal costoVar = fila.getCostoUnitario() != null ? fila.getCostoUnitario()
+                                    : (saved.getCostoUnitario() != null ? saved.getCostoUnitario() : BigDecimal.ZERO);
+                            movimientoInventarioRepository.save(MovimientoInventario.builder()
+                                    .producto(saved)
+                                    .usuario(usuario)
+                                    .tipo("SALDO_INICIAL")
+                                    .cantidad(stockVar)
+                                    .descripcion("Saldo inicial — importación masiva" +
+                                            (fila.getTalla() != null || fila.getColor() != null
+                                                    ? " (" + (fila.getTalla() != null ? fila.getTalla() : "") +
+                                                      (fila.getColor() != null ? " " + fila.getColor() : "") + ")" : ""))
+                                    .referencia("IMPORTACION")
+                                    .tenantId(tenantId)
+                                    .sucursalId(sucursalId)
+                                    .costoUnitario(costoVar)
+                                    .build());
+                        }
+                    } else {
+                        int stockAnterior = p.getStockActual() != null ? p.getStockActual() : 0;
+                        BigDecimal costoAnterior = p.getCostoUnitario() != null ? p.getCostoUnitario() : BigDecimal.ZERO;
+                        if (fila.getStockActual() != null) p.setStockActual(fila.getStockActual());
+                        Producto saved = productoRepository.save(p);
+
+                        int stockNuevo = saved.getStockActual() != null ? saved.getStockActual() : 0;
+                        int diferencia = stockNuevo - stockAnterior;
+                        if (diferencia != 0) {
+                            BigDecimal costoFinal = saved.getCostoUnitario() != null ? saved.getCostoUnitario() : costoAnterior;
+                            String tipoAjuste = diferencia > 0 ? "ENTRADA" : "SALIDA";
+                            MovimientoInventario ajuste = MovimientoInventario.builder()
+                                    .producto(saved)
+                                    .usuario(usuario)
+                                    .tipo(tipoAjuste)
+                                    .cantidad(Math.abs(diferencia))
+                                    .descripcion("Ajuste de stock — importación masiva" +
+                                            " (" + stockAnterior + " → " + stockNuevo + ")")
+                                    .referencia("IMPORTACION")
+                                    .tenantId(tenantId)
+                                    .costoUnitario(costoFinal)
+                                    .lote(fila.getLote())
+                                    .fechaVencimiento(fila.getFechaVencimiento())
+                                    .registroSanitario(fila.getRegistroSanitario())
+                                    .build();
+                            MovimientoInventario ajusteGuardado = movimientoInventarioRepository.save(ajuste);
+                            if (fila.getFechaVencimiento() != null && "ENTRADA".equals(tipoAjuste)) {
+                                try {
+                                    stockLoteService.registrarLote(tenantId, ajusteGuardado.getId(),
+                                            saved.getId(), sucursalId, fila.getLote(),
+                                            fila.getFechaVencimiento(), Math.abs(diferencia));
+                                } catch (Exception e) {
+                                    log.warn("⚠️ No se pudo registrar stock_lote para fila {}: {}", numFila, e.getMessage());
+                                }
+                            }
+                            if (sucursalId != null) {
+                                int delta = "ENTRADA".equals(tipoAjuste) ? Math.abs(diferencia) : -Math.abs(diferencia);
+                                actualizarStockSucursal(saved.getId(), sucursalId, delta);
+                            }
+                        }
+                    }
+                    actualizados++;
+
+                } else {
+                    // ── CREATE — producto nuevo ────────────────────────────
+                    BigDecimal costo = fila.getCostoUnitario() != null ? fila.getCostoUnitario() : BigDecimal.ZERO;
+
+                    if (esVariante) {
+                        Producto p = Producto.builder()
+                                .nombre(fila.getNombre().trim())
+                                .codigoBarras(fila.getCodigoBarras() != null && !fila.getCodigoBarras().isBlank()
+                                        ? fila.getCodigoBarras().trim() : null)
+                                .precioVenta(fila.getPrecioVenta())
+                                .costoUnitario(costo)
+                                .stockActual(0)
+                                .stockMinimo(fila.getStockMinimo() != null ? fila.getStockMinimo() : 0)
+                                .stockMaximo(fila.getStockMaximo() != null ? fila.getStockMaximo() : 500)
+                                .unidadMedida(unidad)
+                                .categoriaRef(categoria)
+                                .activo(true)
+                                .tenantId(tenantId)
+                                .build();
+                        Producto saved = productoRepository.save(p);
+                        createdInBatch.put(claveProducto, saved);
+                        crearOActualizarVariante(fila, saved.getId(), tenantId, sucursalId);
+                        syncVarianteStock(saved.getId(), tenantId);
+                        int stockVar = fila.getStockVariante() != null ? fila.getStockVariante() : 0;
+                        if (stockVar > 0) {
+                            movimientoInventarioRepository.save(MovimientoInventario.builder()
+                                    .producto(saved)
+                                    .usuario(usuario)
+                                    .tipo("SALDO_INICIAL")
+                                    .cantidad(stockVar)
+                                    .descripcion("Saldo inicial — importación masiva" +
+                                            (fila.getTalla() != null || fila.getColor() != null
+                                                    ? " (" + (fila.getTalla() != null ? fila.getTalla() : "") +
+                                                      (fila.getColor() != null ? " " + fila.getColor() : "") + ")" : ""))
+                                    .referencia("IMPORTACION")
+                                    .tenantId(tenantId)
+                                    .sucursalId(sucursalId)
+                                    .costoUnitario(costo)
+                                    .build());
+                        }
+                    } else {
+                        int stockInicial = fila.getStockActual() != null ? fila.getStockActual() : 0;
+                        Producto p = Producto.builder()
+                                .nombre(fila.getNombre().trim())
+                                .codigoBarras(fila.getCodigoBarras() != null && !fila.getCodigoBarras().isBlank()
+                                        ? fila.getCodigoBarras().trim() : null)
+                                .precioVenta(fila.getPrecioVenta())
+                                .costoUnitario(costo)
+                                .stockActual(stockInicial)
+                                .stockMinimo(fila.getStockMinimo() != null ? fila.getStockMinimo() : 10)
+                                .stockMaximo(fila.getStockMaximo() != null ? fila.getStockMaximo() : 500)
+                                .unidadMedida(unidad)
+                                .categoriaRef(categoria)
+                                .activo(true)
+                                .tenantId(tenantId)
+                                .build();
+                        Producto saved = productoRepository.save(p);
+                        createdInBatch.put(claveProducto, saved);
+
                         MovimientoInventario mov = MovimientoInventario.builder()
                                 .producto(saved)
                                 .usuario(usuario)
                                 .tipo("SALDO_INICIAL")
-                                .cantidad(cantidadLote)
-                                .descripcion("Saldo inicial — importación masiva (lote adicional: " +
-                                        (fila.getLote() != null ? fila.getLote() : "sin lote") + ")")
+                                .cantidad(stockInicial)
+                                .descripcion("Saldo inicial — importación masiva" +
+                                        (fila.getLote() != null && !fila.getLote().isBlank()
+                                                ? " (lote: " + fila.getLote() + ")" : ""))
                                 .referencia("IMPORTACION")
                                 .tenantId(tenantId)
                                 .costoUnitario(costo)
@@ -277,90 +489,20 @@ public class ProductoServiceImpl implements ProductoService {
                                 .fechaVencimiento(fila.getFechaVencimiento())
                                 .registroSanitario(fila.getRegistroSanitario())
                                 .build();
-                        movimientoInventarioRepository.save(mov);
+                        MovimientoInventario movGuardado = movimientoInventarioRepository.save(mov);
+                        if (fila.getFechaVencimiento() != null && stockInicial > 0) {
+                            try {
+                                stockLoteService.registrarLote(tenantId, movGuardado.getId(),
+                                        saved.getId(), sucursalId, fila.getLote(),
+                                        fila.getFechaVencimiento(), stockInicial);
+                            } catch (Exception e) {
+                                log.warn("⚠️ No se pudo registrar stock_lote para fila {}: {}", numFila, e.getMessage());
+                            }
+                        }
+                        if (sucursalId != null && stockInicial > 0) {
+                            crearStockSucursal(saved.getId(), sucursalId, stockInicial, tenantId);
+                        }
                     }
-                    actualizados++;
-
-                } else if (existente.isPresent()) {
-                    // ── UPDATE — primera aparición de un producto ya en BD ─
-                    Producto p = existente.get();
-                    if (!p.getTenantId().equals(tenantId)) {
-                        errores.add(err(numFila, fila.getNombre(), "Código de barras pertenece a otro tenant"));
-                        continue;
-                    }
-
-                    int stockAnterior = p.getStockActual() != null ? p.getStockActual() : 0;
-                    BigDecimal costoAnterior = p.getCostoUnitario() != null ? p.getCostoUnitario() : BigDecimal.ZERO;
-
-                    p.setNombre(fila.getNombre().trim());
-                    p.setPrecioVenta(fila.getPrecioVenta());
-                    if (fila.getCostoUnitario() != null) p.setCostoUnitario(fila.getCostoUnitario());
-                    if (fila.getStockActual() != null)   p.setStockActual(fila.getStockActual());
-                    if (fila.getStockMinimo() != null)   p.setStockMinimo(fila.getStockMinimo());
-                    if (fila.getStockMaximo() != null)   p.setStockMaximo(fila.getStockMaximo());
-                    p.setUnidadMedida(unidad);
-                    if (categoria != null) p.setCategoriaRef(categoria);
-                    Producto saved = productoRepository.save(p);
-
-                    int stockNuevo = saved.getStockActual() != null ? saved.getStockActual() : 0;
-                    int diferencia = stockNuevo - stockAnterior;
-                    if (diferencia != 0) {
-                        BigDecimal costoFinal = saved.getCostoUnitario() != null ? saved.getCostoUnitario() : costoAnterior;
-                        MovimientoInventario ajuste = MovimientoInventario.builder()
-                                .producto(saved)
-                                .usuario(usuario)
-                                .tipo(diferencia > 0 ? "ENTRADA" : "SALIDA")
-                                .cantidad(Math.abs(diferencia))
-                                .descripcion("Ajuste de stock — importación masiva" +
-                                        " (" + stockAnterior + " → " + stockNuevo + ")")
-                                .referencia("IMPORTACION")
-                                .tenantId(tenantId)
-                                .costoUnitario(costoFinal)
-                                .lote(fila.getLote())
-                                .fechaVencimiento(fila.getFechaVencimiento())
-                                .registroSanitario(fila.getRegistroSanitario())
-                                .build();
-                        movimientoInventarioRepository.save(ajuste);
-                    }
-                    actualizados++;
-
-                } else {
-                    // ── CREATE — nuevo producto + movimiento de saldo inicial ─
-                    int stockInicial = fila.getStockActual() != null ? fila.getStockActual() : 0;
-                    BigDecimal costo = fila.getCostoUnitario() != null ? fila.getCostoUnitario() : BigDecimal.ZERO;
-
-                    Producto p = Producto.builder()
-                            .nombre(fila.getNombre().trim())
-                            .codigoBarras(fila.getCodigoBarras() != null && !fila.getCodigoBarras().isBlank()
-                                    ? fila.getCodigoBarras().trim() : null)
-                            .precioVenta(fila.getPrecioVenta())
-                            .costoUnitario(costo)
-                            .stockActual(stockInicial)
-                            .stockMinimo(fila.getStockMinimo() != null ? fila.getStockMinimo() : 10)
-                            .stockMaximo(fila.getStockMaximo() != null ? fila.getStockMaximo() : 500)
-                            .unidadMedida(unidad)
-                            .categoriaRef(categoria)
-                            .activo(true)
-                            .tenantId(tenantId)
-                            .build();
-                    Producto saved = productoRepository.save(p);
-
-                    MovimientoInventario mov = MovimientoInventario.builder()
-                            .producto(saved)
-                            .usuario(usuario)
-                            .tipo("SALDO_INICIAL")
-                            .cantidad(stockInicial)
-                            .descripcion("Saldo inicial — importación masiva" +
-                                    (fila.getLote() != null && !fila.getLote().isBlank()
-                                            ? " (lote: " + fila.getLote() + ")" : ""))
-                            .referencia("IMPORTACION")
-                            .tenantId(tenantId)
-                            .costoUnitario(costo)
-                            .lote(fila.getLote())
-                            .fechaVencimiento(fila.getFechaVencimiento())
-                            .registroSanitario(fila.getRegistroSanitario())
-                            .build();
-                    movimientoInventarioRepository.save(mov);
                     creados++;
                 }
 
@@ -390,5 +532,99 @@ public class ProductoServiceImpl implements ProductoService {
                 .nombre(nombre != null ? nombre : "—")
                 .motivo(motivo)
                 .build();
+    }
+
+    private void crearOActualizarVariante(ProductoImportRowDTO fila, Long productoId, String tenantId, Long sucursalId) {
+        String talla = fila.getTalla() != null ? fila.getTalla().trim() : null;
+        String color = fila.getColor() != null ? fila.getColor().trim() : null;
+        String sku   = fila.getSkuVariante() != null ? fila.getSkuVariante().trim() : null;
+        int stock    = fila.getStockVariante() != null ? fila.getStockVariante() : 0;
+        int stockMin = fila.getStockMinimoVariante() != null ? fila.getStockMinimoVariante() : 0;
+
+        // Buscar variante existente por talla+color+sku para no duplicar
+        ProductoVariante variante = varianteRepository.findByProductoIdAndTenantId(productoId, tenantId).stream()
+                .filter(v -> Boolean.TRUE.equals(v.getActivo()))
+                .filter(v -> equals(v.getTalla(), talla) && equals(v.getColor(), color) && equals(v.getSku(), sku))
+                .findFirst()
+                .map(v -> {
+                    v.setStockActual(stock);
+                    v.setStockMinimo(stockMin);
+                    return varianteRepository.save(v);
+                })
+                .orElseGet(() -> varianteRepository.save(ProductoVariante.builder()
+                        .productoId(productoId)
+                        .talla(talla)
+                        .color(color)
+                        .sku(sku)
+                        .stockActual(stock)
+                        .stockMinimo(stockMin)
+                        .activo(true)
+                        .tenantId(tenantId)
+                        .createdAt(java.time.LocalDateTime.now())
+                        .build()));
+
+        // Si hay sucursal seleccionada (plan PRO multi-local), registrar stock por sucursal
+        if (sucursalId != null) {
+            List<com.stockflow.entity.Sucursal> sucursales =
+                    sucursalRepository.findByTenantIdAndActivoTrueOrderByEsPrincipalDescNombreAsc(tenantId);
+            final Long varianteId = variante.getId();
+            for (com.stockflow.entity.Sucursal suc : sucursales) {
+                int stockSuc = suc.getId().equals(sucursalId) ? stock : 0;
+                varianteStockSucursalRepository.findByVarianteIdAndSucursalId(varianteId, suc.getId())
+                        .ifPresentOrElse(
+                                entry -> {
+                                    entry.setStockActual(entry.getStockActual() + stockSuc);
+                                    varianteStockSucursalRepository.save(entry);
+                                },
+                                () -> varianteStockSucursalRepository.save(
+                                        ProductoVarianteStockSucursal.builder()
+                                                .varianteId(varianteId)
+                                                .sucursalId(suc.getId())
+                                                .tenantId(tenantId)
+                                                .stockActual(stockSuc)
+                                                .stockMinimo(0)
+                                                .build())
+                        );
+            }
+        }
+    }
+
+    private void syncVarianteStock(Long productoId, String tenantId) {
+        int total = varianteRepository.findByProductoIdAndActivoTrueAndTenantId(productoId, tenantId)
+                .stream().mapToInt(v -> v.getStockActual() != null ? v.getStockActual() : 0).sum();
+        productoRepository.findById(productoId).ifPresent(p -> {
+            p.setStockActual(total);
+            productoRepository.save(p);
+        });
+    }
+
+    private static boolean equals(String a, String b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        return a.equalsIgnoreCase(b);
+    }
+
+    private void crearStockSucursal(Long productoId, Long sucursalId, int stock, String tenantId) {
+        boolean existe = stockSucursalRepository.findByProductoIdAndSucursalId(productoId, sucursalId).isPresent();
+        if (!existe) {
+            sucursalRepository.findById(sucursalId).ifPresent(suc ->
+                    productoRepository.findById(productoId).ifPresent(prod -> {
+                        ProductoStockSucursal entry = ProductoStockSucursal.builder()
+                                .producto(prod)
+                                .sucursal(suc)
+                                .tenantId(tenantId)
+                                .stockActual(stock)
+                                .build();
+                        stockSucursalRepository.save(entry);
+                    })
+            );
+        }
+    }
+
+    private void actualizarStockSucursal(Long productoId, Long sucursalId, int delta) {
+        stockSucursalRepository.findByProductoIdAndSucursalId(productoId, sucursalId).ifPresent(entry -> {
+            entry.setStockActual((entry.getStockActual() != null ? entry.getStockActual() : 0) + delta);
+            stockSucursalRepository.save(entry);
+        });
     }
 }

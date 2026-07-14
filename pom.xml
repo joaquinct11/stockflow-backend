@@ -140,6 +140,18 @@
 			<version>1.3.43</version>
 		</dependency>
 
+		<!-- ZXing — generación de códigos QR para comprobantes -->
+		<dependency>
+			<groupId>com.google.zxing</groupId>
+			<artifactId>core</artifactId>
+			<version>3.5.3</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.zxing</groupId>
+			<artifactId>javase</artifactId>
+			<version>3.5.3</version>
+		</dependency>
+
 		<!-- JSON structured logging for UAT/Prod (Logstash/Loki/CloudWatch compatible) -->
 		<dependency>
 			<groupId>net.logstash.logback</groupId>

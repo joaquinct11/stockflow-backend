@@ -112,7 +112,7 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             SELECT m FROM MovimientoInventario m
             JOIN FETCH m.producto p
             WHERE m.tenantId = :tenantId
-              AND m.tipo = 'ENTRADA'
+              AND m.tipo IN ('ENTRADA', 'SALDO_INICIAL')
               AND m.fechaVencimiento IS NOT NULL
               AND p.activo = true
             ORDER BY m.fechaVencimiento ASC

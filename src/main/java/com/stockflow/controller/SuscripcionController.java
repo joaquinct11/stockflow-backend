@@ -12,6 +12,7 @@ import com.stockflow.service.CulqiService;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.SuscripcionService;
 import com.stockflow.service.UsuarioService;
+import com.stockflow.config.properties.CulqiProperties;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ public class SuscripcionController {
     private final SuscripcionRepository suscripcionRepository;
     private final CulqiService culqiService;
     private final EmailService emailService;
+    private final CulqiProperties culqiProperties;
 
     /**
      * Obtiene suscripciones del tenant actual
@@ -208,12 +210,19 @@ public class SuscripcionController {
             log.info("Cancelación pendiente expirada — suscripción marcada como CANCELADA para tenant={}", s.getTenantId());
         }
 
+        BigDecimal precioDisplay = s.getPrecioMensual();
+        if (s.getPlanId() != null) {
+            String pid = s.getPlanId().toUpperCase();
+            if (pid.contains("PRO"))    precioDisplay = culqiProperties.getPrecioPro();
+            else if (pid.contains("BASICO")) precioDisplay = culqiProperties.getPrecioBasico();
+        }
+
         return ResponseEntity.ok(SuscripcionEstadoResponseDTO.builder()
                 .estado(s.getEstado())
                 .planId(s.getPlanId())
                 .preapprovalId(s.getPreapprovalId())
                 .fechaProximoCobro(s.getFechaProximoCobro())
-                .precioMensual(s.getPrecioMensual())
+                .precioMensual(precioDisplay)
                 .currentPeriodEnd(s.getCurrentPeriodEnd())
                 .build());
     }

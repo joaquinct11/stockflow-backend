@@ -49,6 +49,7 @@ public class Producto {
     @JoinColumn(name = "unidad_medida_id", nullable = false)
     private UnidadMedida unidadMedida;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean activo = true;
 
@@ -58,6 +59,7 @@ public class Producto {
     @Column(columnDefinition = "TEXT")
     private String componentes;
 
+    @Builder.Default
     @Column(name = "es_generico", nullable = false)
     private Boolean esGenerico = false;
 
@@ -77,6 +79,7 @@ public class Producto {
      * PRODUCTO (default) = tiene stock, se descuenta al vender.
      * SERVICIO = sin stock, no genera movimiento de inventario.
      */
+    @Builder.Default
     @Column(nullable = false, length = 20)
     private String tipo = "PRODUCTO";
 
