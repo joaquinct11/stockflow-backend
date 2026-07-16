@@ -25,7 +25,7 @@ public class Venta {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "vendedor_id", nullable = false)
+    @JoinColumn(name = "vendedor_id", nullable = true)
     private Usuario vendedor;
 
     @Column(nullable = false, precision = 10, scale = 2)

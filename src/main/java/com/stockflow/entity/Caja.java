@@ -17,10 +17,10 @@ public class Caja {
     @Column(name = "tenant_id", nullable = false)
     private String tenantId;
 
-    @Column(name = "usuario_id", nullable = false)
+    @Column(name = "usuario_id")
     private Long usuarioId;
 
-    @Column(name = "usuario_nombre", nullable = false, length = 200)
+    @Column(name = "usuario_nombre", length = 200)
     private String usuarioNombre;
 
     @Column(name = "monto_apertura", nullable = false, precision = 12, scale = 2)

@@ -20,10 +20,10 @@ public class RetiroCaja {
     @Column(name = "caja_id", nullable = false)
     private Long cajaId;
 
-    @Column(name = "usuario_id", nullable = false)
+    @Column(name = "usuario_id")
     private Long usuarioId;
 
-    @Column(name = "usuario_nombre", nullable = false, length = 200)
+    @Column(name = "usuario_nombre", length = 200)
     private String usuarioNombre;
 
     @Column(nullable = false, precision = 12, scale = 2)
