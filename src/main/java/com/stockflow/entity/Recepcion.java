@@ -34,7 +34,7 @@ public class Recepcion {
     private Proveedor proveedor;
 
     @ManyToOne
-    @JoinColumn(name = "usuario_receptor_id", nullable = false)
+    @JoinColumn(name = "usuario_receptor_id", nullable = true)
     private Usuario usuarioReceptor;
 
     @Column(nullable = false, length = 20)
