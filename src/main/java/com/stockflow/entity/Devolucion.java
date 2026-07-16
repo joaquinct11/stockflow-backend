@@ -31,7 +31,7 @@ public class Devolucion {
     private Venta venta;
 
     @ManyToOne
-    @JoinColumn(name = "usuario_id", nullable = false)
+    @JoinColumn(name = "usuario_id", nullable = true)
     private Usuario usuario;
 
     @Column(nullable = false, length = 200)

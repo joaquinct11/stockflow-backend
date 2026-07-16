@@ -30,7 +30,7 @@ public class OrdenCompra {
     private Proveedor proveedor;
 
     @ManyToOne
-    @JoinColumn(name = "usuario_creador_id", nullable = false)
+    @JoinColumn(name = "usuario_creador_id", nullable = true)
     private Usuario usuarioCreador;
 
     @Column(nullable = false, length = 20)

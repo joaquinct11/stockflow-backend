@@ -125,15 +125,16 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     /**
-     * "Eliminar" usuario normal = desactivar (soft-delete).
-     * No borra el registro para preservar historial de ventas, movimientos, etc.
+     * Elimina el registro del usuario de la BD (hard delete).
+     * Las FKs en ventas, movimientos, cajas, etc. tienen ON DELETE SET NULL,
+     * por lo que todo el historial se conserva con usuario_id = NULL.
+     * usuario_permisos y refresh_tokens se borran en cascada automáticamente.
      */
     @Override
     public void eliminarUsuario(Long id) {
         usuarioRepository.findById(id).ifPresent(usuario -> {
-            usuario.setActivo(false);
-            usuarioRepository.save(usuario);
-            log.info("🗑️ Usuario soft-deleted (desactivado): {}", usuario.getEmail());
+            log.info("🗑️ Hard delete de usuario: {} ({})", usuario.getEmail(), id);
+            usuarioRepository.deleteById(id);
         });
     }
 

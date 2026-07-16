@@ -200,7 +200,7 @@ public class UsuarioController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        log.info("🗑️ Soft delete de usuario ID: {}", id);
+        log.info("🗑️ Eliminando usuario ID: {}", id);
         usuarioService.eliminarUsuario(id);
         return ResponseEntity.noContent().build();
     }
