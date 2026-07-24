@@ -350,13 +350,18 @@ public class PdfComprobanteService {
         totals.setWidthPercentage(100);
         totals.setWidths(new float[]{55, 12, 33});
 
-        double igvPct = tenant.getIgvPorcentaje() != null ? tenant.getIgvPorcentaje() : 18.0;
-        String igvLabel = "IGV " + (igvPct == Math.floor(igvPct)
-                ? (int) igvPct + ".00" : igvPct) + "%";
+        boolean esTiendaRopa = "TIENDA_ROPA".equals(tenant.getRubro());
 
-        addTotalsRow(totals, "Op. Gravadas", "S/", fmt(c.getSubtotal()), fLabel);
-        addTotalsRow(totals, igvLabel,        "S/", fmt(c.getIgv()),     fLabel);
-        addTotalsRow(totals, "Importe Total", "S/", fmt(c.getTotal()),   fTLabel);
+        if (esTiendaRopa) {
+            addTotalsRow(totals, "Importe Total", "S/", fmt(c.getTotal()), fTLabel);
+        } else {
+            double igvPct = tenant.getIgvPorcentaje() != null ? tenant.getIgvPorcentaje() : 18.0;
+            String igvLabel = "IGV " + (igvPct == Math.floor(igvPct)
+                    ? (int) igvPct + ".00" : igvPct) + "%";
+            addTotalsRow(totals, "Op. Gravadas", "S/", fmt(c.getSubtotal()), fLabel);
+            addTotalsRow(totals, igvLabel,        "S/", fmt(c.getIgv()),     fLabel);
+            addTotalsRow(totals, "Importe Total", "S/", fmt(c.getTotal()),   fTLabel);
+        }
 
         rightCell.addElement(totals);
         outer.addCell(rightCell);
