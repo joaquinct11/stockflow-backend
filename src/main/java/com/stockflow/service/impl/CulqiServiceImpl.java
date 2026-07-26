@@ -187,6 +187,14 @@ public class CulqiServiceImpl implements CulqiService {
         log.info("✅ Culqi suscripción cancelada: {}", subscriptionId);
     }
 
+    @Override
+    public void actualizarTarjetaSuscripcion(String subscriptionId, String cardId) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("card_id", cardId);
+        patchPlain("/recurrent/subscriptions/" + subscriptionId, body);
+        log.info("✅ Culqi tarjeta actualizada en suscripción: {}", subscriptionId);
+    }
+
     // ── Planes ───────────────────────────────────────────────────────────────
 
     @Override
@@ -381,6 +389,87 @@ public class CulqiServiceImpl implements CulqiService {
      */
     private void deleteWithRsaAuth(String path) {
         delete(path, false);
+    }
+
+    /**
+     * PATCH con plain SK y JSON sin cifrar.
+     */
+    private Map<String, Object> patchPlain(String path, Map<String, Object> body) {
+        try {
+            String json = objectMapper.writeValueAsString(body);
+            String url  = culqiProperties.getBaseUrl() + path;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + culqiProperties.getSecretKey())
+                    .header("Content-Type",  "application/json")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            String responseBody = response.body();
+            log.info("📥 Culqi PATCH {}: status={}, body={}", path, response.statusCode(), responseBody);
+
+            Map<String, Object> responseMap = objectMapper.readValue(
+                    responseBody, new TypeReference<Map<String, Object>>() {});
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new BadRequestException("Error Culqi PATCH [" + path + "]: " + extractMensajeError(responseMap));
+            }
+            return responseMap;
+
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Error en Culqi PATCH {}: {}", path, e.getMessage(), e);
+            throw new BadRequestException("Error de comunicación con Culqi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * PATCH con cifrado híbrido AES-GCM + RSA-OAEP (requerido por Culqi para actualizar suscripciones).
+     */
+    private Map<String, Object> patchWithRsaBody(String path, Map<String, Object> body) {
+        try {
+            String rsaId = culqiProperties.getRsaId();
+            if (rsaId == null || rsaId.isBlank()) {
+                throw new BadRequestException("culqi.rsa-id no está configurado.");
+            }
+
+            String json          = objectMapper.writeValueAsString(body);
+            String encryptedBody = encryptAesGcmRsaOaep(json);
+            String url           = culqiProperties.getBaseUrl() + path;
+            String secretKey     = culqiProperties.getSecretKey();
+            String env = secretKey != null && secretKey.startsWith("sk_live_") ? "live" : "test";
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization",          "Bearer " + secretKey)
+                    .header("Content-Type",           "application/json")
+                    .header("x-culqi-rsa-id",         rsaId)
+                    .header("x-culqi-env",            env)
+                    .header("x-api-version",          "2")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(encryptedBody))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            String responseBody = response.body();
+            log.info("📥 Culqi PATCH (AES+RSA) {}: status={}, body={}", path, response.statusCode(), responseBody);
+
+            Map<String, Object> responseMap = objectMapper.readValue(
+                    responseBody, new TypeReference<Map<String, Object>>() {});
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new BadRequestException("Error Culqi PATCH [" + path + "]: " + extractMensajeError(responseMap));
+            }
+            return responseMap;
+
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Error en Culqi PATCH AES+RSA {}: {}", path, e.getMessage(), e);
+            throw new BadRequestException("Error de comunicación con Culqi: " + e.getMessage());
+        }
     }
 
     /**

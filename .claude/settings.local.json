@@ -153,7 +153,8 @@
       "WebSearch",
       "Skill(artifact-design)",
       "Skill(artifact-design:*)",
-      "mcp__visualize__read_me"
+      "mcp__visualize__read_me",
+      "Bash(markitdown \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\catalogoproductos \\(1\\).xlsx\")"
     ]
   }
 }
