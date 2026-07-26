@@ -16,6 +16,9 @@ public interface CulqiService {
     /** Cancela una suscripción en Culqi */
     void cancelarSuscripcion(String subscriptionId);
 
+    /** Actualiza la tarjeta de una suscripción existente en Culqi */
+    void actualizarTarjetaSuscripcion(String subscriptionId, String cardId);
+
     /**
      * Crea un plan en Culqi (operación de setup, llamar una sola vez).
      * @param nombre     nombre descriptivo del plan

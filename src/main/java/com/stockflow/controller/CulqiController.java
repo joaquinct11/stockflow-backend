@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -260,6 +261,67 @@ public class CulqiController {
                 .culqiSubscriptionId(culqiSubId)
                 .mensaje("¡Upgrade exitoso! Tu plan Pro está activo. Se creó tu sucursal principal y todos tus datos fueron migrados.")
                 .build());
+    }
+
+    // ── Cambiar tarjeta ───────────────────────────────────────────────────────
+
+    /**
+     * POST /api/culqi/cambiar-tarjeta
+     * Permite al usuario registrar una nueva tarjeta en su suscripción activa.
+     * Flujo:
+     *   1. Recibe el token_id de la nueva tarjeta (generado por Culqi.js)
+     *   2. Busca el customer del usuario en Culqi (por email) y registra la nueva tarjeta
+     *   3. Hace PATCH /recurrent/subscriptions/{id} para asociar la nueva tarjeta
+     *   4. No cancela ni recrea la suscripción — solo actualiza el método de pago
+     */
+    @PostMapping("/cambiar-tarjeta")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, String>> cambiarTarjeta(@RequestBody Map<String, String> body) {
+        String tenantId  = TenantContext.getCurrentTenant();
+        Long   usuarioId = TenantContext.getCurrentUserId();
+        String tokenId   = body.get("tokenId");
+
+        if (tokenId == null || tokenId.isBlank()) {
+            throw new BadRequestException("Se requiere el tokenId de la nueva tarjeta.");
+        }
+
+        Suscripcion suscripcion = suscripcionRepository
+                .findFirstByTenantIdOrderByIdDesc(tenantId)
+                .orElseThrow(() -> new BadRequestException("No tienes una suscripción activa."));
+
+        if (suscripcion.getPreapprovalId() == null) {
+            throw new BadRequestException("La suscripción no tiene un ID de Culqi registrado.");
+        }
+
+        String[] estadosValidos = {"ACTIVA", "SUSPENDIDA"};
+        boolean estadoValido = false;
+        for (String e : estadosValidos) if (e.equals(suscripcion.getEstado())) { estadoValido = true; break; }
+        if (!estadoValido) {
+            throw new BadRequestException("Solo puedes cambiar la tarjeta en suscripciones ACTIVA o SUSPENDIDA.");
+        }
+
+        Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        log.info("💳 [Culqi] Cambio de tarjeta para tenant={}, subId={}", tenantId, suscripcion.getPreapprovalId());
+
+        String customerId = culqiService.crearCliente(
+                usuario.getEmail(), usuario.getNombre(),
+                usuario.getApellido(), usuario.getNumeroCelular());
+
+        String cardId = culqiService.crearTarjeta(customerId, tokenId);
+
+        culqiService.actualizarTarjetaSuscripcion(suscripcion.getPreapprovalId(), cardId);
+
+        // Si estaba SUSPENDIDA, la reactivamos localmente (Culqi reintentará el cobro)
+        if ("SUSPENDIDA".equals(suscripcion.getEstado())) {
+            suscripcion.setEstado("ACTIVA");
+            suscripcionRepository.save(suscripcion);
+            log.info("✅ [Culqi] Suscripción reactivada tras cambio de tarjeta para tenant={}", tenantId);
+        }
+
+        log.info("✅ [Culqi] Tarjeta actualizada correctamente. cardId={}", cardId);
+        return ResponseEntity.ok(Map.of("mensaje", "Tarjeta actualizada correctamente. El próximo cobro usará tu nueva tarjeta."));
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────
