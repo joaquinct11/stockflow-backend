@@ -67,8 +67,11 @@ public class SecurityConfig {
                                 "/info/**",
                                 "/api-docs/**",
                                 "/webhooks/culqi",
-                                "/internal/**"      // clave interna validada en el controller
+                                "/internal/**",
+                                "/superadmin/auth/**"
                         ).permitAll()
+                        // Super Admin — acceso global sin tenant
+                        .requestMatchers("/superadmin/**").hasRole("SUPER_ADMIN")
                         // Endpoints de administración solo para ADMIN
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
