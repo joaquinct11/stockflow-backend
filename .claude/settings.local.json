@@ -154,7 +154,28 @@
       "Skill(artifact-design)",
       "Skill(artifact-design:*)",
       "mcp__visualize__read_me",
-      "Bash(markitdown \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\catalogoproductos \\(1\\).xlsx\")"
+      "Bash(markitdown \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\catalogoproductos \\(1\\).xlsx\")",
+      "Bash(python \"C:\\\\Users\\\\castillojoot\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\c4b52d33-bb7f-4a7a-bc13-f4e78ee65292\\\\db8e4004-af14-4eb0-a099-aabc2799f67b\\\\skills\\\\xlsx\\\\scripts\\\\markitdown.py\" \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\catalogoproductos \\(1\\).xlsx\")",
+      "Bash(python scripts/markitdown.py \"C:\\\\Users\\\\castillojoot\\\\Downloads\\\\catalogoproductos \\(1\\).xlsx\")",
+      "WebFetch(domain:www.youtube.com)",
+      "WebFetch(domain:youtubetranscript.com)",
+      "Bash(echo \"--- searching for servlet-api jars ---\" *)",
+      "Bash(unzip -l \"/c/Users/castillojoot/.m2/repository/jboss-7/2/jettison/jettison/jettison-1.3.8.redhat-1.jar\")",
+      "Bash(unzip -l \"C:/Users/castillojoot/Downloads/jboss-eap-7.2.3.zip\")",
+      "Bash(rm -rf /tmp/picketbox_check)",
+      "Bash(mkdir -p /tmp/picketbox_check)",
+      "Read(//tmp/**)",
+      "Bash(unzip -o -j \"C:/Users/castillojoot/Downloads/jboss-eap-7.2.3.zip\" \"jboss-eap-7.2.3/modules/system/layers/base/org/picketbox/main/picketbox-5.0.3.Final-redhat-3.jar\")",
+      "Bash(unzip -l picketbox-5.0.3.Final-redhat-3.jar)",
+      "Bash(unzip -l /tmp/picketbox_check/picketbox-5.0.3.Final-redhat-3.jar)",
+      "Bash(mkdir -p \"/c/Users/castillojoot/.m2/repository/jboss-7/2/picketbox/picketbox\")",
+      "Bash(cp \"/tmp/picketbox_check/picketbox-5.0.3.Final-redhat-3.jar\" \"/c/Users/castillojoot/.m2/repository/jboss-7/2/picketbox/picketbox/\")",
+      "Bash(date *)",
+      "Read(//d/projects/**)",
+      "Bash(cd \"D:/projects/abc/stockflow-backend\" && find . -iname \"*.jar\" 2>/dev/null | grep -i xnio; echo \"---m2---\"; find ~/.m2 -iname \"*xnio*\" 2>/dev/null | head -20)",
+      "Bash(find \"D:/Java/jdk1.6.0_45/jre/setup\" -iname \"*.properties\" 2>/dev/null)",
+      "Bash(where sqlplus *)",
+      "Bash(where sqlcl *)"
     ]
   }
 }
