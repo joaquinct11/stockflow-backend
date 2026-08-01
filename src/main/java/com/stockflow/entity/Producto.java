@@ -83,6 +83,12 @@ public class Producto {
     @Column(nullable = false, length = 20)
     private String tipo = "PRODUCTO";
 
+    @Column(name = "registro_sanitario", length = 100)
+    private String registroSanitario;
+
+    @Column(name = "cod_digemid", length = 20)
+    private String codDigemid;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
