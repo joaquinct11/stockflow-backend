@@ -4,6 +4,9 @@ import com.stockflow.entity.CatalogoDigemid;
 import com.stockflow.repository.CatalogoDigemidRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
@@ -41,41 +44,52 @@ public class DigemidCatalogLoader implements CommandLineRunner {
         log.info("📦 Cargando catálogo DIGEMID desde recursos...");
 
         ClassPathResource resource = new ClassPathResource("digemid/catalogo.csv");
+
+        CSVFormat format = CSVFormat.RFC4180.builder()
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .setIgnoreEmptyLines(true)
+                .setTrim(true)
+                .build();
+
         List<CatalogoDigemid> batch = new ArrayList<>(500);
         int total = 0;
+        int skipped = 0;
 
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+                     new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8));
+             CSVParser parser = new CSVParser(reader, format)) {
 
-            reader.readLine(); // skip header
+            for (CSVRecord rec : parser) {
+                // El CSV tiene 12 columnas: 0..11
+                if (rec.size() < 12) { skipped++; continue; }
 
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] cols = line.split(",", -1);
-                if (cols.length < 12) continue;
+                try {
+                    CatalogoDigemid item = CatalogoDigemid.builder()
+                            .codProd(blank(rec.get(0)))
+                            .nomProd(blank(rec.get(1)))
+                            .concent(blank(rec.get(2)))
+                            .nomFormFarm(blank(rec.get(3)))
+                            .presentac(blank(rec.get(4)))
+                            .fraccion(parseFraccion(rec.get(5)))
+                            .numRegSan(blank(rec.get(6)))
+                            .nomTitular(blank(rec.get(7)))
+                            .nomFabricante(blank(rec.get(8)))
+                            .nomIfa(blank(rec.get(9)))
+                            .nomRubro(blank(rec.get(10)))
+                            .situacion(blank(rec.get(11)))
+                            .build();
 
-                CatalogoDigemid item = CatalogoDigemid.builder()
-                        .codProd(clean(cols[0]))
-                        .nomProd(clean(cols[1]))
-                        .concent(clean(cols[2]))
-                        .nomFormFarm(clean(cols[3]))
-                        .presentac(clean(cols[4]))
-                        .fraccion(parseFraccion(clean(cols[5])))
-                        .numRegSan(clean(cols[6]))
-                        .nomTitular(clean(cols[7]))
-                        .nomFabricante(clean(cols[8]))
-                        .nomIfa(clean(cols[9]))
-                        .nomRubro(clean(cols[10]))
-                        .situacion(clean(cols[11]))
-                        .build();
+                    batch.add(item);
+                    total++;
 
-                batch.add(item);
-                total++;
-
-                if (batch.size() == 500) {
-                    catalogoDigemidRepository.saveAll(batch);
-                    batch.clear();
-                    log.info("   ... {} productos cargados", total);
+                    if (batch.size() == 500) {
+                        catalogoDigemidRepository.saveAll(batch);
+                        batch.clear();
+                        if (total % 5000 == 0) log.info("   ... {} productos cargados", total);
+                    }
+                } catch (Exception e) {
+                    skipped++;
                 }
             }
 
@@ -84,19 +98,19 @@ public class DigemidCatalogLoader implements CommandLineRunner {
             }
         }
 
-        log.info("✅ Catálogo DIGEMID cargado: {} productos", total);
+        log.info("✅ Catálogo DIGEMID cargado: {} productos ({} omitidos)", total, skipped);
     }
 
-    private String clean(String s) {
+    private String blank(String s) {
+        if (s == null) return null;
         s = s.trim();
         return s.isEmpty() ? null : s;
     }
 
     private BigDecimal parseFraccion(String s) {
-        if (s == null || s.isEmpty()) return BigDecimal.ONE;
+        if (s == null || s.isBlank()) return BigDecimal.ONE;
         try {
-            // El Excel exporta como "30.0", "1.0", etc.
-            return new BigDecimal(s.replace(",", ".")).stripTrailingZeros();
+            return new BigDecimal(s.trim().replace(",", ".")).stripTrailingZeros();
         } catch (NumberFormatException e) {
             return BigDecimal.ONE;
         }
