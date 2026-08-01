@@ -103,3 +103,8 @@ fluxus:
 # ── ApiSunat ─────────────────────────────────────────────────────────────────
 apisunat:
   base-url: ${APISUNAT_BASE_URL}  # Producción por defecto
+
+# ── Super Admin ───────────────────────────────────────────────────────────────
+superadmin:
+  username: ${SA_USERNAME}
+  password: ${SA_PASSWORD}
