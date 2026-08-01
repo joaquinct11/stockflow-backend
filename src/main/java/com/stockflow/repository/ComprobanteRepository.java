@@ -16,6 +16,8 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
 
     List<Comprobante> findByTenantId(String tenantId);
 
+    long countByTenantId(String tenantId);
+
     List<Comprobante> findBySunatEstadoAndEstadoNot(String sunatEstado, String estado);
 
     Optional<Comprobante> findByVentaIdAndTenantId(Long ventaId, String tenantId);

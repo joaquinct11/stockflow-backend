@@ -55,58 +55,54 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 } else if (jwtUtil.validateToken(token)) {
                     // ✅ Token válido y no expirado
                     String email = jwtUtil.getEmailFromToken(token);
-                    String rol = jwtUtil.getRolFromToken(token);
-                    String tenantId = jwtUtil.getTenantIdFromToken(token);
-                    Long usuarioId = jwtUtil.getUserIdFromToken(token);
+                    String rol   = jwtUtil.getRolFromToken(token);
 
-                    // Establecer TenantContext
-                    TenantContext.setCurrentUserId(usuarioId);
-                    TenantContext.setCurrentTenant(tenantId);
-
-                    // Enriquecer MDC para trazabilidad en logs
-                    MDC.put("tenantId", tenantId);
-                    MDC.put("userId",   String.valueOf(usuarioId));
-
-                    // Construir authorities: rol + permisos base del rol + permisos directos del usuario
                     Set<SimpleGrantedAuthority> authoritySet = new LinkedHashSet<>();
                     authoritySet.add(new SimpleGrantedAuthority("ROLE_" + rol));
 
-                    // Cargar permisos base del rol desde la definición canónica
-                    try {
-                        Set<String> basePerms = rolePermissionDefaults.getBasePermissions(rol);
-                        for (String codigo : basePerms) {
-                            authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
+                    if ("SUPER_ADMIN".equals(rol)) {
+                        // Token de super admin — sin tenant, sin permisos adicionales
+                        MDC.put("userId", "superadmin");
+                        List<SimpleGrantedAuthority> authorities = new ArrayList<>(authoritySet);
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(email, null, authorities);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        log.debug("✅ SuperAdmin autenticado: {}", email);
+                    } else {
+                        String tenantId  = jwtUtil.getTenantIdFromToken(token);
+                        Long   usuarioId = jwtUtil.getUserIdFromToken(token);
+
+                        TenantContext.setCurrentUserId(usuarioId);
+                        TenantContext.setCurrentTenant(tenantId);
+                        MDC.put("tenantId", tenantId);
+                        MDC.put("userId",   String.valueOf(usuarioId));
+
+                        try {
+                            Set<String> basePerms = rolePermissionDefaults.getBasePermissions(rol);
+                            for (String codigo : basePerms) {
+                                authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
+                            }
+                        } catch (Exception e) {
+                            log.error("❌ Error cargando permisos base del rol {}: {}", rol, e.getMessage());
                         }
-                    } catch (Exception e) {
-                        log.error("❌ Error cargando permisos base del rol {}: {}. El acceso se basará solo en el rol.",
-                                rol, e.getMessage());
-                    }
 
-                    // Cargar permisos directos asignados al usuario en este tenant
-                    try {
-                        List<String> permisoCodigos = usuarioPermisoRepository.findPermisoCodigos(usuarioId, tenantId);
-                        for (String codigo : permisoCodigos) {
-                            authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
+                        try {
+                            List<String> permisoCodigos = usuarioPermisoRepository.findPermisoCodigos(usuarioId, tenantId);
+                            for (String codigo : permisoCodigos) {
+                                authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
+                            }
+                        } catch (Exception e) {
+                            log.error("❌ Error cargando permisos del usuario {} en tenant {}: {}", usuarioId, tenantId, e.getMessage());
                         }
-                    } catch (Exception e) {
-                        log.error("❌ Error cargando permisos del usuario {} en tenant {}: {}. El acceso se basará solo en el rol.",
-                                usuarioId, tenantId, e.getMessage());
+
+                        List<SimpleGrantedAuthority> authorities = new ArrayList<>(authoritySet);
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(email, null, authorities);
+                        authentication.setDetails(usuarioId);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        log.debug("✅ Usuario autenticado: {} | Tenant: {} | Rol: {} | Permisos: {}",
+                                email, tenantId, rol, authorities.size() - 1);
                     }
-
-                    List<SimpleGrantedAuthority> authorities = new ArrayList<>(authoritySet);
-
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(
-                                    email,
-                                    null,
-                                    authorities
-                            );
-
-                    authentication.setDetails(usuarioId);
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                    log.debug("✅ Usuario autenticado: {} | Tenant: {} | Rol: {} | Permisos: {}",
-                            email, tenantId, rol, authorities.size() - 1);
                 } else {
                     request.setAttribute("jwt_error", "Token JWT inválido");
                 }
