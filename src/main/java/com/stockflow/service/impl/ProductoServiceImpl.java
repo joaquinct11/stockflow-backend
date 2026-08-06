@@ -54,7 +54,7 @@ public class ProductoServiceImpl implements ProductoService {
 
     @Override
     @Transactional
-    public Producto crearProducto(Producto producto) {
+    public Producto crearProducto(Producto producto, Long sucursalId) {
         planLimitService.validarLimiteProductos(producto.getTenantId());
 
         if (producto.getCodigoBarras() != null && producto.getCodigoBarras().isBlank()) {
@@ -76,6 +76,7 @@ public class ProductoServiceImpl implements ProductoService {
                 .referencia("CREACION_PRODUCTO")
                 .tenantId(productoCreado.getTenantId())
                 .costoUnitario(productoCreado.getCostoUnitario())
+                .sucursalId(sucursalId)
                 .build();
 
         movimientoInventarioRepository.save(mov);
@@ -120,6 +121,11 @@ public class ProductoServiceImpl implements ProductoService {
     @Override
     public List<Producto> obtenerProductosPorTenant(String tenantId) {
         return productoRepository.findByTenantId(tenantId);
+    }
+
+    @Override
+    public List<Producto> obtenerTodosIncluyendoInactivos(String tenantId) {
+        return productoRepository.findAllByTenantId(tenantId);
     }
 
     @Override

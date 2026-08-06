@@ -41,12 +41,15 @@ public class ProductoController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<List<ProductoDTO>> obtenerTodos(
-            @RequestParam(required = false) Long sucursalId) {
+            @RequestParam(required = false) Long sucursalId,
+            @RequestParam(required = false, defaultValue = "false") boolean incluirInactivos) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Obteniendo productos para tenant: {} sucursalId={}", tenantId, sucursalId);
 
         List<ProductoDTO> dtos = productoMapper.toDTOList(
-                productoService.obtenerProductosPorTenant(tenantId));
+                incluirInactivos
+                        ? productoService.obtenerTodosIncluyendoInactivos(tenantId)
+                        : productoService.obtenerProductosPorTenant(tenantId));
 
         // Si viene sucursalId, sobreescribir stockActual con el stock de esa sucursal
         if (sucursalId != null) {
@@ -71,13 +74,21 @@ public class ProductoController {
             dtos.forEach(dto -> {
                 if (dto.getId() == null) return;
                 if (stockConVariante.containsKey(dto.getId())) {
-                    // Tiene variantes: usar suma de pvss
                     dto.setStockActual(stockConVariante.get(dto.getId()));
                 } else if (stockSinVariante.containsKey(dto.getId())) {
-                    // Sin variantes: usar producto_stock_sucursal
                     dto.setStockActual(stockSinVariante.get(dto.getId()));
                 }
             });
+
+            // Opción B: mostrar producto en una sucursal si tiene stock > 0
+            // O si alguna vez tuvo un movimiento en esa sucursal.
+            java.util.Set<Long> conMovimiento = new java.util.HashSet<>(
+                    movimientoRepository.findProductoIdsConMovimientoEnSucursal(tenantId, sucursalId));
+
+            dtos = dtos.stream()
+                    .filter(dto -> dto.getId() != null
+                            && (dto.getStockActual() > 0 || conMovimiento.contains(dto.getId())))
+                    .collect(Collectors.toList());
         }
 
         // Enriquecer con la próxima fecha de vencimiento de cada lote (1 query extra)
@@ -151,7 +162,9 @@ public class ProductoController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_PRODUCTO')")
-    public ResponseEntity<ProductoDTO> crear(@Valid @RequestBody ProductoDTO productoDTO) {
+    public ResponseEntity<ProductoDTO> crear(
+            @Valid @RequestBody ProductoDTO productoDTO,
+            @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando producto para tenant: {}", tenantId);
         log.info("🖼️ imagenUrl recibida en crear: {}", productoDTO.getImagenUrl() != null
@@ -160,11 +173,10 @@ public class ProductoController {
         productoDTO.setTenantId(tenantId);
 
         Producto producto = productoMapper.toEntity(productoDTO);
-        // Setters explícitos por si el mapper fue compilado antes de agregar estos campos
         producto.setImagenUrl(productoDTO.getImagenUrl());
         producto.setEsGenerico(productoDTO.getEsGenerico() != null ? productoDTO.getEsGenerico() : false);
         producto.setUnidadesPorCaja(productoDTO.getUnidadesPorCaja());
-        Producto productoCreado = productoService.crearProducto(producto);
+        Producto productoCreado = productoService.crearProducto(producto, sucursalId);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(productoMapper.toDTO(productoCreado));
@@ -190,6 +202,24 @@ public class ProductoController {
                     productoExistente.setUnidadesPorCaja(productoDTO.getUnidadesPorCaja());
                     Producto productoActualizado = productoService.actualizarProducto(id, productoExistente);
                     return ResponseEntity.ok(productoMapper.toDTO(productoActualizado));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PatchMapping("/{id}/activo")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ProductoDTO> toggleActivo(
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> body) {
+        String tenantId = TenantContext.getCurrentTenant();
+        boolean activo = Boolean.TRUE.equals(body.get("activo"));
+        return productoService.obtenerProductoPorId(id)
+                .filter(p -> tenantId.equals(p.getTenantId()))
+                .map(p -> {
+                    p.setActivo(activo);
+                    Producto actualizado = productoService.actualizarProducto(id, p);
+                    log.info("{} producto ID: {}", activo ? "✅ Activado" : "🚫 Desactivado", id);
+                    return ResponseEntity.ok(productoMapper.toDTO(actualizado));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
