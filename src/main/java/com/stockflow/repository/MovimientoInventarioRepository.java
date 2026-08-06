@@ -160,4 +160,20 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     @Modifying
     @Query(value = "UPDATE movimientos_inventario SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
+
+    /**
+     * IDs de productos que han tenido al menos un movimiento en la sucursal indicada.
+     * Se usa para la Opción B: mostrar en una sucursal solo los productos con stock > 0
+     * O que alguna vez recibieron stock ahí (aunque ahora estén en 0).
+     */
+    @Query(value = """
+            SELECT DISTINCT producto_id
+            FROM movimientos_inventario
+            WHERE tenant_id   = :tenantId
+              AND sucursal_id = :sucursalId
+              AND producto_id IS NOT NULL
+            """, nativeQuery = true)
+    List<Long> findProductoIdsConMovimientoEnSucursal(
+            @Param("tenantId")   String tenantId,
+            @Param("sucursalId") Long   sucursalId);
 }

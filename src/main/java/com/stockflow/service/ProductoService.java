@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface ProductoService {
 
-    Producto crearProducto(Producto producto);
+    Producto crearProducto(Producto producto, Long sucursalId);
 
     Optional<Producto> obtenerProductoPorId(Long id);
 
@@ -17,6 +17,8 @@ public interface ProductoService {
     List<Producto> buscarProductosPorNombre(String nombre, String tenantId);
 
     List<Producto> obtenerProductosPorTenant(String tenantId);
+
+    List<Producto> obtenerTodosIncluyendoInactivos(String tenantId);
 
     List<Producto> obtenerProductosActivos();
 
