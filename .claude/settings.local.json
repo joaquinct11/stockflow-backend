@@ -175,7 +175,25 @@
       "Bash(cd \"D:/projects/abc/stockflow-backend\" && find . -iname \"*.jar\" 2>/dev/null | grep -i xnio; echo \"---m2---\"; find ~/.m2 -iname \"*xnio*\" 2>/dev/null | head -20)",
       "Bash(find \"D:/Java/jdk1.6.0_45/jre/setup\" -iname \"*.properties\" 2>/dev/null)",
       "Bash(where sqlplus *)",
-      "Bash(where sqlcl *)"
+      "Bash(where sqlcl *)",
+      "Bash(grep -n \"lottowstinkanetDS\\\\|lottotkexpressapiDS\" -A 20 \"/d/java/jboss-eap-7.2.3/standalone/configuration/standalone.xml\" 2>&1 | head -100)",
+      "Bash(jar tf *)",
+      "Bash(mkdir -p 'C:\\\\Users\\\\castillojoot/cf_extract')",
+      "Read(//c/Users/castillojoot/cf_extract/**)",
+      "Bash(jar xf *)",
+      "Bash(javap -p -c pe/com/intralot/loto/lib/ConnectionFactory.class)",
+      "Bash(xargs -I{} sh -c 'grep -l \"tinkaExpressIframe\" \"{}\" 2>/dev/null')",
+      "Bash(find \"/d\" -iname \"sale.properties\")",
+      "Bash(find \"/c\" -iname \"sale.properties\")",
+      "Read(//d/java/jdk1.6.0_45/jre/setup/**)",
+      "Read(//d/java/jdk1.8.0_181/jre/setup/**)",
+      "Bash(grep -rli \"3vbyhz\\\\|tinka-express\" \"/d/java/jdk1.6.0_45/jre/setup\" \"/d/java/jdk1.8.0_181/jre/setup\" 2>/dev/null)",
+      "Bash(grep -i \"JAVA_HOME\" \"/d/java/jboss-eap-7.2.3/bin/standalone.conf.bat\" 2>/dev/null | head -20 *)",
+      "Bash(find '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO' -maxdepth 2 -type d)",
+      "Bash(echo \"---web.xml / context---\")",
+      "Bash(find '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO' -iname web.xml -o -iname *.war -o -iname context.xml)",
+      "Bash(grep -i 'display-name\\\\|context-param' '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO/WebContent/WEB-INF/web.xml')",
+      "Bash(grep -n '@RequestMapping\\\\|CrossOrigin' '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO/src/pe/com/latinka/tinkaexpress/layer/controller/RestController.java')"
     ]
   }
 }

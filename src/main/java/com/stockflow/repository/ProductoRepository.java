@@ -49,6 +49,14 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
             SELECT p FROM Producto p
             LEFT JOIN FETCH p.categoriaRef
             LEFT JOIN FETCH p.unidadMedida
+            WHERE p.tenantId = :tenantId
+            """)
+    List<Producto> findAllByTenantId(@Param("tenantId") String tenantId);
+
+    @Query("""
+            SELECT p FROM Producto p
+            LEFT JOIN FETCH p.categoriaRef
+            LEFT JOIN FETCH p.unidadMedida
             WHERE (LOWER(p.nombre) LIKE LOWER(CONCAT('%', :nombre, '%'))
                OR  LOWER(COALESCE(p.componentes,'')) LIKE LOWER(CONCAT('%', :nombre, '%')))
               AND p.tenantId = :tenantId
