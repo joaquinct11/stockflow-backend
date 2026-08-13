@@ -21,6 +21,7 @@ import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
 import com.stockflow.repository.SucursalRepository;
+import com.stockflow.repository.VentaRepository;
 import com.stockflow.util.TenantContext;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
@@ -59,6 +60,7 @@ public class VentaController {
     private final ProductoVarianteStockSucursalRepository   varianteStockSucursalRepository;
     private final ProductoStockSucursalRepository           stockSucursalRepository;
     private final SucursalRepository                        sucursalRepository;
+    private final VentaRepository                           ventaRepository;
     private final com.stockflow.service.StockLoteService   stockLoteService;
 
     /**
@@ -364,6 +366,22 @@ public class VentaController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ventaMapper.toDTO(ventaCreada));
+    }
+
+    @PatchMapping("/{id}/cliente")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EMITIR_COMPROBANTE') or hasAuthority('CREAR_VENTA')")
+    public ResponseEntity<VentaDTO> asignarCliente(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, Long> body) {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long clienteId = body.get("clienteId");
+        return ventaRepository.findById(id)
+                .filter(v -> tenantId.equals(v.getTenantId()))
+                .map(v -> {
+                    v.setClienteId(clienteId);
+                    return ResponseEntity.ok(ventaMapper.toDTO(ventaRepository.save(v)));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PatchMapping("/{id}/anular")
