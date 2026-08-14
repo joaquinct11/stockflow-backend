@@ -193,7 +193,13 @@
       "Bash(echo \"---web.xml / context---\")",
       "Bash(find '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO' -iname web.xml -o -iname *.war -o -iname context.xml)",
       "Bash(grep -i 'display-name\\\\|context-param' '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO/WebContent/WEB-INF/web.xml')",
-      "Bash(grep -n '@RequestMapping\\\\|CrossOrigin' '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO/src/pe/com/latinka/tinkaexpress/layer/controller/RestController.java')"
+      "Bash(grep -n '@RequestMapping\\\\|CrossOrigin' '/d/projects/FHU Kashio/KASHIO/lotto-ws-tinkaexpress-branch-20260730-HITSS-R-TKXPRS-KASHIO/src/pe/com/latinka/tinkaexpress/layer/controller/RestController.java')",
+      "Bash(ls -la \"D:\\\\projects\\\\FHU11\")",
+      "WebFetch(domain:docs.xtremepush.com)",
+      "Bash(grep -n \"Encoding\" \"/d/projects/FHU Kashio/KASHIO/lotto-mobile-branch-20260730-HITSS-R-TKXPRS-KASHIO\"/../*.xml 2>/dev/null *)",
+      "Bash(echo \"=== search whole KASHIO folder for jettison jar ===\" *)",
+      "Bash(rm \"/d/projects/FHU Kashio/KASHIO/lotto-mobile-branch-20260730-HITSS-R-TKXPRS-KASHIO/.idea/compiler.xml\" *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
