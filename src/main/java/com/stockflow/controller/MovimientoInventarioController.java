@@ -200,6 +200,20 @@ public class MovimientoInventarioController {
 
         MovimientoInventario movimientoCreado = movimientoService.crearMovimiento(movimiento);
 
+        // Auto-generar referencia si el usuario no ingresó ninguna
+        if (movimientoCreado.getReferencia() == null || movimientoCreado.getReferencia().isBlank()) {
+            String prefix = switch (movimientoCreado.getTipo()) {
+                case "ENTRADA"       -> "ENT";
+                case "DEVOLUCION"    -> "DEV";
+                case "AJUSTE"        -> "AJST";
+                case "AJUSTE_PRECIO" -> "AJST-P";
+                case "SALIDA"        -> "SAL";
+                default              -> "MOV";
+            };
+            movimientoCreado.setReferencia(prefix + "-" + movimientoCreado.getId());
+            movimientoRepository.save(movimientoCreado);
+        }
+
         // Si es ENTRADA o DEVOLUCIÓN con fechaVencimiento, registrar en stock_lotes para control FEFO
         if ((esEntrada || esDevolucion) && fechaVencimiento != null) {
             stockLoteService.registrarLote(
@@ -373,7 +387,7 @@ public class MovimientoInventarioController {
      * diasRestantes es negativo cuando el lote ya está vencido.
      */
     @GetMapping("/lotes")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO') or hasRole('VENDEDOR')")
     public ResponseEntity<List<LoteVencimientoDTO>> getLotes() {
         String tenantId = TenantContext.getCurrentTenant();
         LocalDate hoy = LocalDate.now();
@@ -408,7 +422,7 @@ public class MovimientoInventarioController {
      * Devuelve los lotes vigentes de un producto específico — para el selector de lote en ajustes.
      */
     @GetMapping("/lotes/producto/{productoId}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO') or hasRole('VENDEDOR')")
     public ResponseEntity<List<LoteVencimientoDTO>> getLotesPorProducto(@PathVariable Long productoId) {
         String tenantId = TenantContext.getCurrentTenant();
         LocalDate hoy = LocalDate.now();

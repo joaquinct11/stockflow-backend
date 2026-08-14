@@ -1,9 +1,11 @@
 package com.stockflow.scheduler;
 
+import com.stockflow.entity.CertificadoEstablecimiento;
 import com.stockflow.entity.OrdenCompra;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Tenant;
+import com.stockflow.repository.CertificadoRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.NotificacionRepository;
 import com.stockflow.repository.OrdenCompraRepository;
@@ -31,6 +33,7 @@ public class NotificacionScheduler {
     private final MovimientoInventarioRepository movimientoRepository;
     private final OrdenCompraRepository          ordenCompraRepository;
     private final SuscripcionRepository          suscripcionRepository;
+    private final CertificadoRepository          certificadoRepository;
     private final NotificacionService            notificacionService;
     private final NotificacionRepository         notificacionRepository;
     private final EmailService                   emailService;
@@ -239,6 +242,41 @@ public class NotificacionScheduler {
             }
         }
         log.info("⏰ [Scheduler] Verificación de suscripciones completada.");
+    }
+
+    // ── Certificados por vencer / vencidos — todos los días a las 8:20 AM Lima ──
+
+    @Scheduled(cron = "0 20 8 * * *", zone = "America/Lima")
+    public void verificarCertificados() {
+        log.info("⏰ [Scheduler] Verificando certificados por vencer/vencidos...");
+        LocalDate hoy = LocalDate.now();
+
+        List<CertificadoEstablecimiento> enAlerta = certificadoRepository.findCertificadosEnAlertas();
+        for (CertificadoEstablecimiento cert : enAlerta) {
+            String tenantId = cert.getTenantId();
+            boolean vencido = cert.getFechaVencimiento().isBefore(hoy);
+            long diasRestantes = java.time.temporal.ChronoUnit.DAYS.between(hoy, cert.getFechaVencimiento());
+
+            String tipo    = vencido ? "CERT_VENCIDO" : "CERT_POR_VENCER";
+            String titulo  = vencido
+                    ? "🚨 Certificado VENCIDO: " + cert.getDescripcion()
+                    : "⚠️ Certificado por vencer: " + cert.getDescripcion();
+            String cuerpo  = vencido
+                    ? String.format("El certificado '%s' venció hace %d día(s) (%s). Renuévalo urgente.",
+                        cert.getDescripcion(), Math.abs(diasRestantes), cert.getFechaVencimiento())
+                    : String.format("El certificado '%s' vence el %s (en %d día(s)). Coordina su renovación.",
+                        cert.getDescripcion(), cert.getFechaVencimiento(), diasRestantes);
+
+            if (notificacionService.yaExisteNoLeida(tenantId, "ADMIN", tipo, cert.getId())) continue;
+
+            notificacionService.notificarRoles(
+                    tenantId, List.of("ADMIN"),
+                    tipo, titulo, cuerpo,
+                    cert.getId(), "CERTIFICADO"
+            );
+            log.info("🔔 Alerta de certificado '{}' enviada para tenant {}", cert.getDescripcion(), tenantId);
+        }
+        log.info("⏰ [Scheduler] Certificados verificados ({} en alerta).", enAlerta.size());
     }
 
     // ── Limpieza de notificaciones antiguas — todos los días a las 3:00 AM Lima ─
