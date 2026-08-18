@@ -36,6 +36,11 @@ public class RegistrationRequestDTO {
     private String apellido;
     private String tipoDocumento;
     private String numeroDocumento;
+
+    @Pattern(
+        regexp = "^[9]\\d{8}$|^$",
+        message = "El celular debe tener 9 dígitos y comenzar con 9 (ej: 987654321)"
+    )
     private String numeroCelular;
 
     // Tipo de negocio — define los módulos visibles al iniciar sesión
