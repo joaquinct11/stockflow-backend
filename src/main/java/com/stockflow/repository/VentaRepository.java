@@ -19,7 +19,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     List<Venta> findByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId);
     List<Venta> findByCreatedAtBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
     long countByTenantId(String tenantId);
-    @Query("SELECT v FROM Venta v WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin")
+    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin")
     List<Venta> findVentasPorPeriodo(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
@@ -213,7 +213,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("sucursalId") Long sucursalId
     );
 
-    @Query("SELECT v FROM Venta v WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId AND v.createdAt BETWEEN :inicio AND :fin")
+    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId AND v.createdAt BETWEEN :inicio AND :fin")
     List<Venta> findByTenantIdAndVendedorIdAndPeriodo(
             @Param("tenantId")    String tenantId,
             @Param("vendedorId")  Long vendedorId,
