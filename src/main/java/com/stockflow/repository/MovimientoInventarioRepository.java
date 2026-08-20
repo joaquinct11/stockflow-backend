@@ -121,6 +121,24 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("tenantId") String tenantId
     );
 
+    /** Movimientos de ENTRADA cuyo lote vence entre :desde y :hasta (para dashboard próximos a vencer). */
+    @Query("""
+            SELECT m FROM MovimientoInventario m
+            JOIN FETCH m.producto p
+            WHERE m.tenantId = :tenantId
+              AND m.tipo IN ('ENTRADA', 'SALDO_INICIAL')
+              AND m.fechaVencimiento IS NOT NULL
+              AND m.fechaVencimiento >= :desde
+              AND m.fechaVencimiento <= :hasta
+              AND p.activo = true
+            ORDER BY m.fechaVencimiento ASC
+            """)
+    List<MovimientoInventario> findEntradasConVencimientoEnRango(
+            @Param("tenantId") String tenantId,
+            @Param("desde")    java.time.LocalDate desde,
+            @Param("hasta")    java.time.LocalDate hasta
+    );
+
     // ── Próxima fecha de vencimiento por producto (para POS y catálogo) ──────
 
     /**
