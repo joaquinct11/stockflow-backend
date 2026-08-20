@@ -25,13 +25,13 @@ public class MovimientoInventarioServiceImpl implements MovimientoInventarioServ
     }
 
     @Override
-    public List<MovimientoInventario> obtenerMovimientosPorProducto(Long productoId) {
-        return movimientoRepository.findByProductoId(productoId);
+    public List<MovimientoInventario> obtenerMovimientosPorProducto(Long productoId, String tenantId) {
+        return movimientoRepository.findByProductoIdAndTenantId(productoId, tenantId);
     }
 
     @Override
-    public List<MovimientoInventario> obtenerMovimientosPorUsuario(Long usuarioId) {
-        return movimientoRepository.findByUsuarioId(usuarioId);
+    public List<MovimientoInventario> obtenerMovimientosPorUsuario(Long usuarioId, String tenantId) {
+        return movimientoRepository.findByUsuarioIdAndTenantId(usuarioId, tenantId);
     }
 
     @Override

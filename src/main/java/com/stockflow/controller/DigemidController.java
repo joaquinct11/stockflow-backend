@@ -106,10 +106,9 @@ public class DigemidController {
     @GetMapping("/productos")
     public ResponseEntity<List<Map<String, Object>>> listarProductos() {
         String tenantId = TenantContext.getCurrentTenant();
-        List<Producto> productos = productoRepository.findByTenantId(tenantId);
+        List<Producto> productos = productoRepository.findProductosTipoByTenantId(tenantId);
 
         List<Map<String, Object>> resultado = productos.stream()
-                .filter(p -> "PRODUCTO".equals(p.getTipo()) && Boolean.TRUE.equals(p.getActivo()))
                 .map(p -> {
                     Optional<CatalogoDigemid> cat = p.getCodDigemid() != null
                             ? catalogoDigemidRepository.findByCodProd(p.getCodDigemid())
@@ -141,11 +140,7 @@ public class DigemidController {
         }
 
         String tenantId = TenantContext.getCurrentTenant();
-        List<Producto> productos = productoRepository.findByTenantId(tenantId);
-
-        List<Producto> vinculados = productos.stream()
-                .filter(p -> p.getCodDigemid() != null && Boolean.TRUE.equals(p.getActivo()))
-                .toList();
+        List<Producto> vinculados = productoRepository.findVinculadosDigemidByTenantId(tenantId);
 
         if (vinculados.isEmpty()) {
             throw new BadRequestException("No hay productos vinculados a códigos DIGEMID. Vincula al menos uno antes de exportar.");

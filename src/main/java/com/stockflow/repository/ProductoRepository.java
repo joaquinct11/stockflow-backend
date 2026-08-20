@@ -53,6 +53,12 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
             """)
     List<Producto> findAllByTenantId(@Param("tenantId") String tenantId);
 
+    @Query("SELECT p FROM Producto p WHERE p.tenantId = :tenantId AND p.tipo = 'PRODUCTO' AND p.activo = true")
+    List<Producto> findProductosTipoByTenantId(@Param("tenantId") String tenantId);
+
+    @Query("SELECT p FROM Producto p WHERE p.tenantId = :tenantId AND p.codDigemid IS NOT NULL AND p.activo = true")
+    List<Producto> findVinculadosDigemidByTenantId(@Param("tenantId") String tenantId);
+
     @Query("""
             SELECT p FROM Producto p
             LEFT JOIN FETCH p.categoriaRef

@@ -101,15 +101,24 @@ public class MovimientoInventarioController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerPorProducto(
             @PathVariable Long productoId,
-            @RequestParam(required = false) Long sucursalId) {
+            @RequestParam(required = false) Long sucursalId,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.LocalDateTime desde,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) java.time.LocalDateTime hasta) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("📦 Obteniendo movimientos del producto: {} sucursalId={} para tenant: {}", productoId, sucursalId, tenantId);
+        log.info("📦 Obteniendo movimientos del producto: {} sucursalId={} desde={} hasta={} tenant={}", productoId, sucursalId, desde, hasta, tenantId);
         productoService.obtenerProductoPorId(productoId)
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
-        List<MovimientoInventario> movimientos = sucursalId != null
-                ? movimientoRepository.findByProductoIdAndSucursalId(productoId, sucursalId)
-                : movimientoService.obtenerMovimientosPorProducto(productoId);
+        List<MovimientoInventario> movimientos;
+        if (desde != null && hasta != null) {
+            movimientos = sucursalId != null
+                    ? movimientoRepository.findByProductoIdAndSucursalIdAndTenantIdBetween(productoId, sucursalId, tenantId, desde, hasta)
+                    : movimientoRepository.findByProductoIdAndTenantIdBetween(productoId, tenantId, desde, hasta);
+        } else {
+            movimientos = sucursalId != null
+                    ? movimientoRepository.findByProductoIdAndSucursalIdAndTenantId(productoId, sucursalId, tenantId)
+                    : movimientoRepository.findByProductoIdAndTenantId(productoId, tenantId);
+        }
         return ResponseEntity.ok(movimientoMapper.toDTOList(movimientos));
     }
 
@@ -123,7 +132,7 @@ public class MovimientoInventarioController {
                 .filter(u -> tenantId.equals(u.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         return ResponseEntity.ok(
-                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorUsuario(usuarioId))
+                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorUsuario(usuarioId, tenantId))
         );
     }
 
