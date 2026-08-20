@@ -130,9 +130,8 @@ public class OnboardingServiceImpl implements OnboardingService {
                (tenant.getDireccion() != null && !tenant.getDireccion().isBlank());
     }
 
-    /** OSE configurado: URL y token del proveedor de facturación electrónica. */
+    /** OSE configurado: solo se requiere el token (la URL es config del servidor, no del tenant). */
     private boolean estaConfiguradoOse(Tenant tenant) {
-        return (tenant.getOseUrl()   != null && !tenant.getOseUrl().isBlank()) &&
-               (tenant.getOseToken() != null && !tenant.getOseToken().isBlank());
+        return tenant.getOseToken() != null && !tenant.getOseToken().isBlank();
     }
 }

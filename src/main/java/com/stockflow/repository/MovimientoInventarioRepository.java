@@ -157,6 +157,14 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("sucursalId") Long sucursalId
     );
 
+    @Query("SELECT m FROM MovimientoInventario m WHERE m.tenantId = :tenantId AND m.createdAt >= :desde ORDER BY m.createdAt DESC")
+    List<MovimientoInventario> findRecentByTenantId(
+            @Param("tenantId") String tenantId, @Param("desde") LocalDateTime desde);
+
+    @Query(value = "SELECT * FROM movimientos_inventario WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId AND created_at >= :desde ORDER BY created_at DESC", nativeQuery = true)
+    List<MovimientoInventario> findRecentByTenantIdAndSucursalId(
+            @Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("desde") LocalDateTime desde);
+
     @Modifying
     @Query(value = "UPDATE movimientos_inventario SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);

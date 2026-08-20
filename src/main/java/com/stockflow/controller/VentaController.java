@@ -96,6 +96,8 @@ public class VentaController {
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_MIS_VENTAS') or hasAuthority('PERM_VER_VENTAS')")
     public ResponseEntity<List<VentaDTO>> obtenerPorVendedor(
             @PathVariable Long vendedorId,
+            @RequestParam(required = false) String inicio,
+            @RequestParam(required = false) String fin,
             Authentication authentication) {
 
         String tenantId = TenantContext.getCurrentTenant();
@@ -105,20 +107,21 @@ public class VentaController {
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(a -> a.equals("ROLE_ADMIN") || a.equals("ROLE_GERENTE"));
 
-        // Si el usuario es VENDEDOR, forzar su propio ID para evitar acceso cruzado
-        Long efectiveVendedorId;
-        if (isAdminOrGerente) {
-            efectiveVendedorId = vendedorId;
-        } else {
-            efectiveVendedorId = currentUserId;
-        }
+        Long efectiveVendedorId = isAdminOrGerente ? vendedorId : currentUserId;
 
         log.info("👤 Obteniendo ventas del vendedor: {} (solicitado: {}) para tenant: {}",
                 efectiveVendedorId, vendedorId, tenantId);
 
-        return ResponseEntity.ok(
-                ventaMapper.toDTOList(ventaService.obtenerVentasPorVendedorYTenant(efectiveVendedorId, tenantId))
-        );
+        List<com.stockflow.entity.Venta> ventas;
+        if (inicio != null && fin != null) {
+            ventas = ventaService.obtenerVentasPorVendedorYTenantYPeriodo(
+                    efectiveVendedorId, tenantId,
+                    LocalDateTime.parse(inicio), LocalDateTime.parse(fin));
+        } else {
+            ventas = ventaService.obtenerVentasPorVendedorYTenant(efectiveVendedorId, tenantId);
+        }
+
+        return ResponseEntity.ok(ventaMapper.toDTOList(ventas));
     }
 
     /**

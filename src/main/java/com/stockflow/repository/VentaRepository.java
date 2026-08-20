@@ -213,6 +213,13 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("sucursalId") Long sucursalId
     );
 
+    @Query("SELECT v FROM Venta v WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId AND v.createdAt BETWEEN :inicio AND :fin")
+    List<Venta> findByTenantIdAndVendedorIdAndPeriodo(
+            @Param("tenantId")    String tenantId,
+            @Param("vendedorId")  Long vendedorId,
+            @Param("inicio")      LocalDateTime inicio,
+            @Param("fin")         LocalDateTime fin);
+
     List<Venta> findByCajaIdAndTenantId(Long cajaId, String tenantId);
 
     // ── Top clientes por monto comprado ──

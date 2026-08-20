@@ -77,6 +77,11 @@ public class VentaServiceImpl implements VentaService {
     }
 
     @Override
+    public List<Venta> obtenerVentasPorVendedorYTenantYPeriodo(Long vendedorId, String tenantId, LocalDateTime inicio, LocalDateTime fin) {
+        return ventaRepository.findByTenantIdAndVendedorIdAndPeriodo(tenantId, vendedorId, inicio, fin);
+    }
+
+    @Override
     public List<DetalleVenta> obtenerDetallesVenta(Long ventaId) {
         return detalleVentaRepository.findByVentaId(ventaId);
     }
