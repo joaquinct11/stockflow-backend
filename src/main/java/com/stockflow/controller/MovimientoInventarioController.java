@@ -53,6 +53,18 @@ public class MovimientoInventarioController {
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
      */
+    @GetMapping("/proximos-vencer")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    public ResponseEntity<List<MovimientoInventarioDTO>> obtenerProximosAVencer(
+            @RequestParam(defaultValue = "90") int ventanaDias) {
+        String tenantId = TenantContext.getCurrentTenant();
+        java.time.LocalDate hoy   = java.time.LocalDate.now();
+        java.time.LocalDate hasta = hoy.plusDays(ventanaDias);
+        List<com.stockflow.entity.MovimientoInventario> movimientos =
+                movimientoRepository.findEntradasConVencimientoEnRango(tenantId, hoy, hasta);
+        return ResponseEntity.ok(movimientoMapper.toDTOList(movimientos));
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerTodos(
