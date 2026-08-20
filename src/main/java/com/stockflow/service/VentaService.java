@@ -20,6 +20,8 @@ public interface VentaService {
 
     List<Venta> obtenerVentasPorPeriodo(String tenantId, LocalDateTime inicio, LocalDateTime fin);
 
+    List<Venta> obtenerVentasPorVendedorYTenantYPeriodo(Long vendedorId, String tenantId, LocalDateTime inicio, LocalDateTime fin);
+
     List<DetalleVenta> obtenerDetallesVenta(Long ventaId);
 
     void actualizarNotaCredito(Long ventaId, Long notaCreditoId);

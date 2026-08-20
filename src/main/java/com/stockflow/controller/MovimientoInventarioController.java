@@ -55,9 +55,19 @@ public class MovimientoInventarioController {
      */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
-    public ResponseEntity<List<MovimientoInventarioDTO>> obtenerTodos(@RequestParam(required = false) Long sucursalId) {
+    public ResponseEntity<List<MovimientoInventarioDTO>> obtenerTodos(
+            @RequestParam(required = false) Long sucursalId,
+            @RequestParam(required = false) Integer dias) {
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("📦 Obteniendo movimientos de inventario para tenant: {}", tenantId);
+        log.info("📦 Obteniendo movimientos de inventario para tenant: {} dias={}", tenantId, dias);
+
+        if (dias != null) {
+            java.time.LocalDateTime desde = java.time.LocalDateTime.now().minusDays(dias);
+            List<com.stockflow.entity.MovimientoInventario> recientes = sucursalId != null
+                    ? movimientoRepository.findRecentByTenantIdAndSucursalId(tenantId, sucursalId, desde)
+                    : movimientoRepository.findRecentByTenantId(tenantId, desde);
+            return ResponseEntity.ok(movimientoMapper.toDTOList(recientes));
+        }
 
         return ResponseEntity.ok(
                 movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorTenant(tenantId, sucursalId))
