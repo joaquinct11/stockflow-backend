@@ -157,11 +157,11 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("sucursalId") Long sucursalId
     );
 
-    @Query("SELECT m FROM MovimientoInventario m WHERE m.tenantId = :tenantId AND m.createdAt >= :desde ORDER BY m.createdAt DESC")
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId AND m.createdAt >= :desde ORDER BY m.createdAt DESC")
     List<MovimientoInventario> findRecentByTenantId(
             @Param("tenantId") String tenantId, @Param("desde") LocalDateTime desde);
 
-    @Query(value = "SELECT * FROM movimientos_inventario WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId AND created_at >= :desde ORDER BY created_at DESC", nativeQuery = true)
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId AND m.sucursalId = :sucursalId AND m.createdAt >= :desde ORDER BY m.createdAt DESC")
     List<MovimientoInventario> findRecentByTenantIdAndSucursalId(
             @Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("desde") LocalDateTime desde);
 
