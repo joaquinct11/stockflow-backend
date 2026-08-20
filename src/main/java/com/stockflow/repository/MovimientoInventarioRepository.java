@@ -13,12 +13,18 @@ import java.util.List;
 @Repository
 public interface MovimientoInventarioRepository extends JpaRepository<MovimientoInventario, Long> {
 
-    List<MovimientoInventario> findByProductoId(Long productoId);
+    List<MovimientoInventario> findByProductoIdAndTenantId(Long productoId, String tenantId);
 
-    @Query(value = "SELECT * FROM movimientos_inventario WHERE producto_id = :productoId AND sucursal_id = :sucursalId ORDER BY created_at ASC", nativeQuery = true)
-    List<MovimientoInventario> findByProductoIdAndSucursalId(@Param("productoId") Long productoId, @Param("sucursalId") Long sucursalId);
+    @Query(value = "SELECT * FROM movimientos_inventario WHERE producto_id = :productoId AND sucursal_id = :sucursalId AND tenant_id = :tenantId ORDER BY created_at ASC", nativeQuery = true)
+    List<MovimientoInventario> findByProductoIdAndSucursalIdAndTenantId(@Param("productoId") Long productoId, @Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
 
-    List<MovimientoInventario> findByUsuarioId(Long usuarioId);
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId AND m.producto.id = :productoId AND m.createdAt BETWEEN :desde AND :hasta ORDER BY m.createdAt ASC")
+    List<MovimientoInventario> findByProductoIdAndTenantIdBetween(@Param("productoId") Long productoId, @Param("tenantId") String tenantId, @Param("desde") java.time.LocalDateTime desde, @Param("hasta") java.time.LocalDateTime hasta);
+
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId AND m.producto.id = :productoId AND m.sucursalId = :sucursalId AND m.createdAt BETWEEN :desde AND :hasta ORDER BY m.createdAt ASC")
+    List<MovimientoInventario> findByProductoIdAndSucursalIdAndTenantIdBetween(@Param("productoId") Long productoId, @Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId, @Param("desde") java.time.LocalDateTime desde, @Param("hasta") java.time.LocalDateTime hasta);
+
+    List<MovimientoInventario> findByUsuarioIdAndTenantId(Long usuarioId, String tenantId);
 
     List<MovimientoInventario> findByTenantId(String tenantId);
 
