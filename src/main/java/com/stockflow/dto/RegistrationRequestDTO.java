@@ -45,4 +45,7 @@ public class RegistrationRequestDTO {
 
     // Tipo de negocio — define los módulos visibles al iniciar sesión
     private String rubro;
+
+    // RUC de la empresa (va a tenants.ruc)
+    private String rucEmpresa;
 }
