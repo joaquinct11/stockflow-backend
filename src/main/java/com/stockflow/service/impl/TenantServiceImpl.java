@@ -35,7 +35,7 @@ public class TenantServiceImpl implements TenantService {
     private final SuscripcionRepository suscripcionRepository;
 
     @Override
-    public Tenant crearTenant(String nombreFarmacia, String rubro) {
+    public Tenant crearTenant(String nombreFarmacia, String rubro, String ruc, String emailContacto, String telefono) {
         String tenantId = generarTenantId(nombreFarmacia);
 
         log.info("📱 Creando nuevo tenant: {}", tenantId);
@@ -44,6 +44,9 @@ public class TenantServiceImpl implements TenantService {
                 .tenantId(tenantId)
                 .nombre(nombreFarmacia)
                 .rubro(rubro != null && !rubro.isBlank() ? rubro : "OTRO")
+                .ruc(ruc != null && !ruc.isBlank() ? ruc : null)
+                .emailContacto(emailContacto != null && !emailContacto.isBlank() ? emailContacto : null)
+                .telefono(telefono != null && !telefono.isBlank() ? telefono : null)
                 .activo(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
