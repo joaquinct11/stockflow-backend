@@ -34,4 +34,5 @@ public class DetalleVentaDTO {
 
     private Long varianteId;
     private String varianteDescripcion;
+    private Long stockLoteId;
 }

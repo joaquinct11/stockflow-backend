@@ -2,6 +2,7 @@ package com.stockflow.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -25,6 +26,15 @@ public class StockLote {
 
     @Column(name = "sucursal_id")
     private Long sucursalId;
+
+    @Column(name = "proveedor_id")
+    private Long proveedorId;
+
+    @Column(name = "costo_unitario", precision = 12, scale = 2)
+    private BigDecimal costoUnitario;
+
+    @Column(name = "precio_venta", precision = 12, scale = 2)
+    private BigDecimal precioVenta;
 
     @Column(length = 100)
     private String lote;

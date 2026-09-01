@@ -134,4 +134,36 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
             @Param("productoIds") List<Long> productoIds,
             @Param("tenantId")    String tenantId
     );
+
+    // Lotes disponibles para el POS (sin filtro de sucursal)
+    @Query("""
+            SELECT s FROM StockLote s
+            WHERE s.productoId       = :productoId
+              AND s.tenantId         = :tenantId
+              AND s.fechaVencimiento >= :hoy
+              AND s.stockActual      > 0
+            ORDER BY s.fechaVencimiento ASC
+            """)
+    List<StockLote> findDisponibles(
+            @Param("productoId") Long productoId,
+            @Param("tenantId")   String tenantId,
+            @Param("hoy")        LocalDate hoy
+    );
+
+    // Lotes disponibles para el POS (con filtro de sucursal)
+    @Query("""
+            SELECT s FROM StockLote s
+            WHERE s.productoId       = :productoId
+              AND s.tenantId         = :tenantId
+              AND s.sucursalId       = :sucursalId
+              AND s.fechaVencimiento >= :hoy
+              AND s.stockActual      > 0
+            ORDER BY s.fechaVencimiento ASC
+            """)
+    List<StockLote> findDisponiblesConSucursal(
+            @Param("productoId") Long productoId,
+            @Param("tenantId")   String tenantId,
+            @Param("sucursalId") Long sucursalId,
+            @Param("hoy")        LocalDate hoy
+    );
 }

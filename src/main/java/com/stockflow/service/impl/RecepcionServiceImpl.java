@@ -288,10 +288,12 @@ public class RecepcionServiceImpl implements RecepcionService {
 
             // Si tiene fecha de vencimiento, registrar en stock_lotes para control FEFO
             if (detalle.getFechaVencimiento() != null) {
+                Long proveedorId = recepcion.getProveedor() != null ? recepcion.getProveedor().getId() : null;
                 stockLoteService.registrarLote(
                         recepcion.getTenantId(), movGuardado.getId(), producto.getId(),
                         recepcion.getSucursalId(), detalle.getLote(),
-                        detalle.getFechaVencimiento(), detalle.getCantidadRecibida());
+                        detalle.getFechaVencimiento(), detalle.getCantidadRecibida(), proveedorId,
+                        detalle.getPrecioVenta(), costoUnitario);
             }
 
             producto.setStockActual(producto.getStockActual() + detalle.getCantidadRecibida());

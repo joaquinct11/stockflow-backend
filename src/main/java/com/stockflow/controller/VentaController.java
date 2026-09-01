@@ -209,6 +209,13 @@ public class VentaController {
                                         .filter(v -> v.getStockActual() >= detalleDTO.getCantidad())
                                         .orElseThrow(() -> new BadRequestException("Stock insuficiente para la variante seleccionada de: " + producto.getNombre()));
                             }
+                        } else if (detalleDTO.getStockLoteId() != null) {
+                            // Lote específico seleccionado en el POS
+                            com.stockflow.entity.StockLote loteEsp = stockLoteService.findLoteById(detalleDTO.getStockLoteId())
+                                    .orElseThrow(() -> new BadRequestException("Lote no encontrado: " + detalleDTO.getStockLoteId()));
+                            if (loteEsp.getStockActual() < detalleDTO.getCantidad()) {
+                                throw new BadRequestException("Stock insuficiente en el lote seleccionado para: " + producto.getNombre());
+                            }
                         } else {
                             // Validar contra stock vigente (no vencido) si el producto tiene lotes
                             Integer stockVigente = stockLoteService.getStockVigente(
@@ -227,6 +234,7 @@ public class VentaController {
                             .subtotal(detalleDTO.getPrecioUnitario().multiply(BigDecimal.valueOf(detalleDTO.getCantidad())))
                             .varianteId(detalleDTO.getVarianteId())
                             .varianteDescripcion(detalleDTO.getVarianteDescripcion())
+                            .stockLoteId(detalleDTO.getStockLoteId())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -329,9 +337,13 @@ public class VentaController {
                     producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
                     productoService.actualizarProducto(producto.getId(), producto);
 
-                    // Descuento FEFO en stock_lotes (si el producto tiene lotes con vencimiento)
-                    stockLoteService.descontarFefo(
-                            tenantId, producto.getId(), ventaCreada.getSucursalId(), detalle.getCantidad());
+                    // Descuento de lote: específico si el POS lo seleccionó, FEFO si no
+                    if (detalle.getStockLoteId() != null) {
+                        stockLoteService.descontarLoteEspecifico(detalle.getStockLoteId(), detalle.getCantidad());
+                    } else {
+                        stockLoteService.descontarFefo(
+                                tenantId, producto.getId(), ventaCreada.getSucursalId(), detalle.getCantidad());
+                    }
 
                     // Actualizar stock por sucursal si la venta tiene sucursalId
                     if (ventaCreada.getSucursalId() != null) {

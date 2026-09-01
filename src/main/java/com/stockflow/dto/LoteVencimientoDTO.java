@@ -32,4 +32,8 @@ public class LoteVencimientoDTO {
     private Long diasRestantes;
 
     private String registroSanitario;
+
+    private String proveedorNombre;
+
+    private java.math.BigDecimal precioVenta;
 }
