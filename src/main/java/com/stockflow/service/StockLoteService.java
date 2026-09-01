@@ -1,15 +1,22 @@
 package com.stockflow.service;
 
+import com.stockflow.dto.StockLoteDisponibleDTO;
+import com.stockflow.entity.Proveedor;
 import com.stockflow.entity.StockLote;
+import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.StockLoteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -18,6 +25,7 @@ import java.util.stream.Collectors;
 public class StockLoteService {
 
     private final StockLoteRepository stockLoteRepository;
+    private final ProveedorRepository proveedorRepository;
 
     /**
      * Registra un nuevo lote cuando se crea un movimiento de ENTRADA con fechaVencimiento.
@@ -25,7 +33,8 @@ public class StockLoteService {
     @Transactional
     public void registrarLote(String tenantId, Long movimientoId, Long productoId,
                                Long sucursalId, String lote, LocalDate fechaVencimiento,
-                               Integer cantidad) {
+                               Integer cantidad, Long proveedorId, BigDecimal precioVenta,
+                               BigDecimal costoUnitario) {
         // Idempotente: si ya existe (reintento) no duplicar
         if (stockLoteRepository.findByMovimientoId(movimientoId).isPresent()) return;
 
@@ -38,10 +47,78 @@ public class StockLoteService {
                 .fechaVencimiento(fechaVencimiento)
                 .stockInicial(cantidad)
                 .stockActual(cantidad)
+                .proveedorId(proveedorId)
+                .precioVenta(precioVenta)
+                .costoUnitario(costoUnitario)
                 .build();
         stockLoteRepository.save(stockLote);
-        log.info("✅ StockLote registrado: producto={} lote={} fecha={} qty={}",
-                productoId, lote, fechaVencimiento, cantidad);
+        log.info("✅ StockLote registrado: producto={} lote={} costo={} precio={} proveedor={}",
+                productoId, lote, costoUnitario, precioVenta, proveedorId);
+    }
+
+    /**
+     * Descuenta stock de un lote específico seleccionado por el usuario en el POS.
+     * Retorna la cantidad que no pudo descontarse (0 = éxito completo).
+     */
+    @Transactional
+    public int descontarLoteEspecifico(Long stockLoteId, int cantidad) {
+        return stockLoteRepository.findById(stockLoteId)
+                .map(lote -> {
+                    int descontar = Math.min(lote.getStockActual(), cantidad);
+                    lote.setStockActual(lote.getStockActual() - descontar);
+                    stockLoteRepository.save(lote);
+                    int restante = cantidad - descontar;
+                    if (restante > 0) {
+                        log.warn("⚠️ Lote {} sin stock suficiente: faltaron {} unidades", stockLoteId, restante);
+                    }
+                    return restante;
+                })
+                .orElseGet(() -> {
+                    log.warn("⚠️ No se encontró stock_lote id={}", stockLoteId);
+                    return cantidad;
+                });
+    }
+
+    /**
+     * Restaura stock a un lote específico (usado al anular una venta).
+     */
+    @Transactional
+    public void restaurarLoteEspecifico(Long stockLoteId, int cantidad) {
+        stockLoteRepository.findById(stockLoteId).ifPresentOrElse(lote -> {
+            lote.setStockActual(lote.getStockActual() + cantidad);
+            stockLoteRepository.save(lote);
+            log.info("✅ Lote {} restaurado: +{}", stockLoteId, cantidad);
+        }, () -> log.warn("⚠️ No se encontró stock_lote id={} para restaurar", stockLoteId));
+    }
+
+    /**
+     * Lotes disponibles (no vencidos, con stock) para seleccionar en el POS.
+     */
+    public List<StockLoteDisponibleDTO> getLotesDisponibles(String tenantId, Long productoId, Long sucursalId) {
+        LocalDate hoy = LocalDate.now();
+        List<StockLote> lotes = sucursalId != null
+                ? stockLoteRepository.findDisponiblesConSucursal(productoId, tenantId, sucursalId, hoy)
+                : stockLoteRepository.findDisponibles(productoId, tenantId, hoy);
+
+        return lotes.stream().map(l -> {
+            String proveedorNombre = null;
+            if (l.getProveedorId() != null) {
+                proveedorNombre = proveedorRepository.findById(l.getProveedorId())
+                        .map(Proveedor::getNombre).orElse(null);
+            }
+            long dias = ChronoUnit.DAYS.between(hoy, l.getFechaVencimiento());
+            return StockLoteDisponibleDTO.builder()
+                    .id(l.getId())
+                    .lote(l.getLote())
+                    .fechaVencimiento(l.getFechaVencimiento())
+                    .stockActual(l.getStockActual())
+                    .proveedorId(l.getProveedorId())
+                    .proveedorNombre(proveedorNombre)
+                    .diasParaVencer((int) dias)
+                    .precioVenta(l.getPrecioVenta())
+                    .costoUnitario(l.getCostoUnitario())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -171,11 +248,66 @@ public class StockLoteService {
     }
 
     /**
+     * Actualiza proveedor y/o precio de venta de un lote existente identificado por movimientoId.
+     */
+    @Transactional
+    public void actualizarProveedorLote(Long movimientoId, Long proveedorId, BigDecimal precioVenta) {
+        stockLoteRepository.findByMovimientoId(movimientoId).ifPresent(lote -> {
+            lote.setProveedorId(proveedorId);
+            if (precioVenta != null) lote.setPrecioVenta(precioVenta);
+            stockLoteRepository.save(lote);
+            log.info("✅ Lote actualizado: movimientoId={} proveedorId={} precioVenta={}", movimientoId, proveedorId, precioVenta);
+        });
+    }
+
+    /** Busca un lote por id (para validación en VentaController). */
+    public java.util.Optional<StockLote> findLoteById(Long loteId) {
+        return stockLoteRepository.findById(loteId);
+    }
+
+    /**
      * Stock actual de un lote específico (para la página Lotes).
      */
     public Map<Long, Integer> getStockPorMovimientoIds(List<Long> movimientoIds) {
         if (movimientoIds == null || movimientoIds.isEmpty()) return Map.of();
         return stockLoteRepository.findByMovimientoIdIn(movimientoIds).stream()
                 .collect(Collectors.toMap(StockLote::getMovimientoId, StockLote::getStockActual));
+    }
+
+    /**
+     * PrecioVenta por movimientoId (para enriquecer LoteVencimientoDTO con precio del lote).
+     */
+    public Map<Long, java.math.BigDecimal> getPrecioVentaPorMovimientoIds(List<Long> movimientoIds) {
+        if (movimientoIds == null || movimientoIds.isEmpty()) return Map.of();
+        return stockLoteRepository.findByMovimientoIdIn(movimientoIds).stream()
+                .filter(l -> l.getPrecioVenta() != null)
+                .collect(Collectors.toMap(StockLote::getMovimientoId, StockLote::getPrecioVenta));
+    }
+
+    /**
+     * Nombre del proveedor por movimientoId (para enriquecer LoteVencimientoDTO).
+     * Solo incluye entradas donde el lote tiene proveedor asignado.
+     */
+    public Map<Long, String> getProveedorNombrePorMovimientoIds(List<Long> movimientoIds) {
+        if (movimientoIds == null || movimientoIds.isEmpty()) return Map.of();
+        List<StockLote> lotes = stockLoteRepository.findByMovimientoIdIn(movimientoIds);
+
+        Set<Long> proveedorIds = lotes.stream()
+                .filter(l -> l.getProveedorId() != null)
+                .map(StockLote::getProveedorId)
+                .collect(Collectors.toSet());
+
+        Map<Long, String> nombrePorProveedorId = new HashMap<>();
+        if (!proveedorIds.isEmpty()) {
+            proveedorRepository.findAllById(proveedorIds)
+                    .forEach(p -> nombrePorProveedorId.put(p.getId(), p.getNombre()));
+        }
+
+        Map<Long, String> result = new HashMap<>();
+        lotes.stream()
+                .filter(l -> l.getProveedorId() != null)
+                .forEach(l -> result.put(l.getMovimientoId(),
+                        nombrePorProveedorId.get(l.getProveedorId())));
+        return result;
     }
 }

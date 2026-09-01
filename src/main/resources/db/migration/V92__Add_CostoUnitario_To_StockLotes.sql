@@ -1,0 +1,1 @@
+ALTER TABLE stock_lotes ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(12,2) NULL;

@@ -16,6 +16,7 @@ import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.NotaCreditoService;
+import com.stockflow.service.StockLoteService;
 import com.stockflow.service.VentaService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class VentaServiceImpl implements VentaService {
     private final NotaCreditoService                notaCreditoService;
     private final ProductoStockSucursalRepository   stockSucursalRepository;
     private final SucursalRepository                sucursalRepository;
+    private final StockLoteService                  stockLoteService;
 
     @Override
     @Transactional
@@ -119,6 +121,11 @@ public class VentaServiceImpl implements VentaService {
             Producto producto = detalle.getProducto();
             producto.setStockActual(producto.getStockActual() + detalle.getCantidad());
             productoRepository.save(producto);
+
+            // Restaurar lote específico si la venta lo usó
+            if (detalle.getStockLoteId() != null) {
+                stockLoteService.restaurarLoteEspecifico(detalle.getStockLoteId(), detalle.getCantidad());
+            }
 
             // Reponer también en producto_stock_sucursal si la venta tiene sucursalId
             if (venta.getSucursalId() != null) {

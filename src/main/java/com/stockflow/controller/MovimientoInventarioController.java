@@ -9,11 +9,14 @@ import com.stockflow.entity.ProductoVarianteStockSucursal;
 import com.stockflow.entity.Sucursal;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.MovimientoInventarioMapper;
+import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
+import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.SucursalRepository;
+import com.stockflow.repository.StockLoteRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
@@ -49,6 +52,9 @@ public class MovimientoInventarioController {
     private final ProductoStockSucursalRepository           stockSucursalRepository;
     private final SucursalRepository                        sucursalRepository;
     private final com.stockflow.service.StockLoteService   stockLoteService;
+    private final DetalleVentaRepository                    detalleVentaRepository;
+    private final StockLoteRepository                       stockLoteRepository;
+    private final ProveedorRepository                       proveedorRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -250,7 +256,7 @@ public class MovimientoInventarioController {
             stockLoteService.registrarLote(
                     tenantId, movimientoCreado.getId(), producto.getId(),
                     movimientoDTO.getSucursalId(), lote,
-                    fechaVencimiento, movimientoDTO.getCantidad());
+                    fechaVencimiento, movimientoDTO.getCantidad(), proveedorId, precioVenta, costoUnitario);
         }
 
         // Guardar stock previo para calcular delta en ajustes FEFO
@@ -426,9 +432,11 @@ public class MovimientoInventarioController {
         List<MovimientoInventario> movimientos = movimientoRepository
                 .findEntradasConVencimientoPorTenant(tenantId);
 
-        // Obtener stock real por lote desde stock_lotes (una sola query batch)
+        // Obtener stock real, proveedor y precio por lote desde stock_lotes (batch)
         List<Long> movIds = movimientos.stream().map(MovimientoInventario::getId).collect(Collectors.toList());
         java.util.Map<Long, Integer> stockPorMovimiento = stockLoteService.getStockPorMovimientoIds(movIds);
+        java.util.Map<Long, String> proveedorPorMovimiento = stockLoteService.getProveedorNombrePorMovimientoIds(movIds);
+        java.util.Map<Long, java.math.BigDecimal> precioPorMovimiento = stockLoteService.getPrecioVentaPorMovimientoIds(movIds);
 
         List<LoteVencimientoDTO> lotes = movimientos.stream()
                 .map(m -> LoteVencimientoDTO.builder()
@@ -439,10 +447,11 @@ public class MovimientoInventarioController {
                         .lote(m.getLote())
                         .fechaVencimiento(m.getFechaVencimiento())
                         .cantidad(m.getCantidad())
-                        // Stock real del lote específico (no el total del producto)
                         .stockActual(stockPorMovimiento.getOrDefault(m.getId(), 0))
                         .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
                         .registroSanitario(m.getRegistroSanitario())
+                        .proveedorNombre(proveedorPorMovimiento.get(m.getId()))
+                        .precioVenta(precioPorMovimiento.get(m.getId()))
                         .build())
                 .collect(Collectors.toList());
 
@@ -466,6 +475,8 @@ public class MovimientoInventarioController {
 
         List<Long> movIds = movimientos.stream().map(MovimientoInventario::getId).collect(Collectors.toList());
         java.util.Map<Long, Integer> stockPorMovimiento = stockLoteService.getStockPorMovimientoIds(movIds);
+        java.util.Map<Long, String> proveedorPorMovimiento = stockLoteService.getProveedorNombrePorMovimientoIds(movIds);
+        java.util.Map<Long, java.math.BigDecimal> precioPorMovimiento = stockLoteService.getPrecioVentaPorMovimientoIds(movIds);
 
         List<LoteVencimientoDTO> lotes = movimientos.stream()
                 .map(m -> LoteVencimientoDTO.builder()
@@ -478,10 +489,84 @@ public class MovimientoInventarioController {
                         .stockActual(stockPorMovimiento.getOrDefault(m.getId(), 0))
                         .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
                         .registroSanitario(m.getRegistroSanitario())
+                        .proveedorNombre(proveedorPorMovimiento.get(m.getId()))
+                        .precioVenta(precioPorMovimiento.get(m.getId()))
                         .build())
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(lotes);
+    }
+
+    /**
+     * Lotes disponibles (no vencidos, con stock) para seleccionar en el POS.
+     * Permite al vendedor elegir de qué proveedor/lote se descuenta el stock.
+     */
+    @GetMapping("/lotes/disponibles")
+    @PreAuthorize("hasAnyRole('ADMIN', 'VENDEDOR', 'GESTOR_INVENTARIO') or hasAuthority('PERM_VER_INVENTARIO') or hasAuthority('PERM_CREAR_VENTA')")
+    public ResponseEntity<List<com.stockflow.dto.StockLoteDisponibleDTO>> getLotesDisponibles(
+            @RequestParam Long productoId,
+            @RequestParam(required = false) Long sucursalId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        return ResponseEntity.ok(stockLoteService.getLotesDisponibles(tenantId, productoId, sucursalId));
+    }
+
+    @GetMapping("/{movimientoId}/lotes-venta")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    public ResponseEntity<List<com.stockflow.dto.LoteVentaDetalleDTO>> getLotesVenta(
+            @PathVariable Long movimientoId) {
+        return movimientoRepository.findById(movimientoId).map(mov -> {
+            String ref = mov.getReferencia();
+            if (ref == null || !ref.startsWith("Venta #")) {
+                return ResponseEntity.ok(List.<com.stockflow.dto.LoteVentaDetalleDTO>of());
+            }
+            long ventaId;
+            try { ventaId = Long.parseLong(ref.replace("Venta #", "").trim()); }
+            catch (NumberFormatException e) {
+                return ResponseEntity.ok(List.<com.stockflow.dto.LoteVentaDetalleDTO>of());
+            }
+            Long productoId = mov.getProducto() != null ? mov.getProducto().getId() : null;
+            List<com.stockflow.dto.LoteVentaDetalleDTO> result = detalleVentaRepository
+                    .findByVentaId(ventaId).stream()
+                    .filter(d -> productoId == null || productoId.equals(d.getProducto().getId()))
+                    .map(d -> {
+                        String[] loteRef = {null};
+                        String[] provRef = {null};
+                        BigDecimal[] precioRef = {d.getPrecioUnitario()};
+                        if (d.getStockLoteId() != null) {
+                            stockLoteRepository.findById(d.getStockLoteId()).ifPresent(sl -> {
+                                loteRef[0] = sl.getLote();
+                                if (sl.getPrecioVenta() != null) precioRef[0] = sl.getPrecioVenta();
+                                if (sl.getProveedorId() != null) {
+                                    provRef[0] = proveedorRepository.findById(sl.getProveedorId())
+                                            .map(com.stockflow.entity.Proveedor::getNombre).orElse(null);
+                                }
+                            });
+                        }
+                        return com.stockflow.dto.LoteVentaDetalleDTO.builder()
+                                .lote(loteRef[0])
+                                .proveedorNombre(provRef[0])
+                                .cantidadDescontada(d.getCantidad())
+                                .precioVenta(precioRef[0])
+                                .build();
+                    }).collect(Collectors.toList());
+            return ResponseEntity.ok(result);
+        }).orElse(ResponseEntity.ok(List.of()));
+    }
+
+    @PatchMapping("/lotes/{movimientoId}/proveedor")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EDITAR_INVENTARIO')")
+    public ResponseEntity<Void> actualizarProveedorLote(
+            @PathVariable Long movimientoId,
+            @RequestBody com.stockflow.dto.ActualizarLoteProveedorDTO dto) {
+        String tenantId = TenantContext.getCurrentTenant();
+        stockLoteService.actualizarProveedorLote(movimientoId, dto.getProveedorId(), dto.getPrecioVenta());
+        movimientoRepository.findById(movimientoId).ifPresent(mov -> {
+            if (tenantId.equals(mov.getTenantId())) {
+                mov.setProveedorId(dto.getProveedorId());
+                movimientoRepository.save(mov);
+            }
+        });
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")

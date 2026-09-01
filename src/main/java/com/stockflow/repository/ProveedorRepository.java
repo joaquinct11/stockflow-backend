@@ -21,4 +21,6 @@ public interface ProveedorRepository extends JpaRepository<Proveedor, Long> {
     List<Proveedor> findByTenantIdAndActivoTrue(String tenantId);  // ✅ ESTE ES EL QUE FALTA
 
     long countByTenantId(String tenantId);
+
+    Optional<Proveedor> findByNombreIgnoreCaseAndTenantId(String nombre, String tenantId);
 }
