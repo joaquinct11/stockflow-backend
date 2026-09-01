@@ -132,7 +132,13 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 2. Crear TENANT
-        Tenant tenant = tenantService.crearTenant(request.getNombreFarmacia(), request.getRubro());
+        Tenant tenant = tenantService.crearTenant(
+                request.getNombreFarmacia(),
+                request.getRubro(),
+                request.getRucEmpresa(),
+                request.getEmail(),
+                request.getNumeroCelular()
+        );
         log.info("✅ Tenant creado: {}", tenant.getTenantId());
 
         // 3. Crear USUARIO (rol ADMIN)
