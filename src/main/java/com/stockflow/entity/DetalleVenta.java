@@ -42,6 +42,9 @@ public class DetalleVenta {
     @Column(name = "variante_descripcion")
     private String varianteDescripcion;
 
+    @Column(name = "stock_lote_id")
+    private Long stockLoteId;
+
     @PrePersist
     @PreUpdate
     public void calcularSubtotal() {

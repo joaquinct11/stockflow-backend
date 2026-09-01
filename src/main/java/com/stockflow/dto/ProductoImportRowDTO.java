@@ -49,6 +49,9 @@ public class ProductoImportRowDTO {
     /** Registro sanitario — FARMACIA/BOTICA */
     private String registroSanitario;
 
+    /** Nombre del proveedor de este lote — FARMACIA/BOTICA */
+    private String proveedorNombre;
+
     /** Talla de la variante — TIENDA */
     private String talla;
 

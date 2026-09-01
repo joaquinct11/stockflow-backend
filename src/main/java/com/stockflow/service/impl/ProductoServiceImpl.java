@@ -16,6 +16,7 @@ import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
+import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.UnidadMedidaRepository;
 import com.stockflow.repository.UsuarioRepository;
@@ -51,6 +52,7 @@ public class ProductoServiceImpl implements ProductoService {
     private final StockLoteService stockLoteService;
     private final ProductoVarianteRepository varianteRepository;
     private final ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
+    private final ProveedorRepository proveedorRepository;
 
     @Override
     @Transactional
@@ -307,6 +309,7 @@ public class ProductoServiceImpl implements ProductoService {
                             Producto saved = productoRepository.save(p);
                             BigDecimal costo = fila.getCostoUnitario() != null ? fila.getCostoUnitario()
                                     : (saved.getCostoUnitario() != null ? saved.getCostoUnitario() : BigDecimal.ZERO);
+                            Long pid = resolverProveedorId(fila.getProveedorNombre(), tenantId);
                             MovimientoInventario mov = MovimientoInventario.builder()
                                     .producto(saved)
                                     .usuario(usuario)
@@ -320,13 +323,15 @@ public class ProductoServiceImpl implements ProductoService {
                                     .lote(fila.getLote())
                                     .fechaVencimiento(fila.getFechaVencimiento())
                                     .registroSanitario(fila.getRegistroSanitario())
+                                    .proveedorId(pid)
                                     .build();
                             MovimientoInventario movGuardado = movimientoInventarioRepository.save(mov);
                             if (fila.getFechaVencimiento() != null) {
                                 try {
                                     stockLoteService.registrarLote(tenantId, movGuardado.getId(),
                                             saved.getId(), sucursalId, fila.getLote(),
-                                            fila.getFechaVencimiento(), cantidadLote);
+                                            fila.getFechaVencimiento(), cantidadLote, pid,
+                                            fila.getPrecioVenta(), fila.getCostoUnitario());
                                 } catch (Exception e) {
                                     log.warn("⚠️ No se pudo registrar stock_lote para fila {}: {}", numFila, e.getMessage());
                                 }
@@ -389,6 +394,7 @@ public class ProductoServiceImpl implements ProductoService {
                         if (diferencia != 0) {
                             BigDecimal costoFinal = saved.getCostoUnitario() != null ? saved.getCostoUnitario() : costoAnterior;
                             String tipoAjuste = diferencia > 0 ? "ENTRADA" : "SALIDA";
+                            Long pid = resolverProveedorId(fila.getProveedorNombre(), tenantId);
                             MovimientoInventario ajuste = MovimientoInventario.builder()
                                     .producto(saved)
                                     .usuario(usuario)
@@ -402,13 +408,15 @@ public class ProductoServiceImpl implements ProductoService {
                                     .lote(fila.getLote())
                                     .fechaVencimiento(fila.getFechaVencimiento())
                                     .registroSanitario(fila.getRegistroSanitario())
+                                    .proveedorId(pid)
                                     .build();
                             MovimientoInventario ajusteGuardado = movimientoInventarioRepository.save(ajuste);
                             if (fila.getFechaVencimiento() != null && "ENTRADA".equals(tipoAjuste)) {
                                 try {
                                     stockLoteService.registrarLote(tenantId, ajusteGuardado.getId(),
                                             saved.getId(), sucursalId, fila.getLote(),
-                                            fila.getFechaVencimiento(), Math.abs(diferencia));
+                                            fila.getFechaVencimiento(), Math.abs(diferencia), pid,
+                                            fila.getPrecioVenta(), fila.getCostoUnitario());
                                 } catch (Exception e) {
                                     log.warn("⚠️ No se pudo registrar stock_lote para fila {}: {}", numFila, e.getMessage());
                                 }
@@ -480,6 +488,7 @@ public class ProductoServiceImpl implements ProductoService {
                         Producto saved = productoRepository.save(p);
                         createdInBatch.put(claveProducto, saved);
 
+                        Long pid = resolverProveedorId(fila.getProveedorNombre(), tenantId);
                         MovimientoInventario mov = MovimientoInventario.builder()
                                 .producto(saved)
                                 .usuario(usuario)
@@ -494,13 +503,15 @@ public class ProductoServiceImpl implements ProductoService {
                                 .lote(fila.getLote())
                                 .fechaVencimiento(fila.getFechaVencimiento())
                                 .registroSanitario(fila.getRegistroSanitario())
+                                .proveedorId(pid)
                                 .build();
                         MovimientoInventario movGuardado = movimientoInventarioRepository.save(mov);
                         if (fila.getFechaVencimiento() != null && stockInicial > 0) {
                             try {
                                 stockLoteService.registrarLote(tenantId, movGuardado.getId(),
                                         saved.getId(), sucursalId, fila.getLote(),
-                                        fila.getFechaVencimiento(), stockInicial);
+                                        fila.getFechaVencimiento(), stockInicial, pid,
+                                        fila.getPrecioVenta(), fila.getCostoUnitario());
                             } catch (Exception e) {
                                 log.warn("⚠️ No se pudo registrar stock_lote para fila {}: {}", numFila, e.getMessage());
                             }
@@ -538,6 +549,22 @@ public class ProductoServiceImpl implements ProductoService {
                 .nombre(nombre != null ? nombre : "—")
                 .motivo(motivo)
                 .build();
+    }
+
+    private Long resolverProveedorId(String proveedorNombre, String tenantId) {
+        if (proveedorNombre == null || proveedorNombre.isBlank()) return null;
+        return proveedorRepository.findByNombreIgnoreCaseAndTenantId(proveedorNombre.trim(), tenantId)
+                .map(com.stockflow.entity.Proveedor::getId)
+                .orElseGet(() -> {
+                    com.stockflow.entity.Proveedor nuevo = com.stockflow.entity.Proveedor.builder()
+                            .nombre(proveedorNombre.trim())
+                            .tenantId(tenantId)
+                            .activo(true)
+                            .build();
+                    Long newId = proveedorRepository.save(nuevo).getId();
+                    log.info("✅ Proveedor '{}' auto-creado (id={}) en tenant {}", proveedorNombre.trim(), newId, tenantId);
+                    return newId;
+                });
     }
 
     private void crearOActualizarVariante(ProductoImportRowDTO fila, Long productoId, String tenantId, Long sucursalId) {
