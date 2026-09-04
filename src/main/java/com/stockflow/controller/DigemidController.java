@@ -134,118 +134,85 @@ public class DigemidController {
     // ── Exportar CSV → ZIP para OPPF ────────────────────────────────────────
 
     @GetMapping("/oppf/exportar")
-    public ResponseEntity<byte[]> exportarOppf(@RequestParam String codEstablecimiento) {
-        if (codEstablecimiento == null || codEstablecimiento.isBlank()) {
+    public ResponseEntity<byte[]> exportarOppf(
+            @RequestParam String codEstablecimiento,
+            @RequestParam String ruc,
+            @RequestParam(required = false) String mes,
+            @RequestParam(required = false) String ano,
+            @RequestParam(required = false, defaultValue = "CARGA ARCHIVO") String tipo) {
+
+        if (codEstablecimiento == null || codEstablecimiento.isBlank())
             throw new BadRequestException("Se requiere el código de establecimiento.");
-        }
+        if (ruc == null || ruc.isBlank())
+            throw new BadRequestException("Se requiere el RUC del establecimiento.");
+
+        LocalDate hoy = LocalDate.now();
+        String mesStr = (mes != null && !mes.isBlank()) ? mes : String.format("%02d", hoy.getMonthValue());
+        String anoStr = (ano != null && !ano.isBlank()) ? ano : String.format("%02d", hoy.getYear() % 100);
 
         String tenantId = TenantContext.getCurrentTenant();
         List<Producto> vinculados = productoRepository.findVinculadosDigemidByTenantId(tenantId);
 
-        if (vinculados.isEmpty()) {
+        if (vinculados.isEmpty())
             throw new BadRequestException("No hay productos vinculados a códigos DIGEMID. Vincula al menos uno antes de exportar.");
-        }
 
         try {
-            String fecha = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-
-            // ── Preparar datos ────────────────────────────────────────────────
+            // ── Preparar filas ────────────────────────────────────────────────
             record FilaOppf(String codEstab, String codProd, BigDecimal precio1, BigDecimal precio2) {}
             List<FilaOppf> filas = new java.util.ArrayList<>();
             for (Producto p : vinculados) {
                 CatalogoDigemid cat = catalogoDigemidRepository.findByCodProd(p.getCodDigemid()).orElse(null);
                 BigDecimal fraccion = (cat != null && cat.getFraccion() != null && cat.getFraccion().compareTo(BigDecimal.ZERO) > 0)
-                        ? cat.getFraccion()
-                        : BigDecimal.ONE;
+                        ? cat.getFraccion() : BigDecimal.ONE;
                 BigDecimal precio1 = p.getPrecioVenta().setScale(2, RoundingMode.HALF_UP);
                 BigDecimal precio2 = precio1.divide(fraccion, 2, RoundingMode.HALF_UP);
-                // Eliminar el ".0" que puede traer el cod_digemid si viene de un campo numérico
-                String codProd = p.getCodDigemid().replaceAll("\\.0$", "");
+                String codProd = p.getCodDigemid().replaceAll("\\.0+$", "");
                 filas.add(new FilaOppf(codEstablecimiento, codProd, precio1, precio2));
             }
 
-            // ── Generar CSV (para subir al OPPF) ─────────────────────────────
+            // ── Generar CSV — UTF-8 SIN BOM, sin comillas, coma como delimitador ──
             ByteArrayOutputStream csvBytes = new ByteArrayOutputStream();
-            csvBytes.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF}); // BOM UTF-8
+            // NO escribir BOM — el OPPF rechaza archivos con BOM
             var writer = new java.io.PrintWriter(csvBytes, true, StandardCharsets.UTF_8);
-            writer.println("CodEstab,CodProd,Precio 1,Precio 2");
+            writer.print("CodEstab,CodProd,Precio 1,Precio 2\r\n");
             for (var f : filas) {
-                writer.printf(java.util.Locale.US, "\"%s\",%s,%.2f,%.2f%n",
+                // Sin comillas alrededor de los campos — preserva ceros iniciales como texto plano
+                writer.printf(java.util.Locale.US, "%s,%s,%.2f,%.2f\r\n",
                         f.codEstab(), f.codProd(), f.precio1(), f.precio2());
             }
             writer.flush();
 
-            // ── Generar XLSX (para verificar en Excel) ────────────────────────
-            ByteArrayOutputStream xlsxBytes = new ByteArrayOutputStream();
-            try (Workbook wb = new XSSFWorkbook()) {
-                Sheet sheet = wb.createSheet("OPPF");
-
-                // Estilos
-                CellStyle estiloTexto = wb.createCellStyle();
-                DataFormat fmt = wb.createDataFormat();
-                estiloTexto.setDataFormat(fmt.getFormat("@")); // formato texto
-
-                CellStyle estiloDecimal = wb.createCellStyle();
-                estiloDecimal.setDataFormat(fmt.getFormat("0.00")); // 2 decimales siempre
-
-                // Encabezado
-                Row header = sheet.createRow(0);
-                for (int i = 0; i < 4; i++) {
-                    Cell c = header.createCell(i);
-                    c.setCellStyle(estiloTexto);
-                }
-                header.getCell(0).setCellValue("CodEstab");
-                header.getCell(1).setCellValue("CodProd");
-                header.getCell(2).setCellValue("Precio 1");
-                header.getCell(3).setCellValue("Precio 2");
-
-                // Datos
-                int fila = 1;
-                for (var f : filas) {
-                    Row row = sheet.createRow(fila++);
-
-                    Cell cEstab = row.createCell(0);
-                    cEstab.setCellValue(f.codEstab());
-                    cEstab.setCellStyle(estiloTexto);
-
-                    Cell cProd = row.createCell(1);
-                    cProd.setCellValue(f.codProd());
-                    cProd.setCellStyle(estiloTexto);
-
-                    Cell cP1 = row.createCell(2);
-                    cP1.setCellValue(f.precio1().doubleValue());
-                    cP1.setCellStyle(estiloDecimal);
-
-                    Cell cP2 = row.createCell(3);
-                    cP2.setCellValue(f.precio2().doubleValue());
-                    cP2.setCellStyle(estiloDecimal);
-                }
-
-                sheet.autoSizeColumn(0);
-                sheet.autoSizeColumn(1);
-                sheet.autoSizeColumn(2);
-                sheet.autoSizeColumn(3);
-
-                wb.write(xlsxBytes);
+            // ── Validación interna ────────────────────────────────────────────
+            byte[] csvData = csvBytes.toByteArray();
+            // Confirmar ausencia de BOM
+            if (csvData.length >= 3 && (csvData[0] & 0xFF) == 0xEF && (csvData[1] & 0xFF) == 0xBB && (csvData[2] & 0xFF) == 0xBF) {
+                throw new BadRequestException("Error interno: el CSV contiene BOM no permitido.");
             }
+            log.info("✅ [DIGEMID] CSV validado — sin BOM, {} registros, {} bytes", filas.size(), csvData.length);
 
-            // ── Empaquetar solo el CSV en ZIP (formato requerido por OPPF) ───
+            // ── Nombre del archivo ZIP — formato OPPF/SNIPPF ──────────────────
+            // Ejemplo: 20131373237_09_21_CARGA ARCHIVO.ZIP
+            String nombreCsv  = ruc + "_" + mesStr + "_" + anoStr + "_" + tipo + ".csv";
+            String nombreZip  = ruc + "_" + mesStr + "_" + anoStr + "_" + tipo + ".zip";
+
+            // ── Empaquetar CSV en ZIP — solo el CSV en la raíz ───────────────
             ByteArrayOutputStream zipBytes = new ByteArrayOutputStream();
-            try (ZipOutputStream zip = new ZipOutputStream(zipBytes)) {
-                zip.putNextEntry(new ZipEntry("precios_oppf_" + fecha + ".csv"));
-                zip.write(csvBytes.toByteArray());
+            try (ZipOutputStream zip = new ZipOutputStream(zipBytes, StandardCharsets.UTF_8)) {
+                ZipEntry entry = new ZipEntry(nombreCsv);
+                zip.putNextEntry(entry);
+                zip.write(csvData);
                 zip.closeEntry();
             }
 
-            log.info("📤 [DIGEMID] OPPF exportado: {} productos, tenant={}", vinculados.size(), tenantId);
-
-            String zipNombre = "oppf_" + codEstablecimiento + "_" + fecha + ".zip";
+            log.info("📤 [DIGEMID] OPPF ZIP generado: {} → {} productos, tenant={}", nombreZip, filas.size(), tenantId);
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipNombre + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombreZip + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(zipBytes.toByteArray());
 
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
             log.error("❌ [DIGEMID] Error generando ZIP OPPF: {}", e.getMessage(), e);
             throw new BadRequestException("Error generando el archivo: " + e.getMessage());
