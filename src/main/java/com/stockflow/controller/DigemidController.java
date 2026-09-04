@@ -5,6 +5,7 @@ import com.stockflow.entity.Producto;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.CatalogoDigemidRepository;
+import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class DigemidController {
 
     private final CatalogoDigemidRepository catalogoDigemidRepository;
     private final ProductoRepository productoRepository;
+    private final MovimientoInventarioRepository movimientoInventarioRepository;
 
     // ── Búsqueda en catálogo DIGEMID ────────────────────────────────────────
 
@@ -114,21 +116,67 @@ public class DigemidController {
                             ? catalogoDigemidRepository.findByCodProd(p.getCodDigemid())
                             : Optional.empty();
 
-                    return Map.<String, Object>of(
-                            "id", p.getId(),
-                            "nombre", p.getNombre(),
-                            "precioVenta", p.getPrecioVenta(),
-                            "stockActual", p.getStockActual(),
-                            "registroSanitario", p.getRegistroSanitario() != null ? p.getRegistroSanitario() : "",
-                            "codDigemid", p.getCodDigemid() != null ? p.getCodDigemid() : "",
-                            "nomDigemid", cat.map(CatalogoDigemid::getNomProd).orElse(""),
-                            "fraccion", cat.map(c -> c.getFraccion() != null ? c.getFraccion() : BigDecimal.ONE).orElse(BigDecimal.ONE),
-                            "vinculado", p.getCodDigemid() != null
+                    String regSan = p.getRegistroSanitario();
+                    if (regSan == null || regSan.isBlank()) {
+                        regSan = movimientoInventarioRepository
+                                .findLatestRegistroSanitarioByProductoId(p.getId(), tenantId)
+                                .orElse("");
+                    }
+                    final String registroSanitario = regSan;
+
+                    BigDecimal fraccion = cat.map(c -> c.getFraccion() != null && c.getFraccion().compareTo(BigDecimal.ZERO) > 0
+                            ? c.getFraccion() : BigDecimal.ONE).orElse(BigDecimal.ONE);
+
+                    String unidadNombre = p.getUnidadMedida() != null ? p.getUnidadMedida().getNombre() : "";
+                    BigDecimal[] precios = calcularPreciosOppf(p.getPrecioVenta(), fraccion, unidadNombre);
+
+                    return Map.<String, Object>ofEntries(
+                            Map.entry("id", p.getId()),
+                            Map.entry("nombre", p.getNombre()),
+                            Map.entry("precioVenta", p.getPrecioVenta()),
+                            Map.entry("stockActual", p.getStockActual()),
+                            Map.entry("registroSanitario", registroSanitario),
+                            Map.entry("codDigemid", p.getCodDigemid() != null ? p.getCodDigemid() : ""),
+                            Map.entry("nomDigemid", cat.map(CatalogoDigemid::getNomProd).orElse("")),
+                            Map.entry("fraccion", fraccion),
+                            Map.entry("vinculado", p.getCodDigemid() != null),
+                            Map.entry("unidadMedida", unidadNombre),
+                            Map.entry("precio1Oppf", precios[0]),
+                            Map.entry("precio2Oppf", precios[1])
                     );
                 })
                 .toList();
 
         return ResponseEntity.ok(resultado);
+    }
+
+    /**
+     * Calcula Precio 1 (Empaque) y Precio 2 (Unitario) según la OPPF/SNIPPF.
+     * Si precioVenta es por unidad individual → Precio2 = precioVenta, Precio1 = precioVenta × fraccion.
+     * Si precioVenta es por empaque (Blíster/Caja/etc.) → Precio1 = precioVenta, Precio2 = precioVenta ÷ fraccion.
+     */
+    private BigDecimal[] calcularPreciosOppf(BigDecimal precioVenta, BigDecimal fraccion, String unidadNombre) {
+        String u = unidadNombre != null ? unidadNombre.trim().toUpperCase() : "";
+        boolean esPorUnidad = u.equals("UNIDAD") || u.equals("TABLETA") || u.equals("TABLETAS")
+                || u.equals("CÁPSULA") || u.equals("CAPSULA") || u.equals("CÁPSULAS")
+                || u.equals("AMPOLLA") || u.equals("AMPOLLAS") || u.equals("VIAL") || u.equals("VIALES")
+                || u.equals("COMPRIMIDO") || u.equals("COMPRIMIDOS");
+
+        BigDecimal precio1, precio2;
+        if (esPorUnidad) {
+            // precioVenta = precio unitario (Precio 2)
+            precio2 = precioVenta.setScale(2, RoundingMode.HALF_UP);
+            precio1 = precioVenta.multiply(fraccion).setScale(2, RoundingMode.HALF_UP);
+        } else {
+            // precioVenta = precio empaque (Precio 1)
+            precio1 = precioVenta.setScale(2, RoundingMode.HALF_UP);
+            precio2 = precio1.divide(fraccion, 2, RoundingMode.HALF_UP);
+            BigDecimal minimo = new BigDecimal("0.01");
+            if (precio2.compareTo(minimo) < 0) {
+                precio2 = minimo;
+            }
+        }
+        return new BigDecimal[]{precio1, precio2};
     }
 
     // ── Exportar CSV → ZIP para OPPF ────────────────────────────────────────
@@ -151,10 +199,15 @@ public class DigemidController {
         String anoStr = (ano != null && !ano.isBlank()) ? ano : String.format("%02d", hoy.getYear() % 100);
 
         String tenantId = TenantContext.getCurrentTenant();
-        List<Producto> vinculados = productoRepository.findVinculadosDigemidByTenantId(tenantId);
+        List<Producto> todosVinculados = productoRepository.findVinculadosDigemidByTenantId(tenantId);
+        List<Producto> vinculados = todosVinculados.stream()
+                .filter(p -> p.getStockActual() != null && p.getStockActual() > 0)
+                .toList();
 
-        if (vinculados.isEmpty())
+        if (todosVinculados.isEmpty())
             throw new BadRequestException("No hay productos vinculados a códigos DIGEMID. Vincula al menos uno antes de exportar.");
+        if (vinculados.isEmpty())
+            throw new BadRequestException("Todos los productos vinculados tienen stock 0. Ingresa stock antes de exportar.");
 
         try {
             // ── Preparar filas ────────────────────────────────────────────────
@@ -164,10 +217,10 @@ public class DigemidController {
                 CatalogoDigemid cat = catalogoDigemidRepository.findByCodProd(p.getCodDigemid()).orElse(null);
                 BigDecimal fraccion = (cat != null && cat.getFraccion() != null && cat.getFraccion().compareTo(BigDecimal.ZERO) > 0)
                         ? cat.getFraccion() : BigDecimal.ONE;
-                BigDecimal precio1 = p.getPrecioVenta().setScale(2, RoundingMode.HALF_UP);
-                BigDecimal precio2 = precio1.divide(fraccion, 2, RoundingMode.HALF_UP);
+                String unidadNombre = p.getUnidadMedida() != null ? p.getUnidadMedida().getNombre() : "";
+                BigDecimal[] precios = calcularPreciosOppf(p.getPrecioVenta(), fraccion, unidadNombre);
                 String codProd = p.getCodDigemid().replaceAll("\\.0+$", "");
-                filas.add(new FilaOppf(codEstablecimiento, codProd, precio1, precio2));
+                filas.add(new FilaOppf(codEstablecimiento, codProd, precios[0], precios[1]));
             }
 
             // ── Generar CSV — UTF-8 SIN BOM, sin comillas, coma como delimitador ──

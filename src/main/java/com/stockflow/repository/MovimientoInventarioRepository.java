@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MovimientoInventarioRepository extends JpaRepository<MovimientoInventario, Long> {
@@ -208,4 +209,18 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     List<Long> findProductoIdsConMovimientoEnSucursal(
             @Param("tenantId")   String tenantId,
             @Param("sucursalId") Long   sucursalId);
+
+    @Query(value = """
+            SELECT registro_sanitario
+            FROM movimientos_inventario
+            WHERE producto_id = :productoId
+              AND tenant_id   = :tenantId
+              AND registro_sanitario IS NOT NULL
+              AND registro_sanitario <> ''
+            ORDER BY created_at DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<String> findLatestRegistroSanitarioByProductoId(
+            @Param("productoId") Long   productoId,
+            @Param("tenantId")   String tenantId);
 }
