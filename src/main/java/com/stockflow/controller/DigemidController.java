@@ -98,7 +98,6 @@ public class DigemidController {
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado."));
         producto.setCodDigemid(null);
-        producto.setRegistroSanitario(null);
         productoRepository.save(producto);
         return ResponseEntity.noContent().build();
     }
