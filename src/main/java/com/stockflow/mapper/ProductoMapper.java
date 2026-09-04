@@ -23,6 +23,7 @@ public interface ProductoMapper {
     @Mapping(source = "unidadesPorCaja", target = "unidadesPorCaja")
     @Mapping(source = "talla", target = "talla")
     @Mapping(source = "color", target = "color")
+    @Mapping(source = "registroSanitario", target = "registroSanitario")
     ProductoDTO toDTO(Producto producto);
 
     // DTO → ENTITY
@@ -47,6 +48,7 @@ public interface ProductoMapper {
     @Mapping(source = "unidadesPorCaja", target = "unidadesPorCaja")
     @Mapping(source = "talla", target = "talla")
     @Mapping(source = "color", target = "color")
+    @Mapping(source = "registroSanitario", target = "registroSanitario")
     void updateEntityFromDTO(ProductoDTO dto, @MappingTarget Producto producto);
 
     // 🔑 Long → UnidadMedida
