@@ -72,6 +72,9 @@ public class ProductoDTO {
     /** PRODUCTO (default) | SERVICIO. Los servicios no descuentan stock. */
     private String tipo = "PRODUCTO";
 
+    /** Registro sanitario DIGEMID/DIRESA del producto. */
+    private String registroSanitario;
+
     /** Fecha del lote más próximo a vencer (calculado en el servidor, solo lectura). */
     private LocalDate proximaFechaVencimiento;
 
