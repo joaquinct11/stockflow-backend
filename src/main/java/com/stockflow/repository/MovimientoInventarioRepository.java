@@ -210,6 +210,19 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("tenantId")   String tenantId,
             @Param("sucursalId") Long   sucursalId);
 
+    @Query("""
+            SELECT m FROM MovimientoInventario m JOIN FETCH m.producto
+            WHERE m.tenantId = :tenantId
+              AND m.tipo = 'MERMA'
+              AND CAST(m.createdAt AS date) BETWEEN :desde AND :hasta
+            ORDER BY m.createdAt DESC
+            """)
+    List<MovimientoInventario> findMermasByPeriodo(
+            @Param("tenantId") String tenantId,
+            @Param("desde")    java.time.LocalDate desde,
+            @Param("hasta")    java.time.LocalDate hasta
+    );
+
     @Query(value = """
             SELECT registro_sanitario
             FROM movimientos_inventario

@@ -24,5 +24,8 @@ public interface CatalogoDigemidRepository extends JpaRepository<CatalogoDigemid
         """, nativeQuery = true)
     List<CatalogoDigemid> buscar(@Param("q") String q);
 
+    @Query(value = "SELECT * FROM catalogo_digemid WHERE TRIM(UPPER(num_reg_san)) = TRIM(UPPER(:regSan)) LIMIT 5", nativeQuery = true)
+    List<CatalogoDigemid> findByNumRegSanExact(@Param("regSan") String regSan);
+
     long count();
 }
