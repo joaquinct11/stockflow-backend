@@ -679,6 +679,42 @@ public class EmailServiceImpl implements EmailService {
         enviar(correoConsumidor, "Hemos recibido tu " + tipo.toLowerCase() + " — Fluxus", htmlAcuse);
     }
 
+    // ── Alerta de certificado ─────────────────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarAlertaCertificado(String email, String nombreUsuario, String descripcionCert,
+                                         java.time.LocalDate fechaVencimiento, long diasRestantes, boolean vencido) {
+        String fechaTexto = fechaVencimiento.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+        String tag, titulo, cuerpo, asunto;
+        if (vencido) {
+            long diasVencido = Math.abs(diasRestantes);
+            tag    = "Certificado Vencido";
+            titulo = "Certificado VENCIDO: " + descripcionCert;
+            cuerpo = "Hola <b>" + nombreUsuario + "</b>,<br><br>"
+                   + "El certificado <b>" + descripcionCert + "</b> venció el <b>" + fechaTexto + "</b> "
+                   + "(hace " + diasVencido + " día" + (diasVencido == 1 ? "" : "s") + ").<br><br>"
+                   + "Renuévalo urgente para mantener el cumplimiento de tu establecimiento.";
+            asunto = "🚨 Certificado vencido: " + descripcionCert + " — Fluxus";
+        } else {
+            tag    = "Certificado por Vencer";
+            titulo = "Certificado próximo a vencer: " + descripcionCert;
+            cuerpo = "Hola <b>" + nombreUsuario + "</b>,<br><br>"
+                   + "El certificado <b>" + descripcionCert + "</b> vence el <b>" + fechaTexto + "</b> "
+                   + "(en " + diasRestantes + " día" + (diasRestantes == 1 ? "" : "s") + ").<br><br>"
+                   + "Coordina su renovación a tiempo para evitar inconvenientes en tu establecimiento.";
+            asunto = "⚠️ Certificado vence en " + diasRestantes + " días: " + descripcionCert + " — Fluxus";
+        }
+
+        String html = buildHtml(tag, titulo, cuerpo,
+                frontendUrl + "/dashboard/certificados",
+                "Ver certificados",
+                "Este aviso es automático. Puedes ajustar los días de anticipación en el módulo de Certificados de Fluxus.");
+        log.info("📧 Enviando alerta de certificado '{}' ({}) a: {}", descripcionCert, vencido ? "VENCIDO" : diasRestantes + "d", email);
+        enviar(email, asunto, html);
+    }
+
     // ── Envío HTTP a Resend ───────────────────────────────────────────────────
 
     /** Envío simple sin adjunto */

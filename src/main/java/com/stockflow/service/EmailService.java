@@ -60,6 +60,13 @@ public interface EmailService {
     void enviarConfirmacionCambioContraseña(String email, String nombre);
 
     /**
+     * Alerta de certificado vencido o próximo a vencer.
+     * Se dispara desde el scheduler de certificados.
+     */
+    void enviarAlertaCertificado(String email, String nombreUsuario, String descripcionCert,
+                                  java.time.LocalDate fechaVencimiento, long diasRestantes, boolean vencido);
+
+    /**
      * Envía la reclamación al correo de contacto de Fluxus y
      * un acuse de recibo al consumidor.
      */

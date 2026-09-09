@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -567,6 +568,77 @@ public class MovimientoInventarioController {
             }
         });
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Da de baja (MERMA) un lote vencido.
+     * Reduce stock_lotes y producto.stockActual y registra un movimiento tipo MERMA.
+     * Body: { movimientoOrigenId, cantidad, motivo, observaciones }
+     */
+    @PostMapping("/merma")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_INVENTARIO')")
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<Map<String, Object>> darDeBajaLote(@RequestBody Map<String, Object> body) {
+        String tenantId = TenantContext.getCurrentTenant();
+
+        Long movimientoOrigenId = body.get("movimientoOrigenId") instanceof Number n ? n.longValue() : null;
+        Integer cantidad = body.get("cantidad") instanceof Number n ? n.intValue() : null;
+        String motivo = (String) body.getOrDefault("motivo", "VENCIMIENTO");
+        String observaciones = (String) body.getOrDefault("observaciones", "");
+
+        if (movimientoOrigenId == null) throw new BadRequestException("Se requiere movimientoOrigenId.");
+        if (cantidad == null || cantidad <= 0) throw new BadRequestException("La cantidad debe ser mayor a 0.");
+
+        // Validar que el lote pertenece al tenant y tiene stock suficiente
+        com.stockflow.entity.StockLote lote = stockLoteRepository.findByMovimientoId(movimientoOrigenId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lote no encontrado."));
+        if (!tenantId.equals(lote.getTenantId()))
+            throw new ResourceNotFoundException("Lote no encontrado.");
+        if (lote.getStockActual() < cantidad)
+            throw new BadRequestException("Cantidad mayor al stock del lote (" + lote.getStockActual() + ").");
+
+        Producto producto = productoService.obtenerProductoPorId(lote.getProductoId())
+                .filter(p -> tenantId.equals(p.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado."));
+
+        // Obtener info del movimiento origen para lote/fechaVencimiento
+        MovimientoInventario origen = movimientoRepository.findById(movimientoOrigenId)
+                .orElseThrow(() -> new ResourceNotFoundException("Movimiento origen no encontrado."));
+
+        // Registrar movimiento MERMA
+        MovimientoInventario merma = MovimientoInventario.builder()
+                .producto(producto)
+                .tipo("MERMA")
+                .cantidad(cantidad)
+                .tenantId(tenantId)
+                .lote(origen.getLote())
+                .fechaVencimiento(origen.getFechaVencimiento())
+                .descripcion("Baja de lote vencido. Motivo: " + motivo
+                        + (observaciones != null && !observaciones.isBlank() ? " | " + observaciones : ""))
+                .sucursalId(lote.getSucursalId())
+                .build();
+        MovimientoInventario mermaGuardada = movimientoRepository.save(merma);
+        mermaGuardada.setReferencia("MERMA-" + mermaGuardada.getId());
+        movimientoRepository.save(mermaGuardada);
+
+        // Descontar del lote
+        lote.setStockActual(lote.getStockActual() - cantidad);
+        stockLoteRepository.save(lote);
+
+        // Descontar del producto
+        int nuevoStock = Math.max(0, producto.getStockActual() - cantidad);
+        producto.setStockActual(nuevoStock);
+        productoService.actualizarProducto(producto.getId(), producto);
+
+        log.info("🗑️ MERMA registrada: producto={} lote={} cantidad={} tenant={}",
+                producto.getNombre(), origen.getLote(), cantidad, tenantId);
+
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "Baja registrada correctamente.",
+                "movimientoId", mermaGuardada.getId(),
+                "nuevoStockProducto", nuevoStock,
+                "nuevoStockLote", lote.getStockActual()
+        ));
     }
 
     @DeleteMapping("/{id}")

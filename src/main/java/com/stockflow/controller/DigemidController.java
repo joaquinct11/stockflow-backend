@@ -1,11 +1,13 @@
 package com.stockflow.controller;
 
 import com.stockflow.entity.CatalogoDigemid;
+import com.stockflow.entity.OppfExportacion;
 import com.stockflow.entity.Producto;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.CatalogoDigemidRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
+import com.stockflow.repository.OppfExportacionRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class DigemidController {
     private final CatalogoDigemidRepository catalogoDigemidRepository;
     private final ProductoRepository productoRepository;
     private final MovimientoInventarioRepository movimientoInventarioRepository;
+    private final OppfExportacionRepository oppfExportacionRepository;
 
     // ── Búsqueda en catálogo DIGEMID ────────────────────────────────────────
 
@@ -100,6 +103,78 @@ public class DigemidController {
         producto.setCodDigemid(null);
         productoRepository.save(producto);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── Vincular todos ──────────────────────────────────────────────────────
+
+    /**
+     * POST /digemid/productos/vincular-todos
+     * Intenta vincular automáticamente todos los productos sin codDigemid
+     * que tengan registroSanitario, buscando en el catálogo por num_reg_san exacto.
+     * Si la búsqueda devuelve exactamente 1 resultado → vincula.
+     * Si devuelve 0 o múltiples → agrega al listado de no vinculados.
+     */
+    @PostMapping("/productos/vincular-todos")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('GERENTE')")
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<Map<String, Object>> vincularTodos() {
+        String tenantId = TenantContext.getCurrentTenant();
+
+        List<Producto> sinVincular = productoRepository.findProductosTipoByTenantId(tenantId)
+                .stream()
+                .filter(p -> p.getCodDigemid() == null || p.getCodDigemid().isBlank())
+                .toList();
+
+        java.util.List<Map<String, Object>> vinculados = new java.util.ArrayList<>();
+        java.util.List<Map<String, Object>> noVinculados = new java.util.ArrayList<>();
+
+        for (Producto p : sinVincular) {
+            String regSan = p.getRegistroSanitario();
+            if (regSan == null || regSan.isBlank()) {
+                regSan = movimientoInventarioRepository
+                        .findLatestRegistroSanitarioByProductoId(p.getId(), tenantId)
+                        .orElse(null);
+            }
+            if (regSan == null || regSan.isBlank()) {
+                noVinculados.add(Map.of(
+                        "productoId", p.getId(),
+                        "nombre", p.getNombre(),
+                        "motivo", "Sin registro sanitario"
+                ));
+                continue;
+            }
+
+            List<CatalogoDigemid> matches = catalogoDigemidRepository.findByNumRegSanExact(regSan);
+            if (matches.size() == 1) {
+                CatalogoDigemid cat = matches.get(0);
+                p.setCodDigemid(cat.getCodProd());
+                p.setRegistroSanitario(cat.getNumRegSan());
+                productoRepository.save(p);
+                vinculados.add(Map.of(
+                        "productoId", p.getId(),
+                        "nombre", p.getNombre(),
+                        "codDigemid", cat.getCodProd(),
+                        "nomDigemid", cat.getNomProd() != null ? cat.getNomProd() : "",
+                        "registroSanitario", regSan
+                ));
+            } else {
+                noVinculados.add(Map.of(
+                        "productoId", p.getId(),
+                        "nombre", p.getNombre(),
+                        "registroSanitario", regSan,
+                        "motivo", matches.isEmpty() ? "No encontrado en catálogo" : "Múltiples coincidencias (" + matches.size() + ")"
+                ));
+            }
+        }
+
+        log.info("🔗 [DIGEMID] Vincular todos: tenant={} vinculados={} noVinculados={}",
+                tenantId, vinculados.size(), noVinculados.size());
+
+        return ResponseEntity.ok(Map.of(
+                "totalProcesados", sinVincular.size(),
+                "vinculados", vinculados,
+                "noVinculados", noVinculados
+        ));
     }
 
     // ── Listar productos del tenant con su estado DIGEMID ───────────────────
@@ -258,6 +333,18 @@ public class DigemidController {
 
             log.info("📤 [DIGEMID] OPPF ZIP generado: {} → {} productos, tenant={}", nombreZip, filas.size(), tenantId);
 
+            // Guardar registro en historial
+            oppfExportacionRepository.save(OppfExportacion.builder()
+                    .tenantId(tenantId)
+                    .ruc(ruc)
+                    .codEstablecimiento(codEstablecimiento)
+                    .mes(mesStr)
+                    .ano(anoStr)
+                    .tipo(tipo)
+                    .totalProductos(filas.size())
+                    .nombreArchivo(nombreZip)
+                    .build());
+
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + nombreZip + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -269,5 +356,28 @@ public class DigemidController {
             log.error("❌ [DIGEMID] Error generando ZIP OPPF: {}", e.getMessage(), e);
             throw new BadRequestException("Error generando el archivo: " + e.getMessage());
         }
+    }
+
+    // ── Historial de exportaciones OPPF ────────────────────────────────────────
+
+    @GetMapping("/oppf/historial")
+    public ResponseEntity<List<Map<String, Object>>> historialOppf() {
+        String tenantId = TenantContext.getCurrentTenant();
+        List<Map<String, Object>> historial = oppfExportacionRepository
+                .findByTenantIdOrderByCreatedAtDesc(tenantId)
+                .stream()
+                .map(e -> Map.<String, Object>ofEntries(
+                        Map.entry("id", e.getId()),
+                        Map.entry("ruc", e.getRuc()),
+                        Map.entry("codEstablecimiento", e.getCodEstablecimiento()),
+                        Map.entry("mes", e.getMes()),
+                        Map.entry("ano", e.getAno()),
+                        Map.entry("tipo", e.getTipo()),
+                        Map.entry("totalProductos", e.getTotalProductos()),
+                        Map.entry("nombreArchivo", e.getNombreArchivo()),
+                        Map.entry("fechaExportacion", e.getCreatedAt().toString())
+                ))
+                .toList();
+        return ResponseEntity.ok(historial);
     }
 }

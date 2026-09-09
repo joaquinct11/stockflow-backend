@@ -166,4 +166,17 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
             @Param("sucursalId") Long sucursalId,
             @Param("hoy")        LocalDate hoy
     );
+
+    /** Lotes VENCIDOS con stock > 0 para el tenant (para módulo de baja). */
+    @Query("""
+            SELECT s FROM StockLote s
+            WHERE s.tenantId         = :tenantId
+              AND s.fechaVencimiento < :hoy
+              AND s.stockActual      > 0
+            ORDER BY s.fechaVencimiento ASC
+            """)
+    List<StockLote> findVencidosConStock(
+            @Param("tenantId") String tenantId,
+            @Param("hoy")      LocalDate hoy
+    );
 }

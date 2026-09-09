@@ -12,6 +12,7 @@ import com.stockflow.repository.OrdenCompraRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.TenantRepository;
+import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.NotificacionService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class NotificacionScheduler {
     private final NotificacionService            notificacionService;
     private final NotificacionRepository         notificacionRepository;
     private final EmailService                   emailService;
+    private final UsuarioRepository              usuarioRepository;
 
     private static final List<String> ROLES_INVENTARIO =
             List.of("ADMIN", "GESTOR_INVENTARIO");
@@ -274,6 +276,19 @@ public class NotificacionScheduler {
                     tipo, titulo, cuerpo,
                     cert.getId(), "CERTIFICADO"
             );
+
+            // Email a cada admin/gerente del tenant
+            usuarioRepository.findAdminYGerenteByTenant(tenantId).forEach(u -> {
+                try {
+                    emailService.enviarAlertaCertificado(
+                            u.getEmail(), u.getNombre(), cert.getDescripcion(),
+                            cert.getFechaVencimiento(), diasRestantes, vencido
+                    );
+                } catch (Exception e) {
+                    log.warn("No se pudo enviar email de certificado para tenant {}: {}", tenantId, e.getMessage());
+                }
+            });
+
             log.info("🔔 Alerta de certificado '{}' enviada para tenant {}", cert.getDescripcion(), tenantId);
         }
         log.info("⏰ [Scheduler] Certificados verificados ({} en alerta).", enAlerta.size());
