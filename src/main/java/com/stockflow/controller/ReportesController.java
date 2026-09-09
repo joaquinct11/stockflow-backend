@@ -1,6 +1,8 @@
 package com.stockflow.controller;
 
 import com.stockflow.dto.reportes.*;
+import com.stockflow.entity.MovimientoInventario;
+import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.service.ReportesService;
 import com.stockflow.util.TenantContext;
@@ -24,6 +26,7 @@ import java.util.List;
 public class ReportesController {
 
     private final ReportesService reportesService;
+    private final MovimientoInventarioRepository movimientoRepository;
 
     /**
      * GET /api/reportes/resumen?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
@@ -295,6 +298,55 @@ public class ReportesController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👤 Top clientes: tenant={} rango=[{}, {}]", tenantId, desde, hasta);
         return ResponseEntity.ok(reportesService.getTopClientes(tenantId, sucursalId, desde, hasta, limit));
+    }
+
+    // ── Mermas ────────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/reportes/inventario/mermas?desde&hasta
+     * Movimientos tipo MERMA del período con detalle de motivo y lote.
+     */
+    @GetMapping("/inventario/mermas")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
+    public ResponseEntity<List<MermaReporteDTO>> getMermas(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+
+        validarRango(desde, hasta);
+        String tenantId = TenantContext.getCurrentTenant();
+
+        List<MermaReporteDTO> mermas = movimientoRepository.findMermasByPeriodo(tenantId, desde, hasta)
+                .stream()
+                .map(m -> {
+                    // Descripcion format: "Baja de lote vencido. Motivo: VENCIMIENTO | observaciones"
+                    String desc = m.getDescripcion() != null ? m.getDescripcion() : "";
+                    String motivo = "—";
+                    String obs = "";
+                    if (desc.contains("Motivo: ")) {
+                        String rest = desc.substring(desc.indexOf("Motivo: ") + 8);
+                        if (rest.contains(" | ")) {
+                            motivo = rest.substring(0, rest.indexOf(" | "));
+                            obs    = rest.substring(rest.indexOf(" | ") + 3);
+                        } else {
+                            motivo = rest;
+                        }
+                    }
+                    return MermaReporteDTO.builder()
+                            .id(m.getId())
+                            .productoId(m.getProducto().getId())
+                            .productoNombre(m.getProducto().getNombre())
+                            .cantidad(m.getCantidad())
+                            .lote(m.getLote())
+                            .motivo(motivo)
+                            .observaciones(obs.isBlank() ? null : obs)
+                            .referencia(m.getReferencia())
+                            .fecha(m.getCreatedAt())
+                            .build();
+                })
+                .toList();
+
+        log.info("🗑️ Mermas reporte: tenant={} rango=[{}, {}] total={}", tenantId, desde, hasta, mermas.size());
+        return ResponseEntity.ok(mermas);
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────
