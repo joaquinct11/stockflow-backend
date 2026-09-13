@@ -27,4 +27,24 @@ public interface SucursalService {
      * Corrige desincronizaciones causadas por recepciones registradas antes de la corrección.
      */
     void resyncStockPrincipal(String tenantId);
+
+    /**
+     * Bloquea las sucursales adicionales (no principal) al hacer downgrade PRO → BÁSICO.
+     * Las sucursales bloqueadas quedan con activo=false y bloqueadaPorPlan=true.
+     * No se eliminan: pueden recuperarse al volver a PRO.
+     * Devuelve cuántas sucursales fueron bloqueadas.
+     */
+    int bloquearSucursalesAdicionales(String tenantId);
+
+    /**
+     * Desbloquea las sucursales que fueron bloqueadas por downgrade al volver a PRO.
+     * Solo reactiva las que tienen bloqueadaPorPlan=true (no toca las desactivadas manualmente).
+     * Devuelve cuántas sucursales fueron reactivadas.
+     */
+    int desbloquearSucursalesAdicionales(String tenantId);
+
+    /**
+     * Lista las sucursales del tenant incluyendo las bloqueadas por plan (para mostrar en UI).
+     */
+    List<SucursalDTO> listarConBloqueadas(String tenantId);
 }

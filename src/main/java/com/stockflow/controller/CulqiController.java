@@ -10,6 +10,7 @@ import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.service.CulqiService;
+import com.stockflow.service.EmailService;
 import com.stockflow.service.SucursalService;
 import com.stockflow.service.SuscripcionService;
 import com.stockflow.service.UsuarioService;
@@ -38,6 +39,7 @@ public class CulqiController {
     private final SuscripcionRepository suscripcionRepository;
     private final UsuarioService usuarioService;
     private final SucursalService sucursalService;
+    private final EmailService emailService;
 
     // ── Config pública ────────────────────────────────────────────────────────
 
@@ -156,8 +158,9 @@ public class CulqiController {
         Suscripcion guardada = suscripcionRepository.save(suscripcion);
         log.info("✅ [Culqi] Suscripción activada localmente id={}, culqiSubId={}", guardada.getId(), culqiSubscriptionId);
 
-        // Si el plan es PRO, inicializar la sucursal principal para habilitar multi-local
+        // Si el plan es PRO, desbloquear sucursales previas e inicializar la principal
         if (isPro) {
+            sucursalService.desbloquearSucursalesAdicionales(tenantId);
             sucursalService.inicializarPrincipal(tenantId);
             log.info("🏢 [Culqi] Sucursal principal inicializada para tenant PRO={}", tenantId);
         }
@@ -246,7 +249,11 @@ public class CulqiController {
         suscripcion.setPrecioMensual(precioPro);
         Suscripcion guardada = suscripcionRepository.save(suscripcion);
 
-        // Inicializar sucursal principal y migrar todos los datos existentes
+        // Desbloquear sucursales que quedaron bloqueadas por downgrade previo, luego inicializar principal
+        int desbloqueadas = sucursalService.desbloquearSucursalesAdicionales(tenantId);
+        if (desbloqueadas > 0) {
+            log.info("🔓 [Culqi] {} sucursal(es) reactivada(s) para tenant={}", desbloqueadas, tenantId);
+        }
         sucursalService.inicializarPrincipal(tenantId);
 
         log.info("✅ [Culqi] Upgrade PRO completado para tenant={}. SubId={}", tenantId, culqiSubId);
@@ -322,6 +329,111 @@ public class CulqiController {
 
         log.info("✅ [Culqi] Tarjeta actualizada correctamente. cardId={}", cardId);
         return ResponseEntity.ok(Map.of("mensaje", "Tarjeta actualizada correctamente. El próximo cobro usará tu nueva tarjeta."));
+    }
+
+    // ── Downgrade a BÁSICO ────────────────────────────────────────────────────
+
+    /**
+     * POST /api/culqi/downgrade-basico
+     * Flujo de downgrade PRO → BÁSICO (también disponible cuando la cuenta está SUSPENDIDA):
+     *   1. Cancela la suscripción PRO vigente en Culqi
+     *   2. Crea nueva suscripción BÁSICO (cobro inmediato de S/89)
+     *   3. Bloquea las sucursales adicionales (no se eliminan, se recuperan al volver a PRO)
+     *   4. Actualiza plan_id = "BASICO" en tabla suscripciones
+     *   5. Envía email de confirmación de downgrade
+     */
+    @PostMapping("/downgrade-basico")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<CulqiSuscribirResponseDTO> downgradeBasico(
+            @Valid @RequestBody CulqiSuscribirRequestDTO request) {
+
+        String tenantId  = TenantContext.getCurrentTenant();
+        Long   usuarioId = TenantContext.getCurrentUserId();
+        log.info("⬇️  [Culqi] Downgrade a BÁSICO para tenant={}", tenantId);
+
+        String culqiPlanIdBasico = culqiProperties.getPlanIdBasico();
+        if (culqiPlanIdBasico == null || culqiPlanIdBasico.isBlank()) {
+            throw new BadRequestException("El plan Básico no está configurado en el servidor.");
+        }
+
+        // Solo se permite si el plan actual es PRO o la cuenta está SUSPENDIDA
+        Suscripcion suscripcionActual = suscripcionRepository
+                .findFirstByTenantIdOrderByIdDesc(tenantId)
+                .orElseThrow(() -> new BadRequestException("No tienes una suscripción activa."));
+
+        boolean esPro = "PRO".equals(suscripcionActual.getPlanId());
+        boolean estaSuspendida = "SUSPENDIDA".equals(suscripcionActual.getEstado());
+        if (!esPro && !estaSuspendida) {
+            throw new BadRequestException("Solo puedes hacer downgrade si tienes plan Pro o la cuenta está suspendida.");
+        }
+        if ("BASICO".equals(suscripcionActual.getPlanId()) && !estaSuspendida) {
+            throw new BadRequestException("Ya tienes el plan Básico activo.");
+        }
+
+        Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado: " + usuarioId));
+
+        // 1. Cancelar suscripción PRO en Culqi si tiene preapprovalId
+        if (suscripcionActual.getPreapprovalId() != null) {
+            try {
+                culqiService.cancelarSuscripcion(suscripcionActual.getPreapprovalId());
+                log.info("✅ [Culqi] Suscripción PRO cancelada en Culqi: {}", suscripcionActual.getPreapprovalId());
+            } catch (Exception e) {
+                log.warn("⚠️ [Culqi] No se pudo cancelar suscripción PRO en Culqi (continuando): {}", e.getMessage());
+            }
+        }
+
+        // 2. Crear cliente + tarjeta + suscripción BÁSICO en Culqi (cobra S/89 de inmediato)
+        String customerId = culqiService.crearCliente(
+                usuario.getEmail(), usuario.getNombre(),
+                usuario.getApellido(), usuario.getNumeroCelular());
+        String cardId = culqiService.crearTarjeta(customerId, request.getTokenId());
+        String culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdBasico);
+
+        // 3. Actualizar suscripción local a BÁSICO
+        LocalDateTime ahora     = LocalDateTime.now();
+        LocalDateTime proxCobro = ahora.plusMonths(1);
+        BigDecimal precioBasico = culqiProperties.getPrecioBasico();
+
+        suscripcionActual.setPlanId("BASICO");
+        suscripcionActual.setEstado("ACTIVA");
+        suscripcionActual.setPreapprovalId(culqiSubId);
+        suscripcionActual.setFechaInicio(ahora);
+        suscripcionActual.setFechaProximoCobro(proxCobro);
+        suscripcionActual.setCurrentPeriodStart(ahora);
+        suscripcionActual.setCurrentPeriodEnd(proxCobro);
+        suscripcionActual.setMetodoPago("CULQI");
+        suscripcionActual.setPrecioMensual(precioBasico);
+        Suscripcion guardada = suscripcionRepository.save(suscripcionActual);
+
+        // 4. Bloquear sucursales adicionales (la principal queda intacta)
+        int bloqueadas = sucursalService.bloquearSucursalesAdicionales(tenantId);
+        log.info("🔒 [Culqi] {} sucursal(es) bloqueada(s) para tenant={}", bloqueadas, tenantId);
+
+        // 5. Email de confirmación de downgrade
+        try {
+            emailService.enviarEmailSuscripcion(usuario.getEmail(), usuario.getNombre(),
+                    "DOWNGRADE_EFECTUADO", "BASICO");
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo enviar email de downgrade: {}", e.getMessage());
+        }
+
+        log.info("✅ [Culqi] Downgrade BÁSICO completado para tenant={}. SubId={}", tenantId, culqiSubId);
+
+        String mensajeSucursales = bloqueadas > 0
+                ? String.format(" %d sucursal(es) adicional(es) quedaron bloqueadas y se reactivarán si vuelves a Pro.", bloqueadas)
+                : "";
+
+        return ResponseEntity.ok(CulqiSuscribirResponseDTO.builder()
+                .suscripcionId(guardada.getId())
+                .estado(guardada.getEstado())
+                .planId(guardada.getPlanId())
+                .precioMensual(guardada.getPrecioMensual())
+                .fechaInicio(guardada.getFechaInicio())
+                .fechaProximoCobro(guardada.getFechaProximoCobro())
+                .culqiSubscriptionId(culqiSubId)
+                .mensaje("Plan Básico activado correctamente." + mensajeSucursales)
+                .build());
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────

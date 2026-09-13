@@ -26,6 +26,8 @@ public class SucursalDTO {
 
     private Boolean activo;
 
+    private Boolean bloqueadaPorPlan;
+
     private String tenantId;
 
     private LocalDateTime createdAt;
