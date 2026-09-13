@@ -35,6 +35,9 @@ public class Sucursal {
     @Column(nullable = false)
     private Boolean activo = true;
 
+    @Column(name = "bloqueada_por_plan", nullable = false)
+    private Boolean bloqueadaPorPlan = false;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 

@@ -29,6 +29,18 @@ public class SucursalController {
         return ResponseEntity.ok(sucursalService.listar(tenantId));
     }
 
+    /**
+     * GET /sucursales/con-bloqueadas
+     * Lista las sucursales activas + las bloqueadas por downgrade de plan.
+     * Permite mostrar en la UI cuáles están bloqueadas con su estado.
+     */
+    @GetMapping("/con-bloqueadas")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_SUCURSALES')")
+    public ResponseEntity<List<SucursalDTO>> listarConBloqueadas() {
+        String tenantId = TenantContext.getCurrentTenant();
+        return ResponseEntity.ok(sucursalService.listarConBloqueadas(tenantId));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_SUCURSALES')")
     public ResponseEntity<SucursalDTO> obtenerPorId(@PathVariable Long id) {

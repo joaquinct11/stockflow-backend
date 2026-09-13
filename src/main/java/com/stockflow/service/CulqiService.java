@@ -26,4 +26,12 @@ public interface CulqiService {
      * @return ID del plan creado (pln_live_xxx)
      */
     String crearPlan(String nombre, long montoCentavos);
+
+    /**
+     * Obtiene un cargo de Culqi por su ID (GET /charges/{chargeId}).
+     * Útil para el webhook charge.creation.failed, donde el payload solo incluye
+     * el chargeId y no el subscription_id ni el email directamente.
+     * Devuelve null si el cargo no existe o hay un error de red.
+     */
+    java.util.Map<String, Object> obtenerCargo(String chargeId);
 }
