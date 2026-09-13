@@ -227,6 +227,31 @@ public class CulqiServiceImpl implements CulqiService {
         return planId;
     }
 
+    // ── Cargos ───────────────────────────────────────────────────────────────
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> obtenerCargo(String chargeId) {
+        try {
+            String url = culqiProperties.getBaseUrl() + "/charges/" + chargeId;
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + culqiProperties.getSecretKey())
+                    .header("Content-Type",  "application/json")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("📥 Culqi GET /charges/{}: status={}, body={}", chargeId, response.statusCode(), response.body());
+
+            if (response.statusCode() != 200) return null;
+            return objectMapper.readValue(response.body(), new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo obtener cargo {} de Culqi: {}", chargeId, e.getMessage());
+            return null;
+        }
+    }
+
     // ── HTTP helpers ──────────────────────────────────────────────────────────
 
     private Map<String, Object> postToSecure(String path, Map<String, Object> body) {

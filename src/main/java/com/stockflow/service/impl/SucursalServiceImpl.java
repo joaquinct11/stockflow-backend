@@ -162,6 +162,52 @@ public class SucursalServiceImpl implements SucursalService {
         return toDTO(guardada);
     }
 
+    // ── Downgrade PRO → BÁSICO ───────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public int bloquearSucursalesAdicionales(String tenantId) {
+        List<Sucursal> adicionales = sucursalRepository
+                .findByTenantIdAndEsPrincipalFalseAndActivoTrue(tenantId);
+        for (Sucursal s : adicionales) {
+            s.setActivo(false);
+            s.setBloqueadaPorPlan(true);
+            s.setDeletedAt(null); // no es borrado manual — es bloqueo temporal
+            s.setUpdatedAt(LocalDateTime.now());
+        }
+        sucursalRepository.saveAll(adicionales);
+        log.info("🔒 [Downgrade] {} sucursal(es) bloqueada(s) para tenant={}", adicionales.size(), tenantId);
+        return adicionales.size();
+    }
+
+    @Override
+    @Transactional
+    public int desbloquearSucursalesAdicionales(String tenantId) {
+        List<Sucursal> bloqueadas = sucursalRepository
+                .findByTenantIdAndBloqueadaPorPlanTrue(tenantId);
+        for (Sucursal s : bloqueadas) {
+            s.setActivo(true);
+            s.setBloqueadaPorPlan(false);
+            s.setDeletedAt(null);
+            s.setUpdatedAt(LocalDateTime.now());
+        }
+        sucursalRepository.saveAll(bloqueadas);
+        log.info("🔓 [Upgrade] {} sucursal(es) desbloqueada(s) para tenant={}", bloqueadas.size(), tenantId);
+        return bloqueadas.size();
+    }
+
+    @Override
+    public List<SucursalDTO> listarConBloqueadas(String tenantId) {
+        return sucursalRepository
+                .findByTenantIdAndActivoTrueOrTenantIdAndBloqueadaPorPlanTrueOrderByEsPrincipalDescNombreAsc(
+                        tenantId, tenantId)
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
+
+    // ── Resync ───────────────────────────────────────────────────────────────
+
     @Override
     @Transactional
     public void resyncStockPrincipal(String tenantId) {
@@ -204,6 +250,7 @@ public class SucursalServiceImpl implements SucursalService {
                 .email(s.getEmail())
                 .esPrincipal(s.getEsPrincipal())
                 .activo(s.getActivo())
+                .bloqueadaPorPlan(s.getBloqueadaPorPlan())
                 .tenantId(s.getTenantId())
                 .createdAt(s.getCreatedAt())
                 .build();

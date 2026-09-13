@@ -9,6 +9,7 @@ import com.stockflow.entity.WebhookLog;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.WebhookLogRepository;
+import com.stockflow.service.CulqiService;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.SucursalService;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class CulqiWebhookController {
     private final WebhookLogRepository  webhookLogRepository;
     private final EmailService          emailService;
     private final SucursalService       sucursalService;
+    private final CulqiService          culqiService;
     private final ObjectMapper          objectMapper;
 
     // ── Endpoint principal ────────────────────────────────────────────────────
@@ -330,33 +332,55 @@ public class CulqiWebhookController {
      *    (Culqi no incluye subscription_id en charge.creation.succeeded)
      */
     private Optional<Suscripcion> buscarSuscripcion(Map<String, Object> dataMap) {
-        // Estrategia 1: por subscription_id
+        // Estrategia 1: por subscription_id en el payload directo
         String subscriptionId = extraerSubscriptionId(dataMap);
         if (subscriptionId != null) {
             return suscripcionRepository.findByPreapprovalId(subscriptionId);
         }
 
-        // Estrategia 2: por email del cargo
-        Object emailObj = dataMap.get("email");
-        if (emailObj instanceof String email && !email.isBlank()) {
-            Optional<Usuario> optUsuario = usuarioRepository.findByEmail(email);
-            if (optUsuario.isPresent()) {
-                Long usuarioId = optUsuario.get().getId();
-                // Busca la suscripción más reciente del usuario (activa o no, para poder actualizar estado)
-                Optional<Suscripcion> susPorUsuario = suscripcionRepository.findByUsuarioPrincipalId(usuarioId);
-                if (susPorUsuario.isPresent()) {
-                    log.info("🔍 [Culqi] Suscripción encontrada por email={}: id={}", email, susPorUsuario.get().getId());
-                    return susPorUsuario;
+        // Estrategia 2: por email directo en el payload
+        Optional<Suscripcion> porEmail = buscarPorEmail(dataMap.get("email"));
+        if (porEmail.isPresent()) return porEmail;
+
+        // Estrategia 3: charge.creation.failed envía un objeto de error con "chargeId".
+        // Consultamos Culqi para obtener el cargo completo y extraer subscription_id o email.
+        Object chargeIdObj = dataMap.get("chargeId");
+        if (chargeIdObj instanceof String chargeId && !chargeId.isBlank()) {
+            log.info("🔍 [Culqi] Consultando cargo {} en Culqi para obtener suscripción...", chargeId);
+            Map<String, Object> cargo = culqiService.obtenerCargo(chargeId);
+            if (cargo != null) {
+                // El cargo puede tener subscription_id directamente
+                String subId = extraerSubscriptionId(cargo);
+                if (subId != null) {
+                    log.info("🔍 [Culqi] subscription_id={} obtenido desde cargo {}", subId, chargeId);
+                    return suscripcionRepository.findByPreapprovalId(subId);
                 }
-                // Si no encontró por usuarioId exacto, busca la más reciente del tenant
-                String tenantId = optUsuario.get().getTenantId();
-                if (tenantId != null) {
-                    return suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId);
-                }
+                // O el email del cliente asociado al cargo
+                Optional<Suscripcion> porEmailCargo = buscarPorEmail(cargo.get("email"));
+                if (porEmailCargo.isPresent()) return porEmailCargo;
             }
-            log.warn("⚠️ [Culqi] No se encontró usuario con email={}", email);
         }
 
+        return Optional.empty();
+    }
+
+    private Optional<Suscripcion> buscarPorEmail(Object emailObj) {
+        if (!(emailObj instanceof String email) || email.isBlank()) return Optional.empty();
+        Optional<Usuario> optUsuario = usuarioRepository.findByEmail(email);
+        if (optUsuario.isEmpty()) {
+            log.warn("⚠️ [Culqi] No se encontró usuario con email={}", email);
+            return Optional.empty();
+        }
+        Long usuarioId = optUsuario.get().getId();
+        Optional<Suscripcion> susPorUsuario = suscripcionRepository.findByUsuarioPrincipalId(usuarioId);
+        if (susPorUsuario.isPresent()) {
+            log.info("🔍 [Culqi] Suscripción encontrada por email={}: id={}", email, susPorUsuario.get().getId());
+            return susPorUsuario;
+        }
+        String tenantId = optUsuario.get().getTenantId();
+        if (tenantId != null) {
+            return suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId);
+        }
         return Optional.empty();
     }
 
