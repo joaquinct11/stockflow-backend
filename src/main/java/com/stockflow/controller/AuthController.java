@@ -17,6 +17,9 @@ import com.stockflow.dto.ForgotPasswordDTO;
 import com.stockflow.dto.ResetPasswordDTO;
 import com.stockflow.dto.UsuarioProfileDTO;
 import com.stockflow.util.TenantContext;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Map;
 
@@ -60,6 +63,10 @@ public class AuthController {
     @GetMapping("/me")
     @Operation(summary = "Obtener perfil del usuario actual", description = "Retorna los datos del usuario autenticado")
     public ResponseEntity<UsuarioProfileDTO> obtenerPerfil() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         Long usuarioId = TenantContext.getCurrentUserId();
         UsuarioProfileDTO profile = authService.obtenerPerfil(usuarioId);
         return ResponseEntity.ok(profile);
