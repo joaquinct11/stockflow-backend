@@ -560,10 +560,13 @@ public class MovimientoInventarioController {
             @PathVariable Long movimientoId,
             @RequestBody com.stockflow.dto.ActualizarLoteProveedorDTO dto) {
         String tenantId = TenantContext.getCurrentTenant();
-        stockLoteService.actualizarProveedorLote(movimientoId, dto.getProveedorId(), dto.getPrecioVenta());
+        stockLoteService.actualizarProveedorLote(movimientoId, dto.getProveedorId(), dto.getPrecioVenta(),
+                dto.getLote(), dto.getFechaVencimiento());
         movimientoRepository.findById(movimientoId).ifPresent(mov -> {
             if (tenantId.equals(mov.getTenantId())) {
                 mov.setProveedorId(dto.getProveedorId());
+                if (dto.getLote() != null) mov.setLote(dto.getLote());
+                if (dto.getFechaVencimiento() != null) mov.setFechaVencimiento(dto.getFechaVencimiento());
                 movimientoRepository.save(mov);
             }
         });

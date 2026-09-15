@@ -251,12 +251,16 @@ public class StockLoteService {
      * Actualiza proveedor y/o precio de venta de un lote existente identificado por movimientoId.
      */
     @Transactional
-    public void actualizarProveedorLote(Long movimientoId, Long proveedorId, BigDecimal precioVenta) {
+    public void actualizarProveedorLote(Long movimientoId, Long proveedorId, BigDecimal precioVenta,
+                                        String loteNumero, java.time.LocalDate fechaVencimiento) {
         stockLoteRepository.findByMovimientoId(movimientoId).ifPresent(lote -> {
             lote.setProveedorId(proveedorId);
             if (precioVenta != null) lote.setPrecioVenta(precioVenta);
+            if (loteNumero != null) lote.setLote(loteNumero);
+            if (fechaVencimiento != null) lote.setFechaVencimiento(fechaVencimiento);
             stockLoteRepository.save(lote);
-            log.info("✅ Lote actualizado: movimientoId={} proveedorId={} precioVenta={}", movimientoId, proveedorId, precioVenta);
+            log.info("✅ Lote actualizado: movimientoId={} proveedorId={} precioVenta={} lote={} fechaVenc={}",
+                    movimientoId, proveedorId, precioVenta, loteNumero, fechaVencimiento);
         });
     }
 
