@@ -218,15 +218,21 @@ public class VentaController {
                             }
                         } else {
                             // Validar contra stock vigente (no vencido) si el producto tiene lotes
+                            // Con presentaciones: la cantidad real en unidades base = cantidad * factor
+                            int factor = (detalleDTO.getFactor() != null && detalleDTO.getFactor() > 1)
+                                    ? detalleDTO.getFactor() : 1;
+                            int cantidadBase = detalleDTO.getCantidad() * factor;
                             Integer stockVigente = stockLoteService.getStockVigente(
                                     tenantId, producto.getId(), ventaDTO.getSucursalId());
                             int stockDisponible = stockVigente != null ? stockVigente : producto.getStockActual();
-                            if (stockDisponible < detalleDTO.getCantidad()) {
+                            if (stockDisponible < cantidadBase) {
                                 throw new BadRequestException("Stock insuficiente para el producto: " + producto.getNombre());
                             }
                         }
                     }
 
+                    int factorDet = (detalleDTO.getFactor() != null && detalleDTO.getFactor() > 1)
+                            ? detalleDTO.getFactor() : 1;
                     return DetalleVenta.builder()
                             .producto(producto)
                             .cantidad(detalleDTO.getCantidad())
@@ -235,6 +241,8 @@ public class VentaController {
                             .varianteId(detalleDTO.getVarianteId())
                             .varianteDescripcion(detalleDTO.getVarianteDescripcion())
                             .stockLoteId(detalleDTO.getStockLoteId())
+                            .presentacionId(detalleDTO.getPresentacionId())
+                            .factor(factorDet)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -334,15 +342,17 @@ public class VentaController {
                         productoService.actualizarProducto(producto.getId(), producto);
                     });
                 } else {
-                    producto.setStockActual(producto.getStockActual() - detalle.getCantidad());
+                    // Cantidad en unidades base = cantidad vendida × factor de presentación
+                    int cantidadBase = detalle.getCantidad() * (detalle.getFactor() != null ? detalle.getFactor() : 1);
+                    producto.setStockActual(producto.getStockActual() - cantidadBase);
                     productoService.actualizarProducto(producto.getId(), producto);
 
                     // Descuento de lote: específico si el POS lo seleccionó, FEFO si no
                     if (detalle.getStockLoteId() != null) {
-                        stockLoteService.descontarLoteEspecifico(detalle.getStockLoteId(), detalle.getCantidad());
+                        stockLoteService.descontarLoteEspecifico(detalle.getStockLoteId(), cantidadBase);
                     } else {
                         stockLoteService.descontarFefo(
-                                tenantId, producto.getId(), ventaCreada.getSucursalId(), detalle.getCantidad());
+                                tenantId, producto.getId(), ventaCreada.getSucursalId(), cantidadBase);
                     }
 
                     // Actualizar stock por sucursal si la venta tiene sucursalId
@@ -356,7 +366,7 @@ public class VentaController {
                                             .tenantId(tenantId)
                                             .stockActual(0)
                                             .build());
-                            int stockSuc = (entry.getStockActual() != null ? entry.getStockActual() : 0) - detalle.getCantidad();
+                            int stockSuc = (entry.getStockActual() != null ? entry.getStockActual() : 0) - cantidadBase;
                             entry.setStockActual(Math.max(0, stockSuc));
                             stockSucursalRepository.save(entry);
                         });
@@ -365,11 +375,12 @@ public class VentaController {
 
                 String varDesc = detalle.getVarianteDescripcion() != null
                         ? " [" + detalle.getVarianteDescripcion() + "]" : "";
+                int cantBase = detalle.getCantidad() * (detalle.getFactor() != null ? detalle.getFactor() : 1);
                 MovimientoInventario movimiento = MovimientoInventario.builder()
                         .producto(producto)
                         .usuario(vendedor)
                         .tipo("SALIDA")
-                        .cantidad(detalle.getCantidad())
+                        .cantidad(cantBase)
                         .descripcion("Venta #" + ventaCreada.getId() + varDesc)
                         .referencia("Venta #" + ventaCreada.getId())
                         .tenantId(tenantId)

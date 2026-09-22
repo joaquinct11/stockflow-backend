@@ -16,6 +16,7 @@ public interface ProductoMapper {
 
     // ENTITY → DTO
     @Mapping(source = "unidadMedida.id", target = "unidadMedidaId")
+    @Mapping(source = "unidadMedida.nombre", target = "unidadMedidaNombre")
     @Mapping(source = "categoriaRef.id", target = "categoriaId")
     @Mapping(source = "categoriaRef.nombre", target = "categoriaNombre")
     @Mapping(source = "imagenUrl", target = "imagenUrl")

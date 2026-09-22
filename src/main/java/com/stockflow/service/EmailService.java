@@ -54,6 +54,13 @@ public interface EmailService {
     void enviarEmailTrialPorVencer(String email, String nombre, int diasRestantes, LocalDate fechaVencimiento);
 
     /**
+     * Aviso de cobro automático programado para mañana (suscripciones Culqi activas).
+     * Se dispara desde el scheduler 1 día antes de fechaProximoCobro.
+     */
+    void enviarAvisoCobro(String email, String nombre, String planId,
+                          java.math.BigDecimal monto, LocalDate fechaCobro);
+
+    /**
      * Confirmación de seguridad tras un cambio de contraseña exitoso.
      * Si el usuario no lo solicitó, puede contactar soporte.
      */
