@@ -228,7 +228,7 @@ public class NotificacionScheduler {
                 }
             }
 
-            // 2. Suscripciones activas con cobro manual (sin preapprovalId de MP)
+            // 2. Suscripciones activas con cobro manual (sin preapprovalId de Culqi)
             List<Suscripcion> manuales = suscripcionRepository.findActivasManualesPorVencerEntre(desde, hasta);
             for (Suscripcion s : manuales) {
                 String tenantId = s.getTenantId();
@@ -241,6 +241,28 @@ public class NotificacionScheduler {
                                 s.getPlanId(), s.getFechaProximoCobro().toLocalDate()),
                         s.getId(), "SUSCRIPCION"
                 );
+            }
+
+            // 3. Suscripciones Culqi (auto-cobro): enviar email solo 1 día antes
+            if (dias == 1) {
+                List<Suscripcion> culqi = suscripcionRepository.findActivasCulqiPorCobrarEntre(desde, hasta);
+                for (Suscripcion s : culqi) {
+                    try {
+                        var usuario = s.getUsuarioPrincipal();
+                        if (usuario != null && usuario.getEmail() != null) {
+                            emailService.enviarAvisoCobro(
+                                    usuario.getEmail(),
+                                    usuario.getNombre(),
+                                    s.getPlanId(),
+                                    s.getPrecioMensual(),
+                                    s.getFechaProximoCobro().toLocalDate()
+                            );
+                        }
+                    } catch (Exception e) {
+                        log.warn("No se pudo enviar aviso de cobro para suscripción {}: {}", s.getId(), e.getMessage());
+                    }
+                }
+                log.info("⏰ [Scheduler] Avisos de cobro Culqi enviados: {} suscripciones.", culqi.size());
             }
         }
         log.info("⏰ [Scheduler] Verificación de suscripciones completada.");

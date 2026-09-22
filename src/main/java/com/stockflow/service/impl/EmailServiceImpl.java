@@ -380,6 +380,32 @@ public class EmailServiceImpl implements EmailService {
         enviar(email, asunto, html);
     }
 
+    // ── Aviso de cobro automático (1 día antes) ───────────────────────────────
+
+    @Override
+    @Async
+    public void enviarAvisoCobro(String email, String nombre, String planId,
+                                  java.math.BigDecimal monto, LocalDate fechaCobro) {
+        log.info("📧 Enviando aviso de próximo cobro a: {}", email);
+
+        String fechaTexto = fechaCobro.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        String montoTexto = "S/ " + monto.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+
+        String html = buildHtml(
+                "Aviso de cobro",
+                "💳 Mañana se realizará el cobro de tu plan",
+                "Hola <b>" + nombre + "</b>,<br><br>"
+                + "Te recordamos que mañana <b>" + fechaTexto + "</b> se realizará el cobro automático de tu plan "
+                + "<b>" + planId + "</b> por un monto de <b>" + montoTexto + "</b>.<br><br>"
+                + "Asegúrate de que tu tarjeta tenga fondos suficientes para no perder el acceso a Fluxus.",
+                frontendUrl + "/dashboard/suscripciones",
+                "Ver mi suscripción",
+                "Si no deseas continuar, puedes cancelar tu suscripción antes del cobro desde tu panel."
+        );
+
+        enviar(email, "💳 Recordatorio de cobro mañana — Fluxus", html);
+    }
+
     // ── Confirmación cambio de contraseña ─────────────────────────────────────
 
     @Override

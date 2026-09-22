@@ -47,6 +47,9 @@ public class ProductoDTO {
 
     private Long unidadMedidaId;
 
+    /** Solo lectura — nombre de la unidad base para mostrar en el POS. */
+    private String unidadMedidaNombre;
+
     private Boolean activo;
 
     /** URL de imagen del producto (opcional). */

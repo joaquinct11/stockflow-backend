@@ -63,4 +63,21 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
             @Param("hasta") LocalDateTime hasta
     );
 
+    /**
+     * Suscripciones ACTIVAS con preapprovalId (Culqi automático) cuyo
+     * fechaProximoCobro cae entre dos momentos. Se usa para avisar 1 día antes del cargo.
+     */
+    @Query("""
+            SELECT s FROM Suscripcion s
+            WHERE s.estado = 'ACTIVA'
+              AND s.preapprovalId IS NOT NULL
+              AND s.preapprovalId <> ''
+              AND s.fechaProximoCobro IS NOT NULL
+              AND s.fechaProximoCobro BETWEEN :desde AND :hasta
+            """)
+    List<Suscripcion> findActivasCulqiPorCobrarEntre(
+            @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta
+    );
+
 }
