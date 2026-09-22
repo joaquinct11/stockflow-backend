@@ -35,4 +35,15 @@ public class DetalleVentaDTO {
     private Long varianteId;
     private String varianteDescripcion;
     private Long stockLoteId;
+
+    /** ID de la presentación seleccionada en el POS (null = unidad principal). */
+    private Long presentacionId;
+
+    /**
+     * Cuántas unidades base = 1 de esta presentación.
+     * Ej: CAJA=20 → vender 1 CAJA descuenta 20 tabletas del stock.
+     * Default 1 (unidad principal o producto sin presentaciones).
+     */
+    @Builder.Default
+    private Integer factor = 1;
 }

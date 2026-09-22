@@ -119,12 +119,14 @@ public class VentaServiceImpl implements VentaService {
         // Reponer stock y registrar movimiento por cada producto
         for (DetalleVenta detalle : venta.getDetalles()) {
             Producto producto = detalle.getProducto();
-            producto.setStockActual(producto.getStockActual() + detalle.getCantidad());
+            // Reponer en unidades base (cantidad × factor de presentación)
+            int cantidadBase = detalle.getCantidad() * (detalle.getFactor() != null ? detalle.getFactor() : 1);
+            producto.setStockActual(producto.getStockActual() + cantidadBase);
             productoRepository.save(producto);
 
             // Restaurar lote específico si la venta lo usó
             if (detalle.getStockLoteId() != null) {
-                stockLoteService.restaurarLoteEspecifico(detalle.getStockLoteId(), detalle.getCantidad());
+                stockLoteService.restaurarLoteEspecifico(detalle.getStockLoteId(), cantidadBase);
             }
 
             // Reponer también en producto_stock_sucursal si la venta tiene sucursalId
@@ -138,7 +140,7 @@ public class VentaServiceImpl implements VentaService {
                                     .tenantId(tenantId)
                                     .stockActual(0)
                                     .build());
-                    entry.setStockActual((entry.getStockActual() != null ? entry.getStockActual() : 0) + detalle.getCantidad());
+                    entry.setStockActual((entry.getStockActual() != null ? entry.getStockActual() : 0) + cantidadBase);
                     stockSucursalRepository.save(entry);
                 });
             }
@@ -147,7 +149,7 @@ public class VentaServiceImpl implements VentaService {
                     .producto(producto)
                     .usuario(usuario)
                     .tipo("AJUSTE")
-                    .cantidad(detalle.getCantidad())
+                    .cantidad(cantidadBase)
                     .descripcion("Anulación venta #" + venta.getId())
                     .referencia("ANUL-" + venta.getId())
                     .tenantId(tenantId)

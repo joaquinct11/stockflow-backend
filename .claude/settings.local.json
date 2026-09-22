@@ -232,7 +232,17 @@
       "Bash(awk 'NR>=52593 && NR<=52700 && $0 !~ /\\\\tat /' \"D:\\\\java\\\\jboss-eap-7.2.3\\\\standalone\\\\log\\\\server.log\")",
       "Bash(awk 'NR>=60080 && NR<=60110 && $0 !~ /\\\\tat /' \"D:\\\\java\\\\jboss-eap-7.2.3\\\\standalone\\\\log\\\\server.log\")",
       "Bash(awk 'NR>=88470 && NR<=88514 && $0 !~ /\\\\tat /' \"D:\\\\java\\\\jboss-eap-7.2.3\\\\standalone\\\\log\\\\server.log\")",
-      "Bash(\"D:\\\\java\\\\jdk1.8.0_181\\\\bin\\\\javap.exe\" -p -c -constants -classpath \"C:\\\\Users\\\\castillojoot\\\\.m2\\\\repository\\\\lotto-lotosapiws-trunk-3\\\\0\\\\lotto-lotosapiws-trunk-3.0\\\\1.0\\\\lotto-lotosapiws-trunk-3.0-1.0-classes.jar\" pe.com.intralot.lotosapi.dispatcher.BussinessDispatcher)"
+      "Bash(\"D:\\\\java\\\\jdk1.8.0_181\\\\bin\\\\javap.exe\" -p -c -constants -classpath \"C:\\\\Users\\\\castillojoot\\\\.m2\\\\repository\\\\lotto-lotosapiws-trunk-3\\\\0\\\\lotto-lotosapiws-trunk-3.0\\\\1.0\\\\lotto-lotosapiws-trunk-3.0-1.0-classes.jar\" pe.com.intralot.lotosapi.dispatcher.BussinessDispatcher)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name = 'java.exe'\")",
+      "PowerShell(netstat -ano)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(findstr \":8080 :9990\")",
+      "Bash(awk 'NR>=5448' \"D:\\\\java\\\\jboss-eap-7.2.3\\\\standalone\\\\log\\\\server.log\")",
+      "Bash(openssl version *)",
+      "Bash(openssl s_client -connect ilotws-3vbyhz.clouduat.com.pe:443 -servername ilotws-3vbyhz.clouduat.com.pe)",
+      "PowerShell(Resolve-DnsName -Name ilotws-3vbyhz.clouduat.com.pe -Type A)",
+      "PowerShell(Test-NetConnection -ComputerName ilotws-3vbyhz.clouduat.com.pe -Port 443 -WarningAction SilentlyContinue)"
     ]
   }
 }

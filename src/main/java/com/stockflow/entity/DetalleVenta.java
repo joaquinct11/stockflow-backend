@@ -45,6 +45,18 @@ public class DetalleVenta {
     @Column(name = "stock_lote_id")
     private Long stockLoteId;
 
+    /** ID de la presentación usada al vender (null = unidad principal del producto). */
+    @Column(name = "presentacion_id")
+    private Long presentacionId;
+
+    /**
+     * Multiplicador de unidades base: vender 1 CAJA con factor=20 descuenta 20 tabletas.
+     * Siempre >= 1. Se persiste para que la anulación reponga correctamente.
+     */
+    @Builder.Default
+    @Column(name = "factor", nullable = false)
+    private Integer factor = 1;
+
     @PrePersist
     @PreUpdate
     public void calcularSubtotal() {
