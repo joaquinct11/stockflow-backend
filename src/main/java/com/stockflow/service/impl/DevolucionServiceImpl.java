@@ -10,6 +10,7 @@ import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.*;
 import com.stockflow.service.DevolucionService;
 import com.stockflow.service.NotaCreditoService;
+import com.stockflow.service.StockLoteService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,7 @@ public class DevolucionServiceImpl implements DevolucionService {
     private final SucursalRepository sucursalRepository;
     private final ProductoVarianteRepository productoVarianteRepository;
     private final ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
+    private final StockLoteService stockLoteService;
 
     @Override
     public DevolucionDTO crear(CrearDevolucionDTO dto, Long usuarioId, String tenantId) {
@@ -98,11 +100,16 @@ public class DevolucionServiceImpl implements DevolucionService {
             Producto producto = productoRepository.findById(item.getProductoId())
                     .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
 
+            // Hereda el factor de presentación del detalle original (1 blíster = 10 tabletas)
+            int factor = (original.getFactor() != null && original.getFactor() > 1)
+                    ? original.getFactor() : 1;
+
             detalles.add(DevolucionDetalle.builder()
                     .producto(producto)
                     .cantidadDevuelta(item.getCantidadDevuelta())
                     .precioUnitario(item.getPrecioUnitario())
                     .subtotal(subtotal)
+                    .factor(factor)
                     .build());
         }
 
@@ -138,13 +145,15 @@ public class DevolucionServiceImpl implements DevolucionService {
             Long sucursalId = venta.getSucursalId();
             for (DevolucionDetalle det : detalles) {
                 Producto producto = det.getProducto();
-                producto.setStockActual(producto.getStockActual() + det.getCantidadDevuelta());
+                // Reponer en unidades base: cantidad devuelta × factor de presentación
+                int cantidadBase = det.getCantidadDevuelta() * (det.getFactor() != null ? det.getFactor() : 1);
+                producto.setStockActual(producto.getStockActual() + cantidadBase);
                 productoRepository.save(producto);
 
                 // Reponer también en producto_stock_sucursal
                 if (sucursalId != null) {
                     final Producto prod = producto;
-                    final int cant = det.getCantidadDevuelta();
+                    final int cant = cantidadBase;
                     sucursalRepository.findById(sucursalId).ifPresent(sucursal -> {
                         ProductoStockSucursal entry = stockSucursalRepository
                                 .findByProductoIdAndSucursalId(prod.getId(), sucursal.getId())
@@ -160,15 +169,24 @@ public class DevolucionServiceImpl implements DevolucionService {
                 }
 
                 DetalleVenta dvOrigen = detallesPorProducto.get(det.getProducto().getId());
+
+                // Restaurar lotes exactos que se consumieron en la venta original
+                if (dvOrigen != null) {
+                    stockLoteService.restaurarDesdeJson(
+                            dvOrigen.getLotesConsumidosJson(),
+                            dvOrigen.getStockLoteId(),
+                            cantidadBase, tenantId, producto.getId(), venta.getSucursalId());
+                }
+
                 String varDesc = (dvOrigen != null && dvOrigen.getVarianteDescripcion() != null)
                         ? " [" + dvOrigen.getVarianteDescripcion() + "]" : "";
 
-                // Reponer stock de variante si aplica
+                // Reponer stock de variante si aplica (también en unidades base)
                 if (dvOrigen != null && dvOrigen.getVarianteId() != null) {
                     final Long varianteId = dvOrigen.getVarianteId();
-                    final int cantDev = det.getCantidadDevuelta();
+                    final int cantBase = cantidadBase;
                     productoVarianteRepository.findById(varianteId).ifPresent(pv -> {
-                        pv.setStockActual((pv.getStockActual() != null ? pv.getStockActual() : 0) + cantDev);
+                        pv.setStockActual((pv.getStockActual() != null ? pv.getStockActual() : 0) + cantBase);
                         productoVarianteRepository.save(pv);
                     });
                     if (sucursalId != null) {
@@ -181,14 +199,14 @@ public class DevolucionServiceImpl implements DevolucionService {
                                             .tenantId(tenantId)
                                             .stockActual(0)
                                             .build());
-                            pvss.setStockActual((pvss.getStockActual() != null ? pvss.getStockActual() : 0) + cantDev);
+                            pvss.setStockActual((pvss.getStockActual() != null ? pvss.getStockActual() : 0) + cantBase);
                             varianteStockSucursalRepository.save(pvss);
                         });
                     }
                 }
                 MovimientoInventario mov = MovimientoInventario.builder()
                         .producto(producto)
-                        .cantidad(det.getCantidadDevuelta())
+                        .cantidad(cantidadBase)
                         .tipo("DEVOLUCION")
                         .usuario(usuario)
                         .tenantId(tenantId)

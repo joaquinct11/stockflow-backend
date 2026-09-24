@@ -17,6 +17,7 @@ public class DashboardService {
     private final ComprobanteRepository comprobanteRepository;
     private final MovimientoInventarioRepository movimientoRepository;
     private final OrdenCompraRepository ordenCompraRepository;
+    private final DevolucionRepository devolucionRepository;
 
     public List<ActividadRecienteDTO> getActividadReciente(String tenantId, Long sucursalId, int limit) {
         int fetch = limit * 2; // pedir más para que al mezclar sobre todo haya suficientes
@@ -29,7 +30,7 @@ public class DashboardService {
                 : ventaRepository.findByTenantId(tenantId);
 
         ventas.stream()
-                .filter(v -> v.getCreatedAt() != null)
+                .filter(v -> v.getCreatedAt() != null && !"ANULADA".equals(v.getEstado()))
                 .sorted(Comparator.comparing(Venta::getCreatedAt).reversed())
                 .limit(fetch)
                 .forEach(v -> {
@@ -108,6 +109,38 @@ public class DashboardService {
                             .detalle("estado: " + oc.getEstado().toLowerCase())
                             .usuarioNombre(nombreUsuario(oc.getUsuarioCreador()))
                             .fechaHora(oc.getCreatedAt())
+                            .build());
+                });
+
+        // --- Anulaciones (ventas con estado ANULADA) ---
+        ventas.stream()
+                .filter(v -> v.getCreatedAt() != null && "ANULADA".equals(v.getEstado()))
+                .sorted(Comparator.comparing(Venta::getCreatedAt).reversed())
+                .limit(fetch)
+                .forEach(v -> {
+                    String usuario = nombreUsuario(v.getVendedor());
+                    items.add(ActividadRecienteDTO.builder()
+                            .tipo("ANULACION")
+                            .descripcion("Venta anulada por S/ " + formatMonto(v.getTotal()))
+                            .detalle("venta #" + v.getId())
+                            .usuarioNombre(usuario)
+                            .fechaHora(v.getCreatedAt())
+                            .build());
+                });
+
+        // --- Devoluciones ---
+        devolucionRepository.findByTenantIdOrderByFechaDevolucionDesc(tenantId).stream()
+                .filter(d -> d.getFechaDevolucion() != null
+                        && (sucursalId == null || sucursalId.equals(d.getSucursalId())))
+                .limit(fetch)
+                .forEach(d -> {
+                    String usuario = nombreUsuario(d.getUsuario());
+                    items.add(ActividadRecienteDTO.builder()
+                            .tipo("DEVOLUCION")
+                            .descripcion("Devolución por S/ " + formatMonto(d.getTotalDevuelto()))
+                            .detalle(d.getMotivo() != null ? d.getMotivo() : null)
+                            .usuarioNombre(usuario)
+                            .fechaHora(d.getFechaDevolucion())
                             .build());
                 });
 
