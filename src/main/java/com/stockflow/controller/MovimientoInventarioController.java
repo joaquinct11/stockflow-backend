@@ -61,7 +61,7 @@ public class MovimientoInventarioController {
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
      */
     @GetMapping("/proximos-vencer")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'VENDEDOR') or hasAuthority('PERM_VER_INVENTARIO')")
     public ResponseEntity<List<MovimientoInventarioDTO>> obtenerProximosAVencer(
             @RequestParam(defaultValue = "90") int ventanaDias) {
         String tenantId = TenantContext.getCurrentTenant();
