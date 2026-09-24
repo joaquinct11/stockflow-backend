@@ -7,6 +7,7 @@ import com.stockflow.entity.NotaCredito;
 import com.stockflow.entity.Tenant;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
+import com.stockflow.repository.ClienteRepository;
 import com.stockflow.repository.NotaCreditoRepository;
 import com.stockflow.service.NotaCreditoService;
 import com.stockflow.util.NotaCreditoPdfGenerator;
@@ -26,6 +27,7 @@ import java.util.List;
 public class NotaCreditoServiceImpl implements NotaCreditoService {
 
     private final NotaCreditoRepository notaCreditoRepository;
+    private final ClienteRepository clienteRepository;
     private final NotaCreditoPdfGenerator pdfGenerator;
 
     private static final DateTimeFormatter FMT_FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -157,9 +159,23 @@ public class NotaCreditoServiceImpl implements NotaCreditoService {
 
     private NotaCreditoDTO toDTO(NotaCredito nc) {
         Long ventaOrigenId = null;
+        String clienteNombre = null;
+        String clienteDocTipo = null;
+        String clienteDocNumero = null;
+
         if (nc.getDevolucion() != null && nc.getDevolucion().getVenta() != null) {
             ventaOrigenId = nc.getDevolucion().getVenta().getId();
+            Long clienteId = nc.getDevolucion().getVenta().getClienteId();
+            if (clienteId != null) {
+                var cliente = clienteRepository.findById(clienteId).orElse(null);
+                if (cliente != null) {
+                    clienteNombre = cliente.getNombre();
+                    clienteDocTipo = cliente.getTipoDocumento();
+                    clienteDocNumero = cliente.getNumeroDocumento();
+                }
+            }
         }
+
         return NotaCreditoDTO.builder()
                 .id(nc.getId())
                 .codigo(nc.getCodigo())
@@ -172,6 +188,9 @@ public class NotaCreditoServiceImpl implements NotaCreditoService {
                 .fechaUso(nc.getFechaUso())
                 .ventaUsoId(nc.getVentaUsoId())
                 .tenantId(nc.getTenantId())
+                .clienteNombre(clienteNombre)
+                .clienteDocTipo(clienteDocTipo)
+                .clienteDocNumero(clienteDocNumero)
                 .build();
     }
 }
