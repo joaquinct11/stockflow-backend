@@ -242,7 +242,12 @@
       "Bash(openssl version *)",
       "Bash(openssl s_client -connect ilotws-3vbyhz.clouduat.com.pe:443 -servername ilotws-3vbyhz.clouduat.com.pe)",
       "PowerShell(Resolve-DnsName -Name ilotws-3vbyhz.clouduat.com.pe -Type A)",
-      "PowerShell(Test-NetConnection -ComputerName ilotws-3vbyhz.clouduat.com.pe -Port 443 -WarningAction SilentlyContinue)"
+      "PowerShell(Test-NetConnection -ComputerName ilotws-3vbyhz.clouduat.com.pe -Port 443 -WarningAction SilentlyContinue)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId = 92808\" | Select-Object ProcessId, Name, @{Name=\"CommandLine\";Expression={$_.CommandLine.Substring\\(0, [Math]::Min\\(200,$_.CommandLine.Length\\)\\)}})",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name = 'idea64.exe'\" | Select-Object ProcessId, CreationDate, @{Name=\"CmdLine\";Expression={$_.CommandLine}})",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/lotto_ws_tinkaexpress/\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/lotto-ws-tinkaexpress/\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/lotto-ws-tupay/\")"
     ]
   }
 }

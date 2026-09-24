@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +90,101 @@ public class StockLoteService {
             stockLoteRepository.save(lote);
             log.info("✅ Lote {} restaurado: +{}", stockLoteId, cantidad);
         }, () -> log.warn("⚠️ No se encontró stock_lote id={} para restaurar", stockLoteId));
+    }
+
+    /**
+     * Descuenta stock registrando exactamente qué lotes se consumieron.
+     * Si stockLoteId != null: descuenta del lote específico primero; el sobrante va a FEFO.
+     * Si stockLoteId == null: todo va directamente a FEFO.
+     * Retorna JSON con la lista de consumos: [[loteId1, cant1], [loteId2, cant2], ...]
+     * Retorna null si no hay lotes.
+     */
+    @Transactional
+    public String descontarConRegistroJson(Long stockLoteId, int cantidadBase,
+                                            String tenantId, Long productoId, Long sucursalId) {
+        List<long[]> consumos = new ArrayList<>();
+
+        if (stockLoteId != null) {
+            int sobrante = descontarLoteEspecifico(stockLoteId, cantidadBase);
+            int consumido = cantidadBase - sobrante;
+            if (consumido > 0) consumos.add(new long[]{stockLoteId, consumido});
+            if (sobrante > 0) consumos.addAll(descontarFefoConRegistro(tenantId, productoId, sucursalId, sobrante));
+        } else {
+            consumos.addAll(descontarFefoConRegistro(tenantId, productoId, sucursalId, cantidadBase));
+        }
+
+        if (consumos.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < consumos.size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append("[").append(consumos.get(i)[0]).append(",").append((int) consumos.get(i)[1]).append("]");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    /**
+     * Versión interna de descontarFefo que además retorna los pares (loteId, cantidad) consumidos.
+     */
+    private List<long[]> descontarFefoConRegistro(String tenantId, Long productoId, Long sucursalId, int cantidad) {
+        LocalDate hoy = LocalDate.now();
+        List<StockLote> lotes = sucursalId != null
+                ? stockLoteRepository.findVigentesFefoConSucursal(productoId, tenantId, sucursalId, hoy)
+                : stockLoteRepository.findVigentesFefo(productoId, tenantId, hoy);
+
+        List<long[]> consumos = new ArrayList<>();
+        int restante = cantidad;
+        for (StockLote lote : lotes) {
+            if (restante <= 0) break;
+            int descontar = Math.min(lote.getStockActual(), restante);
+            if (descontar > 0) {
+                lote.setStockActual(lote.getStockActual() - descontar);
+                stockLoteRepository.save(lote);
+                consumos.add(new long[]{lote.getId(), descontar});
+                restante -= descontar;
+            }
+        }
+        if (restante > 0) {
+            log.warn("⚠️ FEFO-registro: producto={} sin suficientes lotes (faltaron {})", productoId, restante);
+        }
+        return consumos;
+    }
+
+    /**
+     * Restaura los lotes exactos que se consumieron al vender, usando el JSON guardado en DetalleVenta.
+     * Formato esperado: [[loteId1, cant1], [loteId2, cant2], ...]
+     * Si el JSON es null/vacío, recurre a restaurarLoteEspecifico con stockLoteId como fallback.
+     */
+    @Transactional
+    public void restaurarDesdeJson(String lotesConsumidosJson, Long stockLoteIdFallback, int cantidadBase,
+                                    String tenantId, Long productoId, Long sucursalId) {
+        if (lotesConsumidosJson != null && !lotesConsumidosJson.isBlank()) {
+            // Parsear [[loteId, cantidad], ...]
+            String contenido = lotesConsumidosJson.trim();
+            contenido = contenido.substring(1, contenido.length() - 1); // quitar [ ]
+            if (contenido.isBlank()) return;
+            for (String par : contenido.split("(?<=\\]),(?=\\[)")) {
+                par = par.trim().replaceAll("[\\[\\]]", "");
+                String[] partes = par.split(",");
+                if (partes.length == 2) {
+                    try {
+                        Long loteId = Long.parseLong(partes[0].trim());
+                        int cant = Integer.parseInt(partes[1].trim());
+                        restaurarLoteEspecifico(loteId, cant);
+                    } catch (NumberFormatException e) {
+                        log.warn("⚠️ JSON de lotes mal formado: {}", par);
+                    }
+                }
+            }
+        } else if (stockLoteIdFallback != null) {
+            // Ventas antiguas sin JSON: restaurar al lote original (comportamiento previo)
+            restaurarLoteEspecifico(stockLoteIdFallback, cantidadBase);
+            log.warn("⚠️ Sin JSON de lotes para lote={}, usando fallback restaurarLoteEspecifico", stockLoteIdFallback);
+        } else {
+            // Sin JSON ni lote específico: usar reverse-FEFO como último recurso
+            ajustarStockLotes(tenantId, productoId, sucursalId, cantidadBase);
+            log.warn("⚠️ Sin JSON ni lote específico para producto={}, usando reverse-FEFO", productoId);
+        }
     }
 
     /**

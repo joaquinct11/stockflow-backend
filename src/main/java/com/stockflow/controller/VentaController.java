@@ -17,6 +17,7 @@ import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.entity.ProductoVarianteStockSucursal;
+import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
@@ -61,6 +62,7 @@ public class VentaController {
     private final ProductoStockSucursalRepository           stockSucursalRepository;
     private final SucursalRepository                        sucursalRepository;
     private final VentaRepository                           ventaRepository;
+    private final DetalleVentaRepository                    detalleVentaRepository;
     private final com.stockflow.service.StockLoteService   stockLoteService;
 
     /**
@@ -347,12 +349,14 @@ public class VentaController {
                     producto.setStockActual(producto.getStockActual() - cantidadBase);
                     productoService.actualizarProducto(producto.getId(), producto);
 
-                    // Descuento de lote: específico si el POS lo seleccionó, FEFO si no
-                    if (detalle.getStockLoteId() != null) {
-                        stockLoteService.descontarLoteEspecifico(detalle.getStockLoteId(), cantidadBase);
-                    } else {
-                        stockLoteService.descontarFefo(
-                                tenantId, producto.getId(), ventaCreada.getSucursalId(), cantidadBase);
+                    // Descuento de lote: registra exactamente qué lotes se consumieron para poder
+                    // restaurarlos con precisión al anular o devolver (evita el bug de reverse-FEFO)
+                    String lotesJson = stockLoteService.descontarConRegistroJson(
+                            detalle.getStockLoteId(), cantidadBase,
+                            tenantId, producto.getId(), ventaCreada.getSucursalId());
+                    if (lotesJson != null) {
+                        detalle.setLotesConsumidosJson(lotesJson);
+                        detalleVentaRepository.save(detalle);
                     }
 
                     // Actualizar stock por sucursal si la venta tiene sucursalId

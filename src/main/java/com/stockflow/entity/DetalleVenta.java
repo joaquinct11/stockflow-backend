@@ -57,6 +57,13 @@ public class DetalleVenta {
     @Column(name = "factor", nullable = false)
     private Integer factor = 1;
 
+    /**
+     * JSON con los lotes exactos consumidos al vender: [[loteId1, cantidad1], [loteId2, cantidad2], ...]
+     * Persiste el consumo real (incluye desborde FEFO) para restaurar exactamente al anular/devolver.
+     */
+    @Column(name = "lotes_consumidos_json", columnDefinition = "TEXT")
+    private String lotesConsumidosJson;
+
     @PrePersist
     @PreUpdate
     public void calcularSubtotal() {
