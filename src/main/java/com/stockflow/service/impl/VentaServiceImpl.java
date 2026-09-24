@@ -124,10 +124,11 @@ public class VentaServiceImpl implements VentaService {
             producto.setStockActual(producto.getStockActual() + cantidadBase);
             productoRepository.save(producto);
 
-            // Restaurar lote específico si la venta lo usó
-            if (detalle.getStockLoteId() != null) {
-                stockLoteService.restaurarLoteEspecifico(detalle.getStockLoteId(), cantidadBase);
-            }
+            // Restaurar los lotes exactos consumidos en la venta
+            stockLoteService.restaurarDesdeJson(
+                    detalle.getLotesConsumidosJson(),
+                    detalle.getStockLoteId(),
+                    cantidadBase, tenantId, producto.getId(), venta.getSucursalId());
 
             // Reponer también en producto_stock_sucursal si la venta tiene sucursalId
             if (venta.getSucursalId() != null) {

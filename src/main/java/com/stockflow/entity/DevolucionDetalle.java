@@ -36,4 +36,12 @@ public class DevolucionDetalle {
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
+
+    /**
+     * Multiplicador de unidades base heredado del DetalleVenta original.
+     * Al devolver 1 blíster con factor=10 se reponen 10 tabletas en stock.
+     */
+    @Builder.Default
+    @Column(name = "factor", nullable = false)
+    private Integer factor = 1;
 }
