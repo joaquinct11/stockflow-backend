@@ -25,4 +25,9 @@ public class NotaCreditoDTO {
     private LocalDateTime fechaUso;
     private Long ventaUsoId;
     private String tenantId;
+
+    // Datos del cliente enriquecidos desde la venta origen
+    private String clienteNombre;
+    private String clienteDocTipo;
+    private String clienteDocNumero;
 }

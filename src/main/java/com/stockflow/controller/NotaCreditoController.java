@@ -27,7 +27,7 @@ public class NotaCreditoController {
     private final TenantRepository tenantRepository;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_NOTAS_CREDITO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'VENDEDOR') or hasAuthority('PERM_VER_NOTAS_CREDITO')")
     public ResponseEntity<List<NotaCreditoDTO>> getAll(@RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("Listando notas de credito para tenant: {}", tenantId);
