@@ -100,6 +100,7 @@ public class VentaController {
             @PathVariable Long vendedorId,
             @RequestParam(required = false) String inicio,
             @RequestParam(required = false) String fin,
+            @RequestParam(required = false) Long sucursalId,
             Authentication authentication) {
 
         String tenantId = TenantContext.getCurrentTenant();
@@ -111,14 +112,14 @@ public class VentaController {
 
         Long efectiveVendedorId = isAdminOrGerente ? vendedorId : currentUserId;
 
-        log.info("👤 Obteniendo ventas del vendedor: {} (solicitado: {}) para tenant: {}",
-                efectiveVendedorId, vendedorId, tenantId);
+        log.info("👤 Obteniendo ventas del vendedor: {} (solicitado: {}) para tenant: {} sucursalId={}",
+                efectiveVendedorId, vendedorId, tenantId, sucursalId);
 
         List<com.stockflow.entity.Venta> ventas;
         if (inicio != null && fin != null) {
             ventas = ventaService.obtenerVentasPorVendedorYTenantYPeriodo(
                     efectiveVendedorId, tenantId,
-                    LocalDateTime.parse(inicio), LocalDateTime.parse(fin));
+                    LocalDateTime.parse(inicio), LocalDateTime.parse(fin), sucursalId);
         } else {
             ventas = ventaService.obtenerVentasPorVendedorYTenant(efectiveVendedorId, tenantId);
         }
@@ -133,17 +134,18 @@ public class VentaController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_VENTAS')")
     public ResponseEntity<List<VentaDTO>> obtenerPorPeriodo(
             @RequestParam String inicio,
-            @RequestParam String fin) {
+            @RequestParam String fin,
+            @RequestParam(required = false) Long sucursalId) {
 
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("📅 Obteniendo ventas por período para tenant: {} ({}  - {})", tenantId, inicio, fin);
+        log.info("📅 Obteniendo ventas por período para tenant: {} ({} - {}) sucursalId={}", tenantId, inicio, fin, sucursalId);
 
         LocalDateTime inicioDateTime = LocalDateTime.parse(inicio);
         LocalDateTime finDateTime = LocalDateTime.parse(fin);
 
         return ResponseEntity.ok(
                 ventaMapper.toDTOList(
-                        ventaService.obtenerVentasPorPeriodo(tenantId, inicioDateTime, finDateTime)
+                        ventaService.obtenerVentasPorPeriodo(tenantId, inicioDateTime, finDateTime, sucursalId)
                 )
         );
     }

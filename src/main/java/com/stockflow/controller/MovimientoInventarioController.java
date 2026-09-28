@@ -14,6 +14,7 @@ import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
+import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.StockLoteRepository;
@@ -56,6 +57,7 @@ public class MovimientoInventarioController {
     private final DetalleVentaRepository                    detalleVentaRepository;
     private final StockLoteRepository                       stockLoteRepository;
     private final ProveedorRepository                       proveedorRepository;
+    private final ProductoRepository                        productoRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -159,6 +161,7 @@ public class MovimientoInventarioController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GESTOR_INVENTARIO') or hasAuthority('PERM_CREAR_INVENTARIO')")
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<MovimientoInventarioDTO> crear(@Valid @RequestBody MovimientoInventarioDTO movimientoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando movimiento de inventario para tenant: {}", tenantId);
@@ -174,19 +177,31 @@ public class MovimientoInventarioController {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         // Validar tipo de movimiento
-        if (!movimientoDTO.getTipo().matches("ENTRADA|SALIDA|AJUSTE|AJUSTE_PRECIO|DEVOLUCION")) {
+        if (!movimientoDTO.getTipo().matches("ENTRADA|SALIDA|AJUSTE|AJUSTE_PRECIO|DEVOLUCION|MERMA")) {
             throw new BadRequestException("Tipo de movimiento inválido.");
         }
 
-        // AJUSTE_PRECIO no requiere cantidad; los demás sí
-        if (!"AJUSTE_PRECIO".equals(movimientoDTO.getTipo()) && movimientoDTO.getCantidad() <= 0) {
+        // AJUSTE y AJUSTE_PRECIO pueden recibir cantidad 0; los demás requieren > 0
+        if (!movimientoDTO.getTipo().matches("AJUSTE|AJUSTE_PRECIO") && movimientoDTO.getCantidad() <= 0) {
             throw new BadRequestException("La cantidad debe ser mayor a 0");
         }
 
-        // Validar stock para salidas
-        if ("SALIDA".equals(movimientoDTO.getTipo())) {
-            if (producto.getStockActual() < movimientoDTO.getCantidad()) {
-                throw new BadRequestException("Stock insuficiente. Stock actual: " + producto.getStockActual());
+        // Validar stock para salidas y mermas
+        if ("SALIDA".equals(movimientoDTO.getTipo()) || "MERMA".equals(movimientoDTO.getTipo())) {
+            boolean tieneLotesVal = stockLoteRepository.existsByProductoIdAndTenantId(producto.getId(), tenantId);
+            int stockDisponible;
+            if (tieneLotesVal) {
+                // Para productos con lotes: validar solo contra stockVigente (sin vencidos)
+                stockDisponible = movimientoDTO.getSucursalId() != null
+                        ? stockLoteRepository.sumStockVigenteConSucursal(
+                                producto.getId(), tenantId, movimientoDTO.getSucursalId(), LocalDate.now())
+                        : stockLoteRepository.sumStockVigente(
+                                producto.getId(), tenantId, LocalDate.now());
+            } else {
+                stockDisponible = producto.getStockActual();
+            }
+            if (stockDisponible < movimientoDTO.getCantidad()) {
+                throw new BadRequestException("Stock insuficiente. Stock disponible: " + stockDisponible);
             }
         }
 
@@ -246,13 +261,15 @@ public class MovimientoInventarioController {
                 case "AJUSTE"        -> "AJST";
                 case "AJUSTE_PRECIO" -> "AJST-P";
                 case "SALIDA"        -> "SAL";
+                case "MERMA"         -> "MRMA";
                 default              -> "MOV";
             };
             movimientoCreado.setReferencia(prefix + "-" + movimientoCreado.getId());
             movimientoRepository.save(movimientoCreado);
         }
 
-        // Si es ENTRADA o DEVOLUCIÓN con fechaVencimiento, registrar en stock_lotes para control FEFO
+        // Registrar en stock_lotes para control FEFO solo cuando viene fecha_vencimiento.
+        // Para productos farmacia el frontend obliga la fecha; para otros rubros no se crea lote.
         if ((esEntrada || esDevolucion) && fechaVencimiento != null) {
             stockLoteService.registrarLote(
                     tenantId, movimientoCreado.getId(), producto.getId(),
@@ -284,7 +301,7 @@ public class MovimientoInventarioController {
                                 int sv = entry.getStockActual() != null ? entry.getStockActual() : 0;
                                 switch (movimientoDTO.getTipo()) {
                                     case "ENTRADA": case "DEVOLUCION": sv += movimientoDTO.getCantidad(); break;
-                                    case "SALIDA":  sv -= movimientoDTO.getCantidad(); break;
+                                    case "SALIDA": case "MERMA": sv -= movimientoDTO.getCantidad(); break;
                                     case "AJUSTE":  sv  = movimientoDTO.getCantidad(); break;
                                 }
                                 entry.setStockActual(sv);
@@ -300,7 +317,7 @@ public class MovimientoInventarioController {
                                 int sv = variante.getStockActual() != null ? variante.getStockActual() : 0;
                                 switch (movimientoDTO.getTipo()) {
                                     case "ENTRADA": case "DEVOLUCION": sv += movimientoDTO.getCantidad(); break;
-                                    case "SALIDA":  sv -= movimientoDTO.getCantidad(); break;
+                                    case "SALIDA": case "MERMA": sv -= movimientoDTO.getCantidad(); break;
                                     case "AJUSTE":  sv  = movimientoDTO.getCantidad(); break;
                                 }
                                 variante.setStockActual(sv);
@@ -318,7 +335,7 @@ public class MovimientoInventarioController {
                 int nuevoStock = producto.getStockActual();
                 switch (movimientoDTO.getTipo()) {
                     case "ENTRADA": case "DEVOLUCION": nuevoStock += movimientoDTO.getCantidad(); break;
-                    case "SALIDA":  nuevoStock -= movimientoDTO.getCantidad(); break;
+                    case "SALIDA": case "MERMA": nuevoStock -= movimientoDTO.getCantidad(); break;
                     case "AJUSTE":  nuevoStock  = movimientoDTO.getCantidad(); break;
                 }
                 producto.setStockActual(nuevoStock);
@@ -338,7 +355,7 @@ public class MovimientoInventarioController {
                         int stockSuc = entry.getStockActual() != null ? entry.getStockActual() : 0;
                         switch (movimientoDTO.getTipo()) {
                             case "ENTRADA": case "DEVOLUCION": stockSuc += movimientoDTO.getCantidad(); break;
-                            case "SALIDA":  stockSuc -= movimientoDTO.getCantidad(); break;
+                            case "SALIDA": case "MERMA": stockSuc -= movimientoDTO.getCantidad(); break;
                             case "AJUSTE":  stockSuc  = movimientoDTO.getCantidad(); break;
                         }
                         entry.setStockActual(stockSuc);
@@ -355,7 +372,8 @@ public class MovimientoInventarioController {
                 stockLoteService.descontarFefo(tenantId, producto.getId(),
                         movimientoDTO.getSucursalId(), movimientoDTO.getCantidad());
             } catch (Exception e) {
-                log.warn("⚠️ No se pudo descontar FEFO en SALIDA manual: {}", e.getMessage());
+                log.warn("⚠️ FEFO falló en SALIDA manual: {}", e.getMessage());
+                throw new BadRequestException("Stock vigente insuficiente en lotes disponibles: " + e.getMessage());
             }
         }
 
@@ -368,10 +386,10 @@ public class MovimientoInventarioController {
                             .map(m -> m.getLote() != null ? m.getLote() : "Lote #" + movimientoDTO.getAjusteLoteMovimientoId())
                             .orElse("Lote #" + movimientoDTO.getAjusteLoteMovimientoId());
 
-                    // Ajustar el lote y calcular el nuevo total del producto
-                    int deltaLote = stockLoteService.ajustarLoteEspecifico(
+                    // Ajustar el lote y recalcular desde la suma real (evita delta=0 cuando lote ya estaba en el valor objetivo)
+                    stockLoteService.ajustarLoteEspecifico(
                             movimientoDTO.getAjusteLoteMovimientoId(), movimientoDTO.getCantidad());
-                    int nuevoTotalProducto = stockPrevio + deltaLote;
+                    int nuevoTotalProducto = stockLoteRepository.sumStockTotalLotes(producto.getId(), tenantId);
                     producto.setStockActual(nuevoTotalProducto);
 
                     // Actualizar el movimiento: cantidad = total producto, descripción = lote ajustado
@@ -382,21 +400,49 @@ public class MovimientoInventarioController {
                                 ? " | " + movimientoDTO.getDescripcion() : ""));
                     movimientoRepository.save(movimientoCreado);
 
-                    // Corregir stock de sucursal (el AJUSTE genérico lo puso en getCantidad(); el correcto es el total del producto)
+                    // Corregir stock de sucursal con suma real de lotes de esa sucursal
                     if (movimientoDTO.getSucursalId() != null) {
-                        final int totalFinal = nuevoTotalProducto;
+                        final int sucTotal = stockLoteRepository.sumStockTotalLotesBySucursal(
+                                producto.getId(), tenantId, movimientoDTO.getSucursalId());
                         stockSucursalRepository
                                 .findByProductoIdAndSucursalId(producto.getId(), movimientoDTO.getSucursalId())
                                 .ifPresent(entry -> {
-                                    entry.setStockActual(totalFinal);
+                                    entry.setStockActual(sucTotal);
                                     stockSucursalRepository.save(entry);
                                 });
                     }
                 } else {
-                    // Sin lote seleccionado: auto-distribuir el delta en orden FEFO
-                    int delta = movimientoDTO.getCantidad() - stockPrevio;
-                    stockLoteService.ajustarStockLotes(tenantId, producto.getId(),
-                            movimientoDTO.getSucursalId(), delta);
+                    // Sin lote seleccionado: recalcular stockActual como suma real de lotes
+                    // para mantener consistencia contable en productos con lotes.
+                    boolean tieneLotes = stockLoteRepository.existsByProductoIdAndTenantId(producto.getId(), tenantId);
+                    if (tieneLotes) {
+                        int sumLotes = stockLoteRepository.sumStockTotalLotes(producto.getId(), tenantId);
+                        producto.setStockActual(sumLotes);
+                        movimientoCreado.setCantidad(sumLotes);
+                        movimientoRepository.save(movimientoCreado);
+                        log.info("♻️ AJUSTE sin lote: stockActual resincronizado a {} (suma lotes)", sumLotes);
+
+                        // Resincronizar también ProductoStockSucursal con stock real de lotes en esta sucursal
+                        if (movimientoDTO.getSucursalId() != null) {
+                            int sumLotesSuc = stockLoteRepository.sumStockTotalLotesBySucursal(
+                                    producto.getId(), tenantId, movimientoDTO.getSucursalId());
+                            final int stockSucFinal = sumLotesSuc;
+                            sucursalRepository.findById(movimientoDTO.getSucursalId()).ifPresent(sucursal -> {
+                                ProductoStockSucursal entry = stockSucursalRepository
+                                        .findByProductoIdAndSucursalId(producto.getId(), sucursal.getId())
+                                        .orElseGet(() -> ProductoStockSucursal.builder()
+                                                .producto(producto)
+                                                .sucursal(sucursal)
+                                                .tenantId(tenantId)
+                                                .stockActual(0)
+                                                .build());
+                                entry.setStockActual(stockSucFinal);
+                                stockSucursalRepository.save(entry);
+                                log.info("📍 ProductoStockSucursal {} resincronizado a {} (AJUSTE sin lote)",
+                                        sucursal.getId(), stockSucFinal);
+                            });
+                        }
+                    }
                 }
             } catch (Exception e) {
                 log.warn("⚠️ No se pudo ajustar stock_lotes: {}", e.getMessage());
@@ -438,6 +484,7 @@ public class MovimientoInventarioController {
         java.util.Map<Long, Integer> stockPorMovimiento = stockLoteService.getStockPorMovimientoIds(movIds);
         java.util.Map<Long, String> proveedorPorMovimiento = stockLoteService.getProveedorNombrePorMovimientoIds(movIds);
         java.util.Map<Long, java.math.BigDecimal> precioPorMovimiento = stockLoteService.getPrecioVentaPorMovimientoIds(movIds);
+        java.util.Map<Long, Long> proveedorIdPorMovimiento = stockLoteService.getProveedorIdPorMovimientoIds(movIds);
 
         List<LoteVencimientoDTO> lotes = movimientos.stream()
                 .map(m -> LoteVencimientoDTO.builder()
@@ -451,6 +498,7 @@ public class MovimientoInventarioController {
                         .stockActual(stockPorMovimiento.getOrDefault(m.getId(), 0))
                         .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
                         .registroSanitario(m.getRegistroSanitario())
+                        .proveedorId(proveedorIdPorMovimiento.get(m.getId()))
                         .proveedorNombre(proveedorPorMovimiento.get(m.getId()))
                         .precioVenta(precioPorMovimiento.get(m.getId()))
                         .build())
@@ -568,6 +616,15 @@ public class MovimientoInventarioController {
                 if (dto.getLote() != null) mov.setLote(dto.getLote());
                 if (dto.getFechaVencimiento() != null) mov.setFechaVencimiento(dto.getFechaVencimiento());
                 movimientoRepository.save(mov);
+                if (dto.getPrecioVenta() != null && mov.getProducto() != null) {
+                    Producto prod = mov.getProducto();
+                    if (tenantId.equals(prod.getTenantId())) {
+                        prod.setPrecioVenta(dto.getPrecioVenta());
+                        productoRepository.save(prod);
+                        log.info("✅ Precio del producto {} actualizado a {} desde edición de lote",
+                                prod.getId(), dto.getPrecioVenta());
+                    }
+                }
             }
         });
         return ResponseEntity.ok().build();
@@ -608,9 +665,18 @@ public class MovimientoInventarioController {
         MovimientoInventario origen = movimientoRepository.findById(movimientoOrigenId)
                 .orElseThrow(() -> new ResourceNotFoundException("Movimiento origen no encontrado."));
 
+        // Resolver usuario del request actual
+        Long usuarioIdMerma = TenantContext.getCurrentUserId();
+        Usuario usuarioMerma = usuarioIdMerma != null
+                ? usuarioService.obtenerUsuarioPorId(usuarioIdMerma)
+                        .filter(u -> tenantId.equals(u.getTenantId()))
+                        .orElse(null)
+                : null;
+
         // Registrar movimiento MERMA
         MovimientoInventario merma = MovimientoInventario.builder()
                 .producto(producto)
+                .usuario(usuarioMerma)
                 .tipo("MERMA")
                 .cantidad(cantidad)
                 .tenantId(tenantId)
@@ -632,6 +698,27 @@ public class MovimientoInventarioController {
         int nuevoStock = Math.max(0, producto.getStockActual() - cantidad);
         producto.setStockActual(nuevoStock);
         productoService.actualizarProducto(producto.getId(), producto);
+
+        // Actualizar ProductoStockSucursal si el lote tiene sucursal
+        if (lote.getSucursalId() != null) {
+            final Long sucursalIdLote = lote.getSucursalId();
+            final int cantidadFinal = cantidad;
+            sucursalRepository.findById(sucursalIdLote).ifPresent(sucursal -> {
+                ProductoStockSucursal entry = stockSucursalRepository
+                        .findByProductoIdAndSucursalId(producto.getId(), sucursal.getId())
+                        .orElseGet(() -> ProductoStockSucursal.builder()
+                                .producto(producto)
+                                .sucursal(sucursal)
+                                .tenantId(tenantId)
+                                .stockActual(0)
+                                .build());
+                int cur = entry.getStockActual() != null ? entry.getStockActual() : 0;
+                entry.setStockActual(Math.max(0, cur - cantidadFinal));
+                stockSucursalRepository.save(entry);
+                log.info("📍 Stock sucursal {} actualizado por MERMA: -{} para producto {}",
+                        sucursal.getId(), cantidadFinal, producto.getId());
+            });
+        }
 
         log.info("🗑️ MERMA registrada: producto={} lote={} cantidad={} tenant={}",
                 producto.getNombre(), origen.getLote(), cantidad, tenantId);

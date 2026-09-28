@@ -19,11 +19,12 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     List<Venta> findByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId);
     List<Venta> findByCreatedAtBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
     long countByTenantId(String tenantId);
-    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin")
+    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
     List<Venta> findVentasPorPeriodo(
-            @Param("tenantId") String tenantId,
-            @Param("inicio") LocalDateTime inicio,
-            @Param("fin") LocalDateTime fin
+            @Param("tenantId")   String tenantId,
+            @Param("inicio")     LocalDateTime inicio,
+            @Param("fin")        LocalDateTime fin,
+            @Param("sucursalId") Long sucursalId
     );
 
     @Query("SELECT COUNT(v) FROM Venta v WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
@@ -213,12 +214,13 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("sucursalId") Long sucursalId
     );
 
-    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId AND v.createdAt BETWEEN :inicio AND :fin")
+    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId AND v.createdAt BETWEEN :inicio AND :fin AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
     List<Venta> findByTenantIdAndVendedorIdAndPeriodo(
             @Param("tenantId")    String tenantId,
             @Param("vendedorId")  Long vendedorId,
             @Param("inicio")      LocalDateTime inicio,
-            @Param("fin")         LocalDateTime fin);
+            @Param("fin")         LocalDateTime fin,
+            @Param("sucursalId")  Long sucursalId);
 
     List<Venta> findByCajaIdAndTenantId(Long cajaId, String tenantId);
 
