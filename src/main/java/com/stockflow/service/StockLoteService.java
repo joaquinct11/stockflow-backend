@@ -410,4 +410,13 @@ public class StockLoteService {
                         nombrePorProveedorId.get(l.getProveedorId())));
         return result;
     }
+
+    public Map<Long, Long> getProveedorIdPorMovimientoIds(List<Long> movimientoIds) {
+        if (movimientoIds == null || movimientoIds.isEmpty()) return Map.of();
+        Map<Long, Long> result = new HashMap<>();
+        stockLoteRepository.findByMovimientoIdIn(movimientoIds).stream()
+                .filter(l -> l.getProveedorId() != null)
+                .forEach(l -> result.put(l.getMovimientoId(), l.getProveedorId()));
+        return result;
+    }
 }

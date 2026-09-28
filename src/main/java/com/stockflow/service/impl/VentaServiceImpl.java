@@ -74,13 +74,13 @@ public class VentaServiceImpl implements VentaService {
     }
 
     @Override
-    public List<Venta> obtenerVentasPorPeriodo(String tenantId, LocalDateTime inicio, LocalDateTime fin) {
-        return ventaRepository.findVentasPorPeriodo(tenantId, inicio, fin);
+    public List<Venta> obtenerVentasPorPeriodo(String tenantId, LocalDateTime inicio, LocalDateTime fin, Long sucursalId) {
+        return ventaRepository.findVentasPorPeriodo(tenantId, inicio, fin, sucursalId);
     }
 
     @Override
-    public List<Venta> obtenerVentasPorVendedorYTenantYPeriodo(Long vendedorId, String tenantId, LocalDateTime inicio, LocalDateTime fin) {
-        return ventaRepository.findByTenantIdAndVendedorIdAndPeriodo(tenantId, vendedorId, inicio, fin);
+    public List<Venta> obtenerVentasPorVendedorYTenantYPeriodo(Long vendedorId, String tenantId, LocalDateTime inicio, LocalDateTime fin, Long sucursalId) {
+        return ventaRepository.findByTenantIdAndVendedorIdAndPeriodo(tenantId, vendedorId, inicio, fin, sucursalId);
     }
 
     @Override
@@ -149,7 +149,7 @@ public class VentaServiceImpl implements VentaService {
             MovimientoInventario mov = MovimientoInventario.builder()
                     .producto(producto)
                     .usuario(usuario)
-                    .tipo("AJUSTE")
+                    .tipo("DEVOLUCION")
                     .cantidad(cantidadBase)
                     .descripcion("Anulación venta #" + venta.getId())
                     .referencia("ANUL-" + venta.getId())
