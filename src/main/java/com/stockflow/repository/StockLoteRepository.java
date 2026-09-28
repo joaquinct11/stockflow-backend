@@ -14,13 +14,15 @@ import java.util.stream.Collectors;
 public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
 
     // Lotes vigentes para FEFO (sin filtro de sucursal — plan BÁSICO)
+    // Lotes sin fechaVencimiento (null) = nunca vencen, se consumen al final (NULLS LAST)
     @Query("""
             SELECT s FROM StockLote s
-            WHERE s.productoId   = :productoId
-              AND s.tenantId     = :tenantId
-              AND s.fechaVencimiento >= :hoy
-              AND s.stockActual  > 0
-            ORDER BY s.fechaVencimiento ASC
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
+              AND s.stockActual > 0
+            ORDER BY CASE WHEN s.fechaVencimiento IS NULL THEN 1 ELSE 0 END ASC,
+                     s.fechaVencimiento ASC
             """)
     List<StockLote> findVigentesFefo(
             @Param("productoId") Long productoId,
@@ -31,12 +33,13 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     // Lotes vigentes para FEFO (con filtro de sucursal — plan PRO)
     @Query("""
             SELECT s FROM StockLote s
-            WHERE s.productoId   = :productoId
-              AND s.tenantId     = :tenantId
-              AND s.sucursalId   = :sucursalId
-              AND s.fechaVencimiento >= :hoy
-              AND s.stockActual  > 0
-            ORDER BY s.fechaVencimiento ASC
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND s.sucursalId = :sucursalId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
+              AND s.stockActual > 0
+            ORDER BY CASE WHEN s.fechaVencimiento IS NULL THEN 1 ELSE 0 END ASC,
+                     s.fechaVencimiento ASC
             """)
     List<StockLote> findVigentesFefoConSucursal(
             @Param("productoId") Long productoId,
@@ -45,12 +48,36 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
             @Param("hoy")        LocalDate hoy
     );
 
+    // Suma de stockActual de todos los lotes del producto (incluyendo vencidos)
+    @Query("""
+            SELECT COALESCE(SUM(s.stockActual), 0) FROM StockLote s
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+            """)
+    Integer sumStockTotalLotes(
+            @Param("productoId") Long productoId,
+            @Param("tenantId")   String tenantId
+    );
+
+    // Suma total de stock por sucursal (incluyendo vencidos) — para AJUSTE sin lote en Plan PRO
+    @Query("""
+            SELECT COALESCE(SUM(s.stockActual), 0) FROM StockLote s
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND s.sucursalId = :sucursalId
+            """)
+    Integer sumStockTotalLotesBySucursal(
+            @Param("productoId") Long productoId,
+            @Param("tenantId")   String tenantId,
+            @Param("sucursalId") Long sucursalId
+    );
+
     // Stock vigente total de un producto (sin sucursal)
     @Query("""
             SELECT COALESCE(SUM(s.stockActual), 0) FROM StockLote s
-            WHERE s.productoId       = :productoId
-              AND s.tenantId         = :tenantId
-              AND s.fechaVencimiento >= :hoy
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
             """)
     Integer sumStockVigente(
             @Param("productoId") Long productoId,
@@ -61,10 +88,10 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     // Stock vigente total de un producto por sucursal
     @Query("""
             SELECT COALESCE(SUM(s.stockActual), 0) FROM StockLote s
-            WHERE s.productoId       = :productoId
-              AND s.tenantId         = :tenantId
-              AND s.sucursalId       = :sucursalId
-              AND s.fechaVencimiento >= :hoy
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND s.sucursalId = :sucursalId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
             """)
     Integer sumStockVigenteConSucursal(
             @Param("productoId") Long productoId,
@@ -76,9 +103,9 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     // Batch: stock vigente por lista de productos (para enriquecer el catálogo sin N+1)
     @Query("""
             SELECT s.productoId, COALESCE(SUM(s.stockActual), 0) FROM StockLote s
-            WHERE s.productoId       IN :productoIds
-              AND s.tenantId         = :tenantId
-              AND s.fechaVencimiento >= :hoy
+            WHERE s.productoId IN :productoIds
+              AND s.tenantId   = :tenantId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
             GROUP BY s.productoId
             """)
     List<Object[]> sumStockVigenteByProductoIds(
@@ -90,10 +117,10 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     // Batch por sucursal
     @Query("""
             SELECT s.productoId, COALESCE(SUM(s.stockActual), 0) FROM StockLote s
-            WHERE s.productoId       IN :productoIds
-              AND s.tenantId         = :tenantId
-              AND s.sucursalId       = :sucursalId
-              AND s.fechaVencimiento >= :hoy
+            WHERE s.productoId IN :productoIds
+              AND s.tenantId   = :tenantId
+              AND s.sucursalId = :sucursalId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
             GROUP BY s.productoId
             """)
     List<Object[]> sumStockVigenteByProductoIdsConSucursal(
@@ -109,12 +136,14 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     Optional<StockLote> findByMovimientoId(Long movimientoId);
 
     // Lotes vigentes en orden INVERSO (vence más tarde primero) — para ajustes positivos
+    // Lotes sin fechaVencimiento van primero en orden inverso (son los "más tardíos")
     @Query("""
             SELECT s FROM StockLote s
-            WHERE s.productoId       = :productoId
-              AND s.tenantId         = :tenantId
-              AND s.fechaVencimiento >= :hoy
-            ORDER BY s.fechaVencimiento DESC
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
+            ORDER BY CASE WHEN s.fechaVencimiento IS NULL THEN 1 ELSE 0 END DESC,
+                     s.fechaVencimiento DESC
             """)
     List<StockLote> findVigentesInverso(
             @Param("productoId") Long productoId,
@@ -138,11 +167,12 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     // Lotes disponibles para el POS (sin filtro de sucursal)
     @Query("""
             SELECT s FROM StockLote s
-            WHERE s.productoId       = :productoId
-              AND s.tenantId         = :tenantId
-              AND s.fechaVencimiento >= :hoy
-              AND s.stockActual      > 0
-            ORDER BY s.fechaVencimiento ASC
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
+              AND s.stockActual > 0
+            ORDER BY CASE WHEN s.fechaVencimiento IS NULL THEN 1 ELSE 0 END ASC,
+                     s.fechaVencimiento ASC
             """)
     List<StockLote> findDisponibles(
             @Param("productoId") Long productoId,
@@ -153,12 +183,13 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     // Lotes disponibles para el POS (con filtro de sucursal)
     @Query("""
             SELECT s FROM StockLote s
-            WHERE s.productoId       = :productoId
-              AND s.tenantId         = :tenantId
-              AND s.sucursalId       = :sucursalId
-              AND s.fechaVencimiento >= :hoy
-              AND s.stockActual      > 0
-            ORDER BY s.fechaVencimiento ASC
+            WHERE s.productoId = :productoId
+              AND s.tenantId   = :tenantId
+              AND s.sucursalId = :sucursalId
+              AND (s.fechaVencimiento IS NULL OR s.fechaVencimiento >= :hoy)
+              AND s.stockActual > 0
+            ORDER BY CASE WHEN s.fechaVencimiento IS NULL THEN 1 ELSE 0 END ASC,
+                     s.fechaVencimiento ASC
             """)
     List<StockLote> findDisponiblesConSucursal(
             @Param("productoId") Long productoId,

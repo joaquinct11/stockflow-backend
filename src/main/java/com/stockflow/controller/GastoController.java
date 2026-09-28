@@ -4,6 +4,7 @@ import com.stockflow.dto.GastoDTO;
 import com.stockflow.entity.Gasto;
 import com.stockflow.mapper.GastoMapper;
 import com.stockflow.service.GastoService;
+import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class GastoController {
 
     private final GastoService gastoService;
     private final GastoMapper gastoMapper;
+    private final UsuarioService usuarioService;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_GASTOS')")
@@ -94,9 +96,13 @@ public class GastoController {
     public ResponseEntity<GastoDTO> crear(
             @Valid @RequestBody GastoDTO dto,
             Authentication auth) {
-        String tenantId = TenantContext.getCurrentTenant();
+        String tenantId  = TenantContext.getCurrentTenant();
+        Long   usuarioId = TenantContext.getCurrentUserId();
+        String nombre    = usuarioService.obtenerUsuarioPorId(usuarioId)
+                .map(u -> u.getNombre())
+                .orElse(auth != null ? auth.getName() : "sistema");
         dto.setTenantId(tenantId);
-        dto.setRegistradoPor(auth != null ? auth.getName() : "sistema");
+        dto.setRegistradoPor(nombre);
 
         Gasto gasto = gastoMapper.toEntity(dto);
         gasto.setSucursalId(dto.getSucursalId());
