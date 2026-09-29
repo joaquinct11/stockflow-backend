@@ -111,7 +111,9 @@ public class CulqiController {
         String customerId = culqiService.crearCliente(email, firstName, lastName, phoneNumber);
 
         log.info("📡 [Culqi] Registrando tarjeta para customerId={}", customerId);
-        String cardId = culqiService.crearTarjeta(customerId, request.getTokenId());
+        Map<String, Object> cardData = culqiService.crearTarjeta(customerId, request.getTokenId());
+        String cardId = (String) cardData.get("id");
+        String[] datosTarjeta = extraerDatosTarjeta(cardData);
 
         log.info("📡 [Culqi] Creando suscripción con cardId={}, planId={}", cardId, culqiPlanId);
         String culqiSubscriptionId = culqiService.crearSuscripcion(cardId, culqiPlanId);
@@ -133,7 +135,8 @@ public class CulqiController {
             suscripcion.setFechaProximoCobro(proximoCobro);
             suscripcion.setCurrentPeriodStart(ahora);
             suscripcion.setCurrentPeriodEnd(proximoCobro);
-            suscripcion.setMetodoPago("CULQI");
+            suscripcion.setMetodoPago(datosTarjeta[1] != null ? datosTarjeta[1] : "CULQI");
+            suscripcion.setUltimos4Digitos(datosTarjeta[0]);
             suscripcion.setPrecioMensual(precio);
             suscripcion.setTrialEndDate(null);
             log.info("♻️ [Culqi] Reactivando suscripción existente id={} plan={}", suscripcion.getId(), planIdLocal);
@@ -150,7 +153,8 @@ public class CulqiController {
                     .fechaProximoCobro(proximoCobro)
                     .currentPeriodStart(ahora)
                     .currentPeriodEnd(proximoCobro)
-                    .metodoPago("CULQI")
+                    .metodoPago(datosTarjeta[1] != null ? datosTarjeta[1] : "CULQI")
+                    .ultimos4Digitos(datosTarjeta[0])
                     .build();
             log.info("✨ [Culqi] Creando nueva suscripción local para tenant={}", tenantId);
         }
@@ -226,7 +230,9 @@ public class CulqiController {
         String customerId = culqiService.crearCliente(
                 usuario.getEmail(), usuario.getNombre(),
                 usuario.getApellido(), usuario.getNumeroCelular());
-        String cardId = culqiService.crearTarjeta(customerId, request.getTokenId());
+        Map<String, Object> cardDataPro = culqiService.crearTarjeta(customerId, request.getTokenId());
+        String cardId = (String) cardDataPro.get("id");
+        String[] datosTarjetaPro = extraerDatosTarjeta(cardDataPro);
         String culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdPro);
 
         // Actualizar suscripción local a PRO
@@ -245,7 +251,8 @@ public class CulqiController {
         suscripcion.setFechaProximoCobro(proxCobro);
         suscripcion.setCurrentPeriodStart(ahora);
         suscripcion.setCurrentPeriodEnd(proxCobro);
-        suscripcion.setMetodoPago("CULQI");
+        suscripcion.setMetodoPago(datosTarjetaPro[1] != null ? datosTarjetaPro[1] : "CULQI");
+        suscripcion.setUltimos4Digitos(datosTarjetaPro[0]);
         suscripcion.setPrecioMensual(precioPro);
         Suscripcion guardada = suscripcionRepository.save(suscripcion);
 
@@ -316,16 +323,22 @@ public class CulqiController {
                 usuario.getEmail(), usuario.getNombre(),
                 usuario.getApellido(), usuario.getNumeroCelular());
 
-        String cardId = culqiService.crearTarjeta(customerId, tokenId);
+        Map<String, Object> cardDataCambio = culqiService.crearTarjeta(customerId, tokenId);
+        String cardId = (String) cardDataCambio.get("id");
+        String[] datosTarjetaCambio = extraerDatosTarjeta(cardDataCambio);
 
         culqiService.actualizarTarjetaSuscripcion(suscripcion.getPreapprovalId(), cardId);
+
+        // Guardar nuevos datos de tarjeta
+        if (datosTarjetaCambio[0] != null) suscripcion.setUltimos4Digitos(datosTarjetaCambio[0]);
+        if (datosTarjetaCambio[1] != null) suscripcion.setMetodoPago(datosTarjetaCambio[1]);
 
         // Si estaba SUSPENDIDA, la reactivamos localmente (Culqi reintentará el cobro)
         if ("SUSPENDIDA".equals(suscripcion.getEstado())) {
             suscripcion.setEstado("ACTIVA");
-            suscripcionRepository.save(suscripcion);
             log.info("✅ [Culqi] Suscripción reactivada tras cambio de tarjeta para tenant={}", tenantId);
         }
+        suscripcionRepository.save(suscripcion);
 
         log.info("✅ [Culqi] Tarjeta actualizada correctamente. cardId={}", cardId);
         return ResponseEntity.ok(Map.of("mensaje", "Tarjeta actualizada correctamente. El próximo cobro usará tu nueva tarjeta."));
@@ -387,7 +400,9 @@ public class CulqiController {
         String customerId = culqiService.crearCliente(
                 usuario.getEmail(), usuario.getNombre(),
                 usuario.getApellido(), usuario.getNumeroCelular());
-        String cardId = culqiService.crearTarjeta(customerId, request.getTokenId());
+        Map<String, Object> cardDataDown = culqiService.crearTarjeta(customerId, request.getTokenId());
+        String cardId = (String) cardDataDown.get("id");
+        String[] datosTarjetaDown = extraerDatosTarjeta(cardDataDown);
         String culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdBasico);
 
         // 3. Actualizar suscripción local a BÁSICO
@@ -402,7 +417,8 @@ public class CulqiController {
         suscripcionActual.setFechaProximoCobro(proxCobro);
         suscripcionActual.setCurrentPeriodStart(ahora);
         suscripcionActual.setCurrentPeriodEnd(proxCobro);
-        suscripcionActual.setMetodoPago("CULQI");
+        suscripcionActual.setMetodoPago(datosTarjetaDown[1] != null ? datosTarjetaDown[1] : "CULQI");
+        suscripcionActual.setUltimos4Digitos(datosTarjetaDown[0]);
         suscripcionActual.setPrecioMensual(precioBasico);
         Suscripcion guardada = suscripcionRepository.save(suscripcionActual);
 
@@ -472,5 +488,39 @@ public class CulqiController {
         log.info("✅ [Culqi Admin] Plan Pro creado: {}", planId);
 
         return ResponseEntity.ok("Plan Pro creado. Guarda este ID en CULQI_PLAN_ID_PRO: " + planId);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Extrae [ultimos4Digitos, brand] de la respuesta de Culqi POST /cards.
+     * Culqi devuelve los datos de la tarjeta en source.last_four y source.iin.card_brand.
+     * Retorna un array de 2 posiciones — cada elemento puede ser null si no está disponible.
+     */
+    @SuppressWarnings("unchecked")
+    private static String[] extraerDatosTarjeta(Map<String, Object> cardData) {
+        if (cardData == null) return new String[]{null, null};
+
+        String lastFour = null;
+        String brand    = null;
+
+        // Estructura principal: card.source.last_four y card.source.iin.card_brand
+        Object sourceObj = cardData.get("source");
+        if (sourceObj instanceof Map<?, ?> raw) {
+            Map<String, Object> source = (Map<String, Object>) raw;
+            if (source.get("last_four") instanceof String lf) lastFour = lf;
+            if (source.get("iin") instanceof Map<?, ?> iinRaw) {
+                Map<String, Object> iin = (Map<String, Object>) iinRaw;
+                if (iin.get("card_brand") instanceof String b) brand = b;
+            }
+            // Fallback: brand directo en source
+            if (brand == null && source.get("brand") instanceof String b) brand = b;
+        }
+
+        // Fallback: last_four y brand en el nivel raíz (algunos eventos de webhook)
+        if (lastFour == null && cardData.get("last_four") instanceof String lf) lastFour = lf;
+        if (brand == null && cardData.get("brand") instanceof String b) brand = b;
+
+        return new String[]{lastFour, brand};
     }
 }
