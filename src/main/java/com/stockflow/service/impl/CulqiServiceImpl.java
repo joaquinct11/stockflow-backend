@@ -153,15 +153,14 @@ public class CulqiServiceImpl implements CulqiService {
     // ── Tarjetas ─────────────────────────────────────────────────────────────
 
     @Override
-    public String crearTarjeta(String customerId, String tokenId) {
+    public Map<String, Object> crearTarjeta(String customerId, String tokenId) {
         Map<String, Object> body = new HashMap<>();
         body.put("customer_id", customerId);
         body.put("token_id",    tokenId);
 
         Map<String, Object> response = post("/cards", body, false);
-        String cardId = (String) response.get("id");
-        log.info("✅ Culqi tarjeta registrada: {}", cardId);
-        return cardId;
+        log.info("✅ Culqi tarjeta registrada: {}", response.get("id"));
+        return response;
     }
 
     // ── Suscripciones ─────────────────────────────────────────────────────────

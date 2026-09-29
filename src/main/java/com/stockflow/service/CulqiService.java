@@ -7,8 +7,11 @@ public interface CulqiService {
     /** Crea un cliente en Culqi y devuelve su ID (cus_live_xxx) */
     String crearCliente(String email, String firstName, String lastName, String phoneNumber);
 
-    /** Registra la tarjeta tokenizada en Culqi y devuelve el card ID (crd_live_xxx) */
-    String crearTarjeta(String customerId, String tokenId);
+    /**
+     * Registra la tarjeta tokenizada en Culqi.
+     * Devuelve la respuesta completa de Culqi (incluye id, source.last_four, source.iin.card_brand, etc.)
+     */
+    java.util.Map<String, Object> crearTarjeta(String customerId, String tokenId);
 
     /** Crea la suscripción recurrente en Culqi y devuelve el subscription ID (sub_live_xxx) */
     String crearSuscripcion(String cardId, String planId);

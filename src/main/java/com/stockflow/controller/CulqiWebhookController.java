@@ -131,6 +131,10 @@ public class CulqiWebhookController {
         s.setFechaProximoCobro(proxCobro);
         s.setCurrentPeriodStart(ahora);
         s.setCurrentPeriodEnd(proxCobro);
+
+        // Actualizar datos de tarjeta si vienen en el payload del cargo
+        actualizarDatosTarjeta(s, dataMap);
+
         suscripcionRepository.save(s);
 
         log.info("✅ [Culqi] charge.succeeded — suscripción id={} renovada. Próximo cobro: {}",
@@ -410,6 +414,39 @@ public class CulqiWebhookController {
             );
         } catch (Exception e) {
             log.warn("⚠️ No se pudo enviar email de suscripción ({}): {}", estado, e.getMessage());
+        }
+    }
+
+    /**
+     * Extrae last_four y brand del payload de un cargo de Culqi y los persiste en la suscripción.
+     * El objeto charge de Culqi incluye los datos de tarjeta en el campo "source".
+     * Solo actualiza si los valores vienen presentes en el payload.
+     */
+    @SuppressWarnings("unchecked")
+    private void actualizarDatosTarjeta(Suscripcion s, Map<String, Object> chargeData) {
+        try {
+            Object sourceObj = chargeData.get("source");
+            if (!(sourceObj instanceof Map<?, ?> raw)) return;
+            Map<String, Object> source = (Map<String, Object>) raw;
+
+            if (source.get("last_four") instanceof String lf && !lf.isBlank()) {
+                s.setUltimos4Digitos(lf);
+                log.info("💳 [Culqi Webhook] ultimos4Digitos actualizado: {}", lf);
+            }
+
+            // card_brand está en source.iin.card_brand
+            String brand = null;
+            if (source.get("iin") instanceof Map<?, ?> iinRaw) {
+                Map<String, Object> iin = (Map<String, Object>) iinRaw;
+                if (iin.get("card_brand") instanceof String b && !b.isBlank()) brand = b;
+            }
+            if (brand == null && source.get("brand") instanceof String b && !b.isBlank()) brand = b;
+            if (brand != null) {
+                s.setMetodoPago(brand);
+                log.info("💳 [Culqi Webhook] metodoPago actualizado: {}", brand);
+            }
+        } catch (Exception e) {
+            log.warn("⚠️ [Culqi Webhook] No se pudo extraer datos de tarjeta del payload: {}", e.getMessage());
         }
     }
 }
