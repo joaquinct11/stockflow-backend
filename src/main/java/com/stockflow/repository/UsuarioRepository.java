@@ -21,6 +21,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     long countByTenantId(String tenantId);
 
+    long countByTenantIdAndActivoTrue(String tenantId);
+
     Optional<Usuario> findByTokenRecuperacion(String tokenRecuperacion);
 
     Optional<Usuario> findByTokenActivacion(String tokenActivacion);

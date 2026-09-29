@@ -7,7 +7,10 @@ import com.stockflow.entity.Usuario;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.mapper.SuscripcionMapper;
+import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.SuscripcionRepository;
+import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.service.CulqiService;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.SuscripcionService;
@@ -25,6 +28,7 @@ import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -37,6 +41,9 @@ public class SuscripcionController {
     private final UsuarioService usuarioService;
     private final SuscripcionMapper suscripcionMapper;
     private final SuscripcionRepository suscripcionRepository;
+    private final SucursalRepository sucursalRepository;
+    private final ProductoRepository productoRepository;
+    private final UsuarioRepository usuarioRepository;
     private final CulqiService culqiService;
     private final EmailService emailService;
     private final CulqiProperties culqiProperties;
@@ -227,6 +234,24 @@ public class SuscripcionController {
                 .build());
     }
 
+    /**
+     * Devuelve los conteos de uso del tenant actual.
+     * Usado por el frontend para mostrar las barras de uso del plan.
+     */
+    @GetMapping("/uso")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Long>> obtenerUso() {
+        String tenantId = TenantContext.getCurrentTenant();
+        long sucursales = sucursalRepository.countByTenantIdAndActivoTrue(tenantId);
+        long usuarios   = usuarioRepository.countByTenantIdAndActivoTrue(tenantId);
+        long productos  = productoRepository.countByTenantIdAndActivoTrue(tenantId);
+        return ResponseEntity.ok(Map.of(
+                "sucursales", sucursales,
+                "usuarios",   usuarios,
+                "productos",  productos
+        ));
+    }
+
     @PatchMapping("/{id}/activar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_SUSCRIPCION')")
     public ResponseEntity<SuscripcionDTO> activar(@PathVariable Long id) {
@@ -270,7 +295,7 @@ public class SuscripcionController {
 
     /**
      * Cancela la suscripción en Culqi si tiene preapprovalId (sxn_test_xxx / sxn_live_xxx).
-     * Errores 404 se ignoran (ya cancelada en Culqi). Otros errores bloquean la cancelación local.
+     * Errores 404 y mensajes de "ya cancelada/finalizada" se ignoran — la cancelación local procede igual.
      */
     private void cancelarEnCulqiSiAplica(Suscripcion suscripcion) {
         if (suscripcion.getPreapprovalId() == null || suscripcion.getPreapprovalId().isBlank()) {
@@ -281,8 +306,15 @@ public class SuscripcionController {
             log.info("Suscripción {} cancelada en Culqi", suscripcion.getPreapprovalId());
         } catch (BadRequestException e) {
             String msg = e.getMessage() != null ? e.getMessage() : "";
-            if (msg.contains("404") || msg.toLowerCase().contains("no encontrad")) {
-                log.warn("Suscripción {} no encontrada en Culqi (ya cancelada o inexistente) — continuando",
+            String msgLower = msg.toLowerCase();
+            // Culqi puede devolver 404 (no existe) o 400 indicando que ya está cancelada/finalizada.
+            // En ambos casos el estado en Culqi ya es el deseado — la cancelación local procede.
+            boolean yaCancelada = msg.contains("404")
+                    || msgLower.contains("no encontrad")
+                    || msgLower.contains("cancelada")
+                    || msgLower.contains("finalizada");
+            if (yaCancelada) {
+                log.warn("Suscripción {} ya estaba cancelada/finalizada en Culqi — continuando con cancelación local",
                         suscripcion.getPreapprovalId());
                 return;
             }
