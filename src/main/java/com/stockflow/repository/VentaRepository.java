@@ -28,7 +28,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     );
 
     @Query("SELECT COUNT(v) FROM Venta v WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA'")
     long countByTenantIdAndPeriodo(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
@@ -37,7 +37,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     );
 
     @Query("SELECT COALESCE(SUM(v.total), 0) FROM Venta v WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA'")
     BigDecimal sumTotalByTenantIdAndPeriodo(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
@@ -45,12 +45,13 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("sucursalId") Long sucursalId
     );
 
-    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal) " +
+    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal), " +
+           "SUM(dv.cantidad * dv.producto.costoUnitario), dv.producto.stockActual " +
            "FROM DetalleVenta dv " +
            "JOIN dv.venta v " +
            "WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) " +
-           "GROUP BY dv.producto.id, dv.producto.nombre " +
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA' " +
+           "GROUP BY dv.producto.id, dv.producto.nombre, dv.producto.stockActual " +
            "ORDER BY SUM(dv.cantidad) DESC")
     List<Object[]> findTopProductosVendidos(
             @Param("tenantId") String tenantId,
@@ -63,7 +64,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
            "FROM DetalleVenta dv " +
            "JOIN dv.venta v " +
            "WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA'")
     BigDecimal sumCostoVentasByTenantIdAndPeriodo(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
@@ -77,7 +78,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
                    "COUNT(id) AS ventas_count, SUM(total) AS ingresos_total " +
                    "FROM ventas " +
                    "WHERE tenant_id = :tenantId AND created_at BETWEEN :inicio AND :fin " +
-                   "AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) " +
+                   "AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) AND estado <> 'ANULADA' " +
                    "GROUP BY DATE_TRUNC('day', created_at) " +
                    "ORDER BY DATE_TRUNC('day', created_at)",
            nativeQuery = true)
@@ -92,7 +93,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
                    "COUNT(id) AS ventas_count, SUM(total) AS ingresos_total " +
                    "FROM ventas " +
                    "WHERE tenant_id = :tenantId AND created_at BETWEEN :inicio AND :fin " +
-                   "AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) " +
+                   "AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) AND estado <> 'ANULADA' " +
                    "GROUP BY DATE_TRUNC('week', created_at) " +
                    "ORDER BY DATE_TRUNC('week', created_at)",
            nativeQuery = true)
@@ -107,7 +108,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
                    "COUNT(id) AS ventas_count, SUM(total) AS ingresos_total " +
                    "FROM ventas " +
                    "WHERE tenant_id = :tenantId AND created_at BETWEEN :inicio AND :fin " +
-                   "AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) " +
+                   "AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) AND estado <> 'ANULADA' " +
                    "GROUP BY DATE_TRUNC('month', created_at) " +
                    "ORDER BY DATE_TRUNC('month', created_at)",
            nativeQuery = true)
@@ -120,12 +121,20 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
 
     // ── Ventas por vendedor ──
 
-    @Query("SELECT v.vendedor.id, v.vendedor.nombre, COUNT(v), SUM(v.total) " +
-           "FROM Venta v " +
-           "WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) " +
-           "GROUP BY v.vendedor.id, v.vendedor.nombre " +
-           "ORDER BY SUM(v.total) DESC")
+    @Query(value =
+           "SELECT v.vendedor_id, u.nombre, " +
+           "COUNT(v.id) FILTER (WHERE v.estado <> 'ANULADA') AS ventas_count, " +
+           "COALESCE(SUM(v.total) FILTER (WHERE v.estado <> 'ANULADA'), 0) AS ingresos_total, " +
+           "COALESCE(SUM(dv.cantidad) FILTER (WHERE v.estado <> 'ANULADA'), 0) AS unidades, " +
+           "COUNT(v.id) FILTER (WHERE v.estado = 'ANULADA') AS anuladas " +
+           "FROM ventas v " +
+           "JOIN usuarios u ON u.id = v.vendedor_id " +
+           "LEFT JOIN detalles_venta dv ON dv.venta_id = v.id " +
+           "WHERE v.tenant_id = :tenantId AND v.created_at BETWEEN :inicio AND :fin " +
+           "AND (:sucursalId IS NULL OR v.sucursal_id = :sucursalId) " +
+           "GROUP BY v.vendedor_id, u.nombre " +
+           "ORDER BY ingresos_total DESC",
+           nativeQuery = true)
     List<Object[]> findVentasPorVendedor(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
@@ -144,7 +153,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
                    "JOIN productos p ON p.id = dv.producto_id " +
                    "LEFT JOIN categorias c ON c.id = p.categoria_id " +
                    "WHERE v.tenant_id = :tenantId AND v.created_at BETWEEN :inicio AND :fin " +
-                   "AND (:sucursalId IS NULL OR v.sucursal_id = :sucursalId) " +
+                   "AND (:sucursalId IS NULL OR v.sucursal_id = :sucursalId) AND v.estado <> 'ANULADA' " +
                    "GROUP BY COALESCE(c.nombre, 'Sin categoría') " +
                    "ORDER BY SUM(dv.subtotal) DESC",
            nativeQuery = true)
@@ -160,7 +169,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     @Query("SELECT v.metodoPago, COUNT(v), SUM(v.total) " +
            "FROM Venta v " +
            "WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) " +
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA' " +
            "GROUP BY v.metodoPago " +
            "ORDER BY SUM(v.total) DESC")
     List<Object[]> findVentasPorMetodoPago(
@@ -172,12 +181,13 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
 
     // ── Top/bottom productos vendidos por ingresos o unidades ──
 
-    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal) " +
+    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal), " +
+           "SUM(dv.cantidad * dv.producto.costoUnitario), dv.producto.stockActual " +
            "FROM DetalleVenta dv " +
            "JOIN dv.venta v " +
            "WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) " +
-           "GROUP BY dv.producto.id, dv.producto.nombre " +
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA' " +
+           "GROUP BY dv.producto.id, dv.producto.nombre, dv.producto.stockActual " +
            "ORDER BY SUM(dv.subtotal) DESC")
     List<Object[]> findTopProductosVendidosPorIngresos(
             @Param("tenantId") String tenantId,
@@ -186,12 +196,13 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("sucursalId") Long sucursalId
     );
 
-    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal) " +
+    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal), " +
+           "SUM(dv.cantidad * dv.producto.costoUnitario), dv.producto.stockActual " +
            "FROM DetalleVenta dv " +
            "JOIN dv.venta v " +
            "WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) " +
-           "GROUP BY dv.producto.id, dv.producto.nombre " +
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA' " +
+           "GROUP BY dv.producto.id, dv.producto.nombre, dv.producto.stockActual " +
            "ORDER BY SUM(dv.cantidad) ASC")
     List<Object[]> findBottomProductosVendidosPorUnidades(
             @Param("tenantId") String tenantId,
@@ -200,12 +211,13 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("sucursalId") Long sucursalId
     );
 
-    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal) " +
+    @Query("SELECT dv.producto.id, dv.producto.nombre, SUM(dv.cantidad), SUM(dv.subtotal), " +
+           "SUM(dv.cantidad * dv.producto.costoUnitario), dv.producto.stockActual " +
            "FROM DetalleVenta dv " +
            "JOIN dv.venta v " +
            "WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin " +
-           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) " +
-           "GROUP BY dv.producto.id, dv.producto.nombre " +
+           "AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId) AND v.estado <> 'ANULADA' " +
+           "GROUP BY dv.producto.id, dv.producto.nombre, dv.producto.stockActual " +
            "ORDER BY SUM(dv.subtotal) ASC")
     List<Object[]> findBottomProductosVendidosPorIngresos(
             @Param("tenantId") String tenantId,
@@ -224,6 +236,13 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
 
     List<Venta> findByCajaIdAndTenantId(Long cajaId, String tenantId);
 
+    // ── Dashboard: top N ventas recientes (evita full-table-scan) ──
+    @Query(value = "SELECT * FROM ventas WHERE tenant_id = :tenantId ORDER BY created_at DESC LIMIT :limit", nativeQuery = true)
+    List<Venta> findTopNRecentesByTenantId(@Param("tenantId") String tenantId, @Param("limit") int limit);
+
+    @Query(value = "SELECT * FROM ventas WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId ORDER BY created_at DESC LIMIT :limit", nativeQuery = true)
+    List<Venta> findTopNRecentesByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("limit") int limit);
+
     // ── Top clientes por monto comprado ──
 
     @Query(value = "SELECT v.cliente_id, c.nombre, COUNT(v.id), SUM(v.total), MAX(v.created_at) " +
@@ -231,11 +250,30 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
                    "JOIN clientes c ON c.id = v.cliente_id " +
                    "WHERE v.tenant_id = :tenantId AND v.created_at BETWEEN :inicio AND :fin " +
                    "  AND v.cliente_id IS NOT NULL " +
-                   "AND (:sucursalId IS NULL OR v.sucursal_id = :sucursalId) " +
+                   "AND (:sucursalId IS NULL OR v.sucursal_id = :sucursalId) AND v.estado <> 'ANULADA' " +
                    "GROUP BY v.cliente_id, c.nombre " +
                    "ORDER BY SUM(v.total) DESC",
            nativeQuery = true)
     List<Object[]> findTopClientesPorGasto(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin,
+            @Param("sucursalId") Long sucursalId
+    );
+
+    // ── Horas pico (agrupado por día de semana y hora del día) ──
+
+    @Query(value = "SELECT EXTRACT(dow FROM created_at)::int AS dia_semana, " +
+                   "EXTRACT(hour FROM created_at)::int AS hora, " +
+                   "COUNT(id) AS cantidad, " +
+                   "COALESCE(SUM(total), 0) AS total " +
+                   "FROM ventas " +
+                   "WHERE tenant_id = :tenantId AND created_at BETWEEN :inicio AND :fin " +
+                   "AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) AND estado <> 'ANULADA' " +
+                   "GROUP BY EXTRACT(dow FROM created_at), EXTRACT(hour FROM created_at) " +
+                   "ORDER BY dia_semana, hora",
+           nativeQuery = true)
+    List<Object[]> findHorasPico(
             @Param("tenantId") String tenantId,
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin,

@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -197,6 +198,29 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
             @Param("sucursalId") Long sucursalId,
             @Param("hoy")        LocalDate hoy
     );
+
+    /** Valorización real del inventario: SUM(lote.stockActual × costo) solo para productos activos.
+     *  Usa costo del lote si existe, o costo del producto como fallback. */
+    @Query(value = """
+            SELECT COALESCE(SUM(sl.stock_actual * COALESCE(sl.costo_unitario, p.costo_unitario, 0)), 0)
+            FROM stock_lotes sl
+            JOIN productos p ON p.id = sl.producto_id
+            WHERE sl.tenant_id = :tenantId
+              AND p.activo = true
+              AND sl.stock_actual > 0
+            """, nativeQuery = true)
+    BigDecimal calcularValorizacionPorLotes(@Param("tenantId") String tenantId);
+
+    /** Número de productos activos que tienen al menos un lote con stock. */
+    @Query(value = """
+            SELECT COUNT(DISTINCT sl.producto_id)
+            FROM stock_lotes sl
+            JOIN productos p ON p.id = sl.producto_id
+            WHERE sl.tenant_id = :tenantId
+              AND p.activo = true
+              AND sl.stock_actual > 0
+            """, nativeQuery = true)
+    long countProductosConStockEnLotes(@Param("tenantId") String tenantId);
 
     /** Lotes VENCIDOS con stock > 0 para el tenant (para módulo de baja). */
     @Query("""

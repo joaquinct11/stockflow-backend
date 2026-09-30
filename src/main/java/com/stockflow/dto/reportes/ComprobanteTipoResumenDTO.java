@@ -11,12 +11,8 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProductoVentaDTO {
-    private Long productoId;
-    private String nombre;
+public class ComprobanteTipoResumenDTO {
+    private String tipo;      // BOLETA | FACTURA | etc.
     private long cantidad;
-    private BigDecimal ingresos;
-    private BigDecimal utilidad;
-    private BigDecimal margenPct;
-    private BigDecimal rotacion;
+    private BigDecimal total;
 }

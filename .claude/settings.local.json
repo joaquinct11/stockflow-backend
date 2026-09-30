@@ -247,7 +247,24 @@
       "PowerShell(Get-CimInstance Win32_Process -Filter \"Name = 'idea64.exe'\" | Select-Object ProcessId, CreationDate, @{Name=\"CmdLine\";Expression={$_.CommandLine}})",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/lotto_ws_tinkaexpress/\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/lotto-ws-tinkaexpress/\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/lotto-ws-tupay/\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8080/lotto-ws-tupay/\")",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-frontend\\\\src\\\\pages\\\\caja\\\\CajaPage.tsx\" -Pattern \"stock\" -CaseSensitive:$false)",
+      "PowerShell(\\(Get-Content \"D:\\\\projects\\\\abc\\\\stockflow-frontend\\\\src\\\\pages\\\\caja\\\\CajaPage.tsx\"\\).Length)",
+      "Bash(sed -i \"s/toast\\\\.error\\('Error al buscar en catálogo DIGEMID'\\)/notify.fromError\\(error, 'No se pudo buscar en el catálogo DIGEMID.'\\)/g\" \"D:/projects/abc/stockflow-frontend/src/pages/digemid/DigemidOppfPage.tsx\")",
+      "Bash(sed -i \"s/toast\\\\.error\\('Error al cargar productos'\\)/notify.fromError\\(err, 'No se pudieron cargar los productos.'\\)/g\" \"D:/projects/abc/stockflow-frontend/src/pages/digemid/DigemidOppfPage.tsx\")",
+      "Bash(sed -i \"s/toast\\\\.error\\('Error al generar el archivo ZIP'\\)/notify.fromError\\(err, 'No se pudo generar el archivo OPPF-DIGEMID.'\\)/g\" \"D:/projects/abc/stockflow-frontend/src/pages/digemid/DigemidOppfPage.tsx\")",
+      "Bash(sed -i \"s/toast\\\\.error\\('Error al vincular productos'\\)/notify.fromError\\(err, 'No se pudieron vincular los productos con DIGEMID.'\\)/g\" \"D:/projects/abc/stockflow-frontend/src/pages/digemid/DigemidOppfPage.tsx\")",
+      "Bash(grep -v \"//\\\\|map\\\\|filter\\\\|reduce\\\\|sort\\\\|find\\\\b\")",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-frontend\\\\src\\\\pages\\\\ventas\\\\VentasList.tsx\" -Pattern \"sucursalId|sucursal|getAll|fetchVentas|loadVentas|ventaService\" | Select-Object -First 40 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-frontend\\\\src\\\\services\\\\venta.service.ts\" -Pattern \"sucursalId|sucursal|getAll|getByTenant\" | Select-Object -First 20 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java\\\\com\\\\stockflow\\\\controller\\\\VentaController.java\" -Pattern \"periodo|Periodo|sucursalId\" | Select-Object -First 30 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java\\\\com\\\\stockflow\\\\service\\\\impl\\\\VentaServiceImpl.java\" -Pattern \"obtenerVentasPorPeriodo|obtenerVentasPorVendedor\" | Select-Object -First 10 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java\\\\com\\\\stockflow\\\\repository\\\\VentaRepository.java\" -Pattern \"Periodo|Period|sucursalId\" | Select-Object -First 20 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java\\\\com\\\\stockflow\\\\service\\\\VentaService.java\" -Pattern \"obtenerVentasPorPeriodo|obtenerVentasPorVendedor\" | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
+      "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java\" -Pattern \"obtenerVentasPorPeriodo|obtenerVentasPorVendedorYTenantYPeriodo\" -Recurse | ForEach-Object { \"$\\($_.Path.Split\\('\\\\'\\)[-1]\\):$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
+      "PowerShell(ls D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java -Recurse -Directory | Where-Object { $_.Name -match \"suscri|culqi|payment|webhook\" } | Select-Object FullName)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Java\\\\jdk-21\\\\bin\\\\javac\" --version 2>&1)",
+      "PowerShell(Get-Command mvn -ErrorAction SilentlyContinue)"
     ]
   }
 }
