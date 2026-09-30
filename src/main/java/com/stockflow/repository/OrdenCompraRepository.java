@@ -36,6 +36,10 @@ public interface OrdenCompraRepository extends JpaRepository<OrdenCompra, Long> 
             @Param("limite")   LocalDateTime limite
     );
 
+    // ── Dashboard: top N órdenes recientes (evita full-table-scan) ──
+    @Query(value = "SELECT * FROM orden_compra WHERE tenant_id = :tenantId AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) ORDER BY created_at DESC LIMIT :limit", nativeQuery = true)
+    List<OrdenCompra> findTopNRecentesByTenantId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("limit") int limit);
+
     @Modifying
     @Query(value = "UPDATE orden_compra SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);

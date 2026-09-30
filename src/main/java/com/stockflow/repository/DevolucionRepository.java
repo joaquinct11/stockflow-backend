@@ -17,6 +17,10 @@ public interface DevolucionRepository extends JpaRepository<Devolucion, Long> {
 
     List<Devolucion> findByVentaIdAndTenantId(Long ventaId, String tenantId);
 
+    // ── Dashboard: top N devoluciones recientes (evita full-table-scan) ──
+    @Query(value = "SELECT * FROM devoluciones WHERE tenant_id = :tenantId AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) ORDER BY fecha_devolucion DESC LIMIT :limit", nativeQuery = true)
+    List<Devolucion> findTopNRecentesByTenantId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("limit") int limit);
+
     Optional<Devolucion> findByIdAndTenantId(Long id, String tenantId);
 
     @Modifying

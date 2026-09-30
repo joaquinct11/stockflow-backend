@@ -4,11 +4,13 @@ import com.stockflow.dto.reportes.*;
 import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.ProductoStockSucursal;
+import com.stockflow.repository.ComprobanteRepository;
 import com.stockflow.repository.GastoRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.RecepcionRepository;
+import com.stockflow.repository.StockLoteRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.ReportesService;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,8 @@ public class ReportesServiceImpl implements ReportesService {
     private final RecepcionRepository               recepcionRepository;
     private final VentaRepository                   ventaRepository;
     private final GastoRepository                   gastoRepository;
+    private final ComprobanteRepository             comprobanteRepository;
+    private final StockLoteRepository               stockLoteRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,8 +99,10 @@ public class ReportesServiceImpl implements ReportesService {
         return raw.stream()
                 .limit(limit)
                 .map(row -> {
-                    long count = ((Number) row[2]).longValue();
-                    BigDecimal ingresos = (BigDecimal) row[3];
+                    long count    = ((Number) row[2]).longValue();
+                    BigDecimal ingresos = row[3] != null ? new BigDecimal(row[3].toString()) : BigDecimal.ZERO;
+                    long unidades = row[4] != null ? ((Number) row[4]).longValue() : 0L;
+                    long anuladas = row[5] != null ? ((Number) row[5]).longValue() : 0L;
                     BigDecimal ticket = count > 0
                             ? ingresos.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP)
                             : BigDecimal.ZERO;
@@ -106,6 +112,8 @@ public class ReportesServiceImpl implements ReportesService {
                             .ventasCount(count)
                             .ingresosTotal(ingresos)
                             .ticketPromedio(ticket)
+                            .unidades(unidades)
+                            .anuladas(anuladas)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -188,12 +196,30 @@ public class ReportesServiceImpl implements ReportesService {
 
         return raw.stream()
                 .limit(limit)
-                .map(row -> ProductoVentaDTO.builder()
-                        .productoId(((Number) row[0]).longValue())
-                        .nombre((String) row[1])
-                        .cantidad(((Number) row[2]).longValue())
-                        .ingresos((BigDecimal) row[3])
-                        .build())
+                .map(row -> {
+                    long cantidad  = ((Number) row[2]).longValue();
+                    BigDecimal ing = (BigDecimal) row[3];
+                    BigDecimal cos = row[4] != null ? (BigDecimal) row[4] : BigDecimal.ZERO;
+                    int stockActual = row[5] != null ? ((Number) row[5]).intValue() : 0;
+
+                    BigDecimal utilidad = ing.subtract(cos);
+                    BigDecimal margenPct = ing.compareTo(BigDecimal.ZERO) > 0
+                            ? utilidad.divide(ing, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP)
+                            : BigDecimal.ZERO;
+                    BigDecimal rotacion = stockActual > 0
+                            ? BigDecimal.valueOf(cantidad).divide(BigDecimal.valueOf(stockActual), 2, RoundingMode.HALF_UP)
+                            : null;
+
+                    return ProductoVentaDTO.builder()
+                            .productoId(((Number) row[0]).longValue())
+                            .nombre((String) row[1])
+                            .cantidad(cantidad)
+                            .ingresos(ing)
+                            .utilidad(utilidad)
+                            .margenPct(margenPct)
+                            .rotacion(rotacion)
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 
@@ -546,11 +572,44 @@ public class ReportesServiceImpl implements ReportesService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ComprobanteTipoResumenDTO> comprobantesPorTipo(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta) {
+        log.info("🧾 Comprobantes por tipo tenant={} rango=[{}, {}]", tenantId, desde, hasta);
+        LocalDateTime inicio = desde.atStartOfDay();
+        LocalDateTime fin    = hasta.atTime(LocalTime.MAX);
+        return comprobanteRepository.countByTipoPeriodo(tenantId, inicio, fin, sucursalId)
+                .stream()
+                .map(row -> ComprobanteTipoResumenDTO.builder()
+                        .tipo((String) row[0])
+                        .cantidad(((Number) row[1]).longValue())
+                        .total(toBigDecimal(row[2]))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<HorasPicoItemDTO> horasPico(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta) {
+        log.info("🕐 Horas pico tenant={} rango=[{}, {}]", tenantId, desde, hasta);
+        LocalDateTime inicio = desde.atStartOfDay();
+        LocalDateTime fin    = hasta.atTime(LocalTime.MAX);
+        return ventaRepository.findHorasPico(tenantId, inicio, fin, sucursalId)
+                .stream()
+                .map(row -> HorasPicoItemDTO.builder()
+                        .diaSemana(((Number) row[0]).intValue())
+                        .hora(((Number) row[1]).intValue())
+                        .cantidad(((Number) row[2]).longValue())
+                        .total(toBigDecimal(row[3]))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private InventarioResumenDTO buildInventario(String tenantId, Long sucursalId) {
-        long totalProductos = productoRepository.countByTenantIdAndActivoTrue(tenantId);
-        BigDecimal valorizacion = productoRepository.calcularValorizacionStock(tenantId);
+        long totalProductos = stockLoteRepository.countProductosConStockEnLotes(tenantId);
+        BigDecimal valorizacion = stockLoteRepository.calcularValorizacionPorLotes(tenantId);
 
         List<ProductoBajoStockDTO> productosBajoStock;
         if (sucursalId != null) {

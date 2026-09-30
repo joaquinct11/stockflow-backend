@@ -41,4 +41,8 @@ public interface ReportesService {
     VencimientosRiesgoDTO getVencimientosRiesgo(String tenantId);
 
     List<ClienteReporteDTO> getTopClientes(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta, int limit);
+
+    List<HorasPicoItemDTO> horasPico(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta);
+
+    List<ComprobanteTipoResumenDTO> comprobantesPorTipo(String tenantId, Long sucursalId, LocalDate desde, LocalDate hasta);
 }

@@ -5,6 +5,7 @@ import com.stockflow.entity.Producto;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.RecepcionRepository;
+import com.stockflow.repository.StockLoteRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.impl.ReportesServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,7 @@ class ReportesServiceImplTest {
     @Mock private MovimientoInventarioRepository movimientoRepository;
     @Mock private RecepcionRepository recepcionRepository;
     @Mock private VentaRepository ventaRepository;
+    @Mock private StockLoteRepository stockLoteRepository;
 
     @InjectMocks
     private ReportesServiceImpl reportesService;
@@ -52,6 +54,8 @@ class ReportesServiceImplTest {
         when(productoRepository.countByTenantIdAndActivoTrue(TENANT)).thenReturn(0L);
         when(productoRepository.findProductosBajoStock(TENANT)).thenReturn(Collections.emptyList());
         when(productoRepository.calcularValorizacionStock(TENANT)).thenReturn(null);
+        when(stockLoteRepository.countProductosConStockEnLotes(TENANT)).thenReturn(0L);
+        when(stockLoteRepository.calcularValorizacionPorLotes(TENANT)).thenReturn(null);
 
         // movimientos sin datos (ahora con sucursalId)
         when(movimientoRepository.sumCantidadByTenantIdAndTipoAndPeriodo(eq(TENANT), eq("ENTRADA"), any(), any(), any())).thenReturn(0L);
@@ -105,7 +109,8 @@ class ReportesServiceImplTest {
 
         when(productoRepository.countByTenantIdAndActivoTrue(TENANT)).thenReturn(1L);
         when(productoRepository.findProductosBajoStock(TENANT)).thenReturn(List.of(prod));
-        when(productoRepository.calcularValorizacionStock(TENANT)).thenReturn(new BigDecimal("200.00"));
+        when(stockLoteRepository.countProductosConStockEnLotes(TENANT)).thenReturn(1L);
+        when(stockLoteRepository.calcularValorizacionPorLotes(TENANT)).thenReturn(new BigDecimal("200.00"));
 
         ReportesResumenDTO resultado = reportesService.obtenerResumen(TENANT, null, DESDE, HASTA);
 
@@ -234,7 +239,8 @@ class ReportesServiceImplTest {
 
     @Test
     void ventasPorVendedor_conDatos_calculaTicketPromedio() {
-        Object[] row = new Object[]{1L, "Juan Pérez", 4L, new BigDecimal("400.00")};
+        // columnas: vendedor_id, nombre, ventas_count, ingresos_total, unidades, anuladas
+        Object[] row = new Object[]{1L, "Juan Pérez", 4L, new BigDecimal("400.00"), 12L, 1L};
         when(ventaRepository.findVentasPorVendedor(eq(TENANT), any(), any(), any()))
                 .thenReturn(List.<Object[]>of(row));
 
@@ -247,6 +253,8 @@ class ReportesServiceImplTest {
         assertThat(dto.getVentasCount()).isEqualTo(4L);
         assertThat(dto.getIngresosTotal()).isEqualByComparingTo("400.00");
         assertThat(dto.getTicketPromedio()).isEqualByComparingTo("100.00");
+        assertThat(dto.getUnidades()).isEqualTo(12L);
+        assertThat(dto.getAnuladas()).isEqualTo(1L);
     }
 
     @Test

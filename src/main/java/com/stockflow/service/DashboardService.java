@@ -20,37 +20,40 @@ public class DashboardService {
     private final DevolucionRepository devolucionRepository;
 
     public List<ActividadRecienteDTO> getActividadReciente(String tenantId, Long sucursalId, int limit) {
-        int fetch = limit * 2; // pedir más para que al mezclar sobre todo haya suficientes
+        int fetch = limit * 2;
 
         List<ActividadRecienteDTO> items = new ArrayList<>();
 
-        // --- Ventas ---
+        // --- Ventas (activas y anuladas, top N desde DB) ---
         List<Venta> ventas = sucursalId != null
-                ? ventaRepository.findByTenantIdAndSucursalId(tenantId, sucursalId)
-                : ventaRepository.findByTenantId(tenantId);
+                ? ventaRepository.findTopNRecentesByTenantIdAndSucursalId(tenantId, sucursalId, fetch * 2)
+                : ventaRepository.findTopNRecentesByTenantId(tenantId, fetch * 2);
 
         ventas.stream()
                 .filter(v -> v.getCreatedAt() != null && !"ANULADA".equals(v.getEstado()))
-                .sorted(Comparator.comparing(Venta::getCreatedAt).reversed())
                 .limit(fetch)
-                .forEach(v -> {
-                    String usuario = nombreUsuario(v.getVendedor());
-                    items.add(ActividadRecienteDTO.builder()
-                            .tipo("VENTA")
-                            .descripcion("Venta por S/ " + formatMonto(v.getTotal()))
-                            .detalle(v.getMetodoPago() != null ? v.getMetodoPago().toLowerCase() : null)
-                            .usuarioNombre(usuario)
-                            .fechaHora(v.getCreatedAt())
-                            .build());
-                });
+                .forEach(v -> items.add(ActividadRecienteDTO.builder()
+                        .tipo("VENTA")
+                        .descripcion("Venta por S/ " + formatMonto(v.getTotal()))
+                        .detalle(v.getMetodoPago() != null ? v.getMetodoPago().toLowerCase() : null)
+                        .usuarioNombre(nombreUsuario(v.getVendedor()))
+                        .fechaHora(v.getCreatedAt())
+                        .build()));
 
-        // --- Comprobantes (boletas/facturas con número) ---
-        comprobanteRepository.findByTenantId(tenantId).stream()
-                .filter(c -> c.getFechaEmision() != null
-                        && (sucursalId == null || sucursalIdDeVenta(c.getVenta()) == null
-                            || sucursalIdDeVenta(c.getVenta()).equals(sucursalId)))
-                .sorted(Comparator.comparing(Comprobante::getFechaEmision).reversed())
+        ventas.stream()
+                .filter(v -> v.getCreatedAt() != null && "ANULADA".equals(v.getEstado()))
                 .limit(fetch)
+                .forEach(v -> items.add(ActividadRecienteDTO.builder()
+                        .tipo("ANULACION")
+                        .descripcion("Venta anulada por S/ " + formatMonto(v.getTotal()))
+                        .detalle("venta #" + v.getId())
+                        .usuarioNombre(nombreUsuario(v.getVendedor()))
+                        .fechaHora(v.getCreatedAt())
+                        .build()));
+
+        // --- Comprobantes (top N desde DB, filtro de sucursal en query) ---
+        comprobanteRepository.findTopNRecentesByTenantId(tenantId, sucursalId, fetch).stream()
+                .filter(c -> c.getFechaEmision() != null)
                 .forEach(c -> {
                     String tipoLabel = "FACTURA".equalsIgnoreCase(c.getTipo()) ? "Factura" : "Boleta";
                     String sunatDetalle = c.getSunatEstado() != null
@@ -65,29 +68,22 @@ public class DashboardService {
                             .build());
                 });
 
-        // --- Movimientos ENTRADA y AJUSTE ---
-        List<String> tiposFiltro = List.of("ENTRADA", "AJUSTE", "MERMA");
+        // --- Movimientos ENTRADA/AJUSTE/MERMA (top N desde DB, filtrados por tipo en query) ---
         List<MovimientoInventario> movimientos = sucursalId != null
-                ? movimientoRepository.findByTenantIdAndSucursalId(tenantId, sucursalId)
-                : movimientoRepository.findByTenantId(tenantId);
+                ? movimientoRepository.findTopNActividadByTenantIdAndSucursalId(tenantId, sucursalId, fetch)
+                : movimientoRepository.findTopNActividadByTenantId(tenantId, fetch);
+
         movimientos.stream()
-                .filter(m -> m.getCreatedAt() != null && tiposFiltro.contains(m.getTipo()))
-                .sorted(Comparator.comparing(MovimientoInventario::getCreatedAt).reversed())
-                .limit(fetch)
+                .filter(m -> m.getCreatedAt() != null)
                 .forEach(m -> {
-                    String tipoActividad = switch (m.getTipo()) {
-                        case "ENTRADA" -> "ENTRADA";
-                        case "AJUSTE" -> "AJUSTE";
-                        default -> "MERMA";
-                    };
                     String desc = switch (m.getTipo()) {
                         case "ENTRADA" -> "Entrada de " + Math.abs(m.getCantidad()) + " unidades"
                                 + (m.getReferencia() != null ? " · " + m.getReferencia() : "");
-                        case "AJUSTE" -> "Ajuste de inventario: " + (m.getCantidad() >= 0 ? "+" : "") + m.getCantidad() + " unidades";
-                        default -> "Merma de " + Math.abs(m.getCantidad()) + " unidades";
+                        case "AJUSTE"  -> "Ajuste de inventario: " + (m.getCantidad() >= 0 ? "+" : "") + m.getCantidad() + " unidades";
+                        default        -> "Merma de " + Math.abs(m.getCantidad()) + " unidades";
                     };
                     items.add(ActividadRecienteDTO.builder()
-                            .tipo(tipoActividad)
+                            .tipo(m.getTipo())
                             .descripcion(desc)
                             .detalle(m.getDescripcion())
                             .usuarioNombre(nombreUsuario(m.getUsuario()))
@@ -95,12 +91,9 @@ public class DashboardService {
                             .build());
                 });
 
-        // --- Órdenes de compra ---
-        ordenCompraRepository.findByTenantId(tenantId).stream()
-                .filter(oc -> oc.getCreatedAt() != null
-                        && (sucursalId == null || sucursalId.equals(oc.getSucursalId())))
-                .sorted(Comparator.comparing(OrdenCompra::getCreatedAt).reversed())
-                .limit(fetch)
+        // --- Órdenes de compra (top N desde DB, filtro de sucursal en query) ---
+        ordenCompraRepository.findTopNRecentesByTenantId(tenantId, sucursalId, fetch).stream()
+                .filter(oc -> oc.getCreatedAt() != null)
                 .forEach(oc -> {
                     String proveedor = oc.getProveedor() != null ? oc.getProveedor().getNombre() : "proveedor";
                     items.add(ActividadRecienteDTO.builder()
@@ -112,39 +105,17 @@ public class DashboardService {
                             .build());
                 });
 
-        // --- Anulaciones (ventas con estado ANULADA) ---
-        ventas.stream()
-                .filter(v -> v.getCreatedAt() != null && "ANULADA".equals(v.getEstado()))
-                .sorted(Comparator.comparing(Venta::getCreatedAt).reversed())
-                .limit(fetch)
-                .forEach(v -> {
-                    String usuario = nombreUsuario(v.getVendedor());
-                    items.add(ActividadRecienteDTO.builder()
-                            .tipo("ANULACION")
-                            .descripcion("Venta anulada por S/ " + formatMonto(v.getTotal()))
-                            .detalle("venta #" + v.getId())
-                            .usuarioNombre(usuario)
-                            .fechaHora(v.getCreatedAt())
-                            .build());
-                });
+        // --- Devoluciones (top N desde DB, filtro de sucursal en query) ---
+        devolucionRepository.findTopNRecentesByTenantId(tenantId, sucursalId, fetch).stream()
+                .filter(d -> d.getFechaDevolucion() != null)
+                .forEach(d -> items.add(ActividadRecienteDTO.builder()
+                        .tipo("DEVOLUCION")
+                        .descripcion("Devolución por S/ " + formatMonto(d.getTotalDevuelto()))
+                        .detalle(d.getMotivo())
+                        .usuarioNombre(nombreUsuario(d.getUsuario()))
+                        .fechaHora(d.getFechaDevolucion())
+                        .build()));
 
-        // --- Devoluciones ---
-        devolucionRepository.findByTenantIdOrderByFechaDevolucionDesc(tenantId).stream()
-                .filter(d -> d.getFechaDevolucion() != null
-                        && (sucursalId == null || sucursalId.equals(d.getSucursalId())))
-                .limit(fetch)
-                .forEach(d -> {
-                    String usuario = nombreUsuario(d.getUsuario());
-                    items.add(ActividadRecienteDTO.builder()
-                            .tipo("DEVOLUCION")
-                            .descripcion("Devolución por S/ " + formatMonto(d.getTotalDevuelto()))
-                            .detalle(d.getMotivo() != null ? d.getMotivo() : null)
-                            .usuarioNombre(usuario)
-                            .fechaHora(d.getFechaDevolucion())
-                            .build());
-                });
-
-        // Ordenar por fechaHora desc y limitar
         items.sort(Comparator.comparing(ActividadRecienteDTO::getFechaHora).reversed());
         return items.stream().limit(limit).toList();
     }
@@ -168,7 +139,4 @@ public class DashboardService {
         return String.format("%,.2f", monto).replace('.', ',');
     }
 
-    private Long sucursalIdDeVenta(Venta v) {
-        return v != null ? v.getSucursalId() : null;
-    }
 }
