@@ -2,11 +2,13 @@ package com.stockflow.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import java.time.LocalDateTime;
@@ -165,6 +167,28 @@ public class GlobalExceptionHandler {
                 .build();
 
         return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponse> handleResponseStatus(
+            ResponseStatusException ex,
+            WebRequest request) {
+
+        HttpStatusCode status = ex.getStatusCode();
+        log.warn("RESPONSE_STATUS [{}] : {} {}", path(request), status.value(), ex.getReason());
+
+        String errorLabel = status instanceof HttpStatus hs ? hs.getReasonPhrase() : "Error";
+        String mensaje = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(status.value())
+                .error(errorLabel)
+                .mensaje(mensaje)
+                .path(path(request))
+                .build();
+
+        return new ResponseEntity<>(errorResponse, status);
     }
 
     @ExceptionHandler(Exception.class)

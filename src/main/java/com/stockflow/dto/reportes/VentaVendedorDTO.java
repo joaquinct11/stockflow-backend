@@ -17,4 +17,6 @@ public class VentaVendedorDTO {
     private long ventasCount;
     private BigDecimal ingresosTotal;
     private BigDecimal ticketPromedio;
+    private long unidades;
+    private long anuladas;
 }

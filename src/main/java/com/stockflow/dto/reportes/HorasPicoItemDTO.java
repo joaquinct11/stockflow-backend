@@ -11,12 +11,10 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProductoVentaDTO {
-    private Long productoId;
-    private String nombre;
+public class HorasPicoItemDTO {
+    /** Día de la semana: 0=Domingo, 1=Lunes, ..., 6=Sábado (PostgreSQL DOW). */
+    private int diaSemana;
+    private int hora;
     private long cantidad;
-    private BigDecimal ingresos;
-    private BigDecimal utilidad;
-    private BigDecimal margenPct;
-    private BigDecimal rotacion;
+    private BigDecimal total;
 }

@@ -190,6 +190,13 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     List<MovimientoInventario> findRecentByTenantIdAndSucursalId(
             @Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("desde") LocalDateTime desde);
 
+    // ── Dashboard: top N movimientos de actividad (evita full-table-scan) ──
+    @Query(value = "SELECT * FROM movimientos_inventario WHERE tenant_id = :tenantId AND tipo IN ('ENTRADA','AJUSTE','MERMA') ORDER BY created_at DESC LIMIT :limit", nativeQuery = true)
+    List<MovimientoInventario> findTopNActividadByTenantId(@Param("tenantId") String tenantId, @Param("limit") int limit);
+
+    @Query(value = "SELECT * FROM movimientos_inventario WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId AND tipo IN ('ENTRADA','AJUSTE','MERMA') ORDER BY created_at DESC LIMIT :limit", nativeQuery = true)
+    List<MovimientoInventario> findTopNActividadByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("limit") int limit);
+
     @Modifying
     @Query(value = "UPDATE movimientos_inventario SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);

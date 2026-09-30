@@ -56,6 +56,25 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
             @Param("search") String search
     );
 
+    // ── Dashboard: top N comprobantes recientes (evita full-table-scan) ──
+    @Query(value = "SELECT * FROM comprobantes WHERE tenant_id = :tenantId AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) ORDER BY fecha_emision DESC LIMIT :limit", nativeQuery = true)
+    List<Comprobante> findTopNRecentesByTenantId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, @Param("limit") int limit);
+
+    @Query(value = "SELECT tipo, COUNT(id) AS cantidad, COALESCE(SUM(total), 0) AS total " +
+                   "FROM comprobantes " +
+                   "WHERE tenant_id = :tenantId " +
+                   "  AND fecha_emision BETWEEN :inicio AND :fin " +
+                   "  AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) " +
+                   "  AND estado <> 'ANULADO' " +
+                   "GROUP BY tipo ORDER BY tipo",
+           nativeQuery = true)
+    List<Object[]> countByTipoPeriodo(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin,
+            @Param("sucursalId") Long sucursalId
+    );
+
     @Modifying
     @Query(value = "UPDATE comprobantes SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);

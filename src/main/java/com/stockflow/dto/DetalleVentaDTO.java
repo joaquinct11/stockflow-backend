@@ -46,4 +46,7 @@ public class DetalleVentaDTO {
      */
     @Builder.Default
     private Integer factor = 1;
+
+    /** Costo unitario del producto al momento de consulta (para calcular COGS en el cliente). */
+    private BigDecimal costoUnitario;
 }

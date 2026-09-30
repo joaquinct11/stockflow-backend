@@ -349,6 +349,42 @@ public class ReportesController {
         return ResponseEntity.ok(mermas);
     }
 
+    // ── Comprobantes por tipo ─────────────────────────────────────────────────
+
+    /**
+     * GET /api/reportes/ventas/comprobantes?desde&hasta
+     * Conteo e importe de comprobantes emitidos agrupados por tipo (BOLETA/FACTURA).
+     */
+    @GetMapping("/ventas/comprobantes")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
+    public ResponseEntity<List<ComprobanteTipoResumenDTO>> getComprobantesPorTipo(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) Long sucursalId) {
+
+        validarRango(desde, hasta);
+        String tenantId = TenantContext.getCurrentTenant();
+        return ResponseEntity.ok(reportesService.comprobantesPorTipo(tenantId, sucursalId, desde, hasta));
+    }
+
+    // ── Horas pico ────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/reportes/ventas/horas-pico?desde&hasta
+     * Ventas agrupadas por día de semana (DOW) y hora del día para el heatmap.
+     */
+    @GetMapping("/ventas/horas-pico")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_REPORTES')")
+    public ResponseEntity<List<HorasPicoItemDTO>> getHorasPico(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @RequestParam(required = false) Long sucursalId) {
+
+        validarRango(desde, hasta);
+        String tenantId = TenantContext.getCurrentTenant();
+        return ResponseEntity.ok(reportesService.horasPico(tenantId, sucursalId, desde, hasta));
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private void validarRango(LocalDate desde, LocalDate hasta) {
