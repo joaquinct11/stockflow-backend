@@ -1,9 +1,6 @@
 package com.stockflow.controller;
 
-import com.stockflow.dto.JwtResponseDTO;
-import com.stockflow.dto.LoginDTO;
-import com.stockflow.dto.RegistrationRequestDTO;
-import com.stockflow.dto.RefreshTokenRequestDTO;
+import com.stockflow.dto.*;
 import com.stockflow.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -12,15 +9,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.stockflow.dto.CambiarPasswordDTO;
-import com.stockflow.dto.ForgotPasswordDTO;
-import com.stockflow.dto.ResetPasswordDTO;
-import com.stockflow.dto.UsuarioProfileDTO;
 import com.stockflow.util.TenantContext;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -104,5 +98,34 @@ public class AuthController {
             @Valid @RequestBody ResetPasswordDTO dto) {
         authService.activarCuenta(dto);
         return ResponseEntity.ok(Map.of("mensaje", "Cuenta activada exitosamente. Ya puedes iniciar sesión."));
+    }
+
+    @GetMapping("/tenants")
+    @Operation(summary = "Listar tenants del usuario",
+               description = """
+                   Retorna los tenants activos del usuario autenticado.
+                   Acepta dos tipos de token:
+                   - TENANT_SELECTION (flujo inicial de login multi-tenant, 5 min)
+                   - ACCESS token normal (para consultar tenants disponibles desde una sesión activa)
+                   El usuarioId siempre proviene del token — nunca de un parámetro externo.
+                   """)
+    public ResponseEntity<List<TenantInfoDTO>> getTenants() {
+        Long usuarioId = TenantContext.getCurrentUserId();
+        return ResponseEntity.ok(authService.getTenants(usuarioId));
+    }
+
+    @PostMapping("/select-tenant")
+    @Operation(summary = "Seleccionar tenant activo",
+               description = """
+                   Emite access+refresh token para el tenant elegido.
+                   Acepta dos tipos de token:
+                   - TENANT_SELECTION (flujo inicial tras login multi-tenant)
+                   - ACCESS token normal (cambio de tenant desde sesión ya autenticada)
+                   El servidor valida que usuario_tenant.activo=true para el tenant solicitado.
+                   """)
+    public ResponseEntity<JwtResponseDTO> selectTenant(@Valid @RequestBody SelectTenantRequestDTO dto) {
+        Long usuarioId = TenantContext.getCurrentUserId();
+        JwtResponseDTO response = authService.selectTenant(usuarioId, dto);
+        return ResponseEntity.ok(response);
     }
 }

@@ -1,8 +1,10 @@
 package com.stockflow.service.impl;
 
 import com.stockflow.entity.MovimientoInventario;
+import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.service.MovimientoInventarioService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -21,7 +23,8 @@ public class MovimientoInventarioServiceImpl implements MovimientoInventarioServ
 
     @Override
     public Optional<MovimientoInventario> obtenerMovimientoPorId(Long id) {
-        return movimientoRepository.findById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        return movimientoRepository.findByIdAndTenantId(id, tenantId);
     }
 
     @Override
@@ -42,7 +45,10 @@ public class MovimientoInventarioServiceImpl implements MovimientoInventarioServ
 
     @Override
     public void eliminarMovimiento(Long id) {
-        movimientoRepository.deleteById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        MovimientoInventario mov = movimientoRepository.findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Movimiento no encontrado"));
+        movimientoRepository.delete(mov);
     }
 
     @Override

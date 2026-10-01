@@ -4,10 +4,12 @@ import com.stockflow.dto.DeleteAccountValidationDTO;
 import com.stockflow.dto.DatosEliminacionDTO;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Usuario;
+import com.stockflow.entity.UsuarioTenant;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.TenantService;
 import com.stockflow.service.UsuarioService;
@@ -27,15 +29,36 @@ import java.util.UUID;
 public class UsuarioServiceImpl implements UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
     private final SuscripcionRepository suscripcionRepository;
     private final PasswordEncoder passwordEncoder;
     private final TenantService tenantService;
     private final EmailService emailService;
 
     @Override
+    @Transactional
     public Usuario crearUsuario(Usuario usuario) {
         usuario.setContraseña(passwordEncoder.encode(usuario.getContraseña()));
-        return usuarioRepository.save(usuario);
+        Usuario usuarioGuardado = usuarioRepository.save(usuario);
+
+        // Crear fila en usuario_tenant si el usuario está asociado a un tenant con un rol
+        if (usuarioGuardado.getTenantId() != null && usuarioGuardado.getRol() != null) {
+            boolean yaExiste = usuarioTenantRepository
+                    .existsByUsuarioIdAndTenantIdAndActivoTrue(usuarioGuardado.getId(), usuarioGuardado.getTenantId());
+            if (!yaExiste) {
+                UsuarioTenant ut = UsuarioTenant.builder()
+                        .usuario(usuarioGuardado)
+                        .tenantId(usuarioGuardado.getTenantId())
+                        .rol(usuarioGuardado.getRol())
+                        .activo(true)
+                        .build();
+                usuarioTenantRepository.save(ut);
+                log.info("✅ usuario_tenant creado: usuario={} tenant={} rol={}",
+                        usuarioGuardado.getEmail(), usuarioGuardado.getTenantId(), usuarioGuardado.getRol().getNombre());
+            }
+        }
+
+        return usuarioGuardado;
     }
 
     @Override

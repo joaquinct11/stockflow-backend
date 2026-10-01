@@ -18,4 +18,6 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
     List<Cliente> findByNumeroDocumentoAndTenantId(String numeroDocumento, String tenantId);
 
     long countByTenantId(String tenantId);
+
+    java.util.Optional<Cliente> findByIdAndTenantId(Long id, String tenantId);
 }

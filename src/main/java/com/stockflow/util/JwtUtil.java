@@ -48,13 +48,43 @@ public class JwtUtil {
                 .compact();
     }
 
+    /**
+     * Genera un refresh token que incluye tenantId (multi-tenant).
+     * Backward compat: si tenantId es null se omite el claim (tokens legacy).
+     */
+    public String generateRefreshToken(Long usuarioId, String email, String tenantId) {
+        var builder = Jwts.builder()
+                .setSubject(email)
+                .claim("usuarioId", usuarioId)
+                .claim("type", "REFRESH");
+        if (tenantId != null) {
+            builder.claim("tenantId", tenantId);
+        }
+        return builder
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getRefresh().getExpiration()))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /** @deprecated Use generateRefreshToken(id, email, tenantId) */
+    @Deprecated
     public String generateRefreshToken(Long usuarioId, String email) {
+        return generateRefreshToken(usuarioId, email, null);
+    }
+
+    /**
+     * Genera un selection token de corta duración (5 min), propósito TENANT_SELECTION.
+     * No contiene tenantId ni rol — solo identifica al usuario antes de elegir tenant.
+     */
+    public String generateSelectionToken(Long usuarioId, String email, String nombre) {
         return Jwts.builder()
                 .setSubject(email)
                 .claim("usuarioId", usuarioId)
-                .claim("type", "refresh")
+                .claim("nombre", nombre)
+                .claim("type", "TENANT_SELECTION")
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getRefresh().getExpiration()))
+                .setExpiration(new Date(System.currentTimeMillis() + 5 * 60 * 1000L))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
