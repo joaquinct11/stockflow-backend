@@ -162,7 +162,7 @@ public class UsuarioController {
     }
 
     @PatchMapping("/{id}/desactivar")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_USUARIO')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CAMBIAR_ESTADO_USUARIO') or authentication.details == #id")
     public ResponseEntity<Void> desactivar(@PathVariable Long id) {
         log.info("🔒 Desactivando usuario ID: {}", id);
         usuarioService.desactivarUsuario(id);
@@ -190,7 +190,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}/validar-eliminacion")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or authentication.details == #id")
     public ResponseEntity<DeleteAccountValidationDTO> validarEliminacion(@PathVariable Long id) {
         log.info("🔍 Validando eliminación de usuario ID: {}", id);
         DeleteAccountValidationDTO validacion = usuarioService.validarEliminacion(id);
