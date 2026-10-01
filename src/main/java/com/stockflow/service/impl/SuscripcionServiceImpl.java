@@ -37,6 +37,11 @@ public class SuscripcionServiceImpl implements SuscripcionService {
     }
 
     @Override
+    public Optional<Suscripcion> obtenerSuscripcionPorTenant(String tenantId) {
+        return suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId);
+    }
+
+    @Override
     public Suscripcion activarSuscripcion(Long id) {
         log.info("✅ Activando suscripción con ID: {}", id);
 

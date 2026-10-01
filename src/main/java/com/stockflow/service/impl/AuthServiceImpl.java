@@ -263,8 +263,9 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("✅ Tokens renovados para usuario: {} tenant: {}", usuario.getEmail(), activeTenantId);
 
-        Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorUsuario(usuario.getId())
-                .orElse(null);
+        Suscripcion suscripcion = (activeTenantId != null)
+                ? suscripcionService.obtenerSuscripcionPorTenant(activeTenantId).orElse(null)
+                : null;
 
         if (suscripcion != null
                 && "TRIAL".equals(suscripcion.getEstado())
@@ -338,8 +339,9 @@ public class AuthServiceImpl implements AuthService {
 
         RefreshToken refreshToken = refreshTokenService.crearRefreshToken(usuario, tenantId);
 
-        Suscripcion suscripcion = suscripcionService.obtenerSuscripcionPorUsuario(usuario.getId())
-                .orElse(null);
+        Suscripcion suscripcion = (tenantId != null)
+                ? suscripcionService.obtenerSuscripcionPorTenant(tenantId).orElse(null)
+                : null;
 
         if (suscripcion != null
                 && "TRIAL".equals(suscripcion.getEstado())

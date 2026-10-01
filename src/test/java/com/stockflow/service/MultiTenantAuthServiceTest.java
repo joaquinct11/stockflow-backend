@@ -72,6 +72,7 @@ class MultiTenantAuthServiceTest {
     private UsuarioTenant utTenantA;
     private UsuarioTenant utTenantB;
     private RefreshToken refreshTokenEntity;
+    private Suscripcion suscripcionTenantA;
 
     @BeforeEach
     void setUp() {
@@ -97,6 +98,15 @@ class MultiTenantAuthServiceTest {
                 .id(1L).token("rt-token").usuario(usuario).revocado(false)
                 .expiracion(LocalDateTime.now().plusDays(7)).build();
 
+        suscripcionTenantA = Suscripcion.builder()
+                .id(10L)
+                .usuarioPrincipal(usuario)
+                .planId("BASICO")
+                .precioMensual(new BigDecimal("29.90"))
+                .estado("ACTIVA")
+                .tenantId(TENANT_A)
+                .build();
+
         // Mocks comunes
         when(usuarioRepository.findByEmail(EMAIL)).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches(PASSWORD, HASH)).thenReturn(true);
@@ -105,6 +115,7 @@ class MultiTenantAuthServiceTest {
         when(jwtUtil.generateSelectionToken(any(), any(), any())).thenReturn("selection-token");
         when(refreshTokenService.crearRefreshToken(any(Usuario.class), any())).thenReturn(refreshTokenEntity);
         when(suscripcionService.obtenerSuscripcionPorUsuario(any())).thenReturn(Optional.empty());
+        when(suscripcionService.obtenerSuscripcionPorTenant(any())).thenReturn(Optional.empty());
         when(tenantService.obtenerTenant(any())).thenReturn(Optional.empty());
     }
 
@@ -324,5 +335,112 @@ class MultiTenantAuthServiceTest {
         // siempre pasa TenantContext.getCurrentUserId() (extraído del JWT firmado).
         verify(usuarioTenantRepository).findActivosConRolByUsuarioId(usuarioLegitimo);
         verify(usuarioTenantRepository).findActivosConRolByUsuarioId(otroUsuario);
+    }
+
+    // ── Aislamiento de suscripción por tenant ─────────────────────────────────
+
+    @Test
+    @DisplayName("suscripción T1: login multi-tenant devuelve selectionToken y ambos tenants (sin access/refresh)")
+    void suscripcionIsolation_login_multiTenant_devuelveSelectionToken() {
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L))
+                .thenReturn(List.of(utTenantA, utTenantB));
+
+        JwtResponseDTO response = authService.login(
+                LoginDTO.builder().email(EMAIL).contraseña(PASSWORD).build());
+
+        assertThat(response.getSelectionToken()).isNotNull();
+        assertThat(response.getAccessToken()).isNull();
+        assertThat(response.getRefreshToken()).isNull();
+        assertThat(response.getTenants()).hasSize(2);
+        assertThat(response.getTenants()).extracting(TenantInfoDTO::getTenantId)
+                .containsExactlyInAnyOrder(TENANT_A, TENANT_B);
+        assertThat(response.getTenants()).extracting(TenantInfoDTO::getRol)
+                .containsExactlyInAnyOrder("ADMIN", "CAJERO");
+    }
+
+    @Test
+    @DisplayName("suscripción T2: selectTenant TENANT_B → suscripcion=null, sin filtrar al tenant ajeno")
+    void suscripcionIsolation_selectTenant_sinSuscripcion_noLeakDeTenantAjeno() {
+        Rol rolVendedor = Rol.builder().id(3L).nombre("VENDEDOR").build();
+        UsuarioTenant utVendedor = UsuarioTenant.builder()
+                .id(3L).usuario(usuario).tenantId(TENANT_B).rol(rolVendedor).activo(true).build();
+
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_B))
+                .thenReturn(Optional.of(utVendedor));
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(usuario));
+        when(suscripcionService.obtenerSuscripcionPorTenant(TENANT_B)).thenReturn(Optional.empty());
+
+        SelectTenantRequestDTO dto = new SelectTenantRequestDTO();
+        dto.setTenantId(TENANT_B);
+
+        JwtResponseDTO response = authService.selectTenant(10L, dto);
+
+        assertThat(response.getTenantId()).isEqualTo(TENANT_B);
+        assertThat(response.getRol()).isEqualTo("VENDEDOR");
+        assertThat(response.getSuscripcion()).isNull();
+    }
+
+    @Test
+    @DisplayName("suscripción T3: selectTenant TENANT_A → suscripcion.tenantId = TENANT_A (suscripción correcta)")
+    void suscripcionIsolation_selectTenant_conSuscripcion_devuelveCorrectamente() {
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_A))
+                .thenReturn(Optional.of(utTenantA));
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(usuario));
+        when(suscripcionService.obtenerSuscripcionPorTenant(TENANT_A)).thenReturn(Optional.of(suscripcionTenantA));
+
+        SelectTenantRequestDTO dto = new SelectTenantRequestDTO();
+        dto.setTenantId(TENANT_A);
+
+        JwtResponseDTO response = authService.selectTenant(10L, dto);
+
+        assertThat(response.getTenantId()).isEqualTo(TENANT_A);
+        assertThat(response.getRol()).isEqualTo("ADMIN");
+        assertThat(response.getSuscripcion()).isNotNull();
+        assertThat(response.getSuscripcion().getTenantId()).isEqualTo(TENANT_A);
+        assertThat(response.getSuscripcion().getPlanId()).isEqualTo("BASICO");
+    }
+
+    @Test
+    @DisplayName("suscripción T4: refresh con TENANT_B → suscripcion=null (no filtra a TENANT_A)")
+    void suscripcionIsolation_refresh_tenantB_suscripcionNull() {
+        RefreshToken rt = RefreshToken.builder().id(5L).token("rt-tenant-b").usuario(usuario)
+                .revocado(false).expiracion(LocalDateTime.now().plusDays(7)).build();
+
+        when(refreshTokenService.validarRefreshToken("rt-tenant-b")).thenReturn(rt);
+        when(jwtUtil.getTenantIdFromToken("rt-tenant-b")).thenReturn(TENANT_B);
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_B))
+                .thenReturn(Optional.of(utTenantB));
+        when(refreshTokenService.crearRefreshToken(usuario, TENANT_B)).thenReturn(refreshTokenEntity);
+        when(suscripcionService.obtenerSuscripcionPorTenant(TENANT_B)).thenReturn(Optional.empty());
+
+        JwtResponseDTO response = authService.refresh("rt-tenant-b");
+
+        assertThat(response.getTenantId()).isEqualTo(TENANT_B);
+        assertThat(response.getSuscripcion()).isNull();
+        verify(suscripcionService).obtenerSuscripcionPorTenant(TENANT_B);
+        verify(suscripcionService, never()).obtenerSuscripcionPorTenant(TENANT_A);
+    }
+
+    @Test
+    @DisplayName("suscripción T5: refresh con TENANT_A → suscripcion.tenantId = TENANT_A (suscripción correcta)")
+    void suscripcionIsolation_refresh_tenantA_suscripcionCorrecta() {
+        RefreshToken rt = RefreshToken.builder().id(6L).token("rt-tenant-a-v2").usuario(usuario)
+                .revocado(false).expiracion(LocalDateTime.now().plusDays(7)).build();
+
+        when(refreshTokenService.validarRefreshToken("rt-tenant-a-v2")).thenReturn(rt);
+        when(jwtUtil.getTenantIdFromToken("rt-tenant-a-v2")).thenReturn(TENANT_A);
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_A))
+                .thenReturn(Optional.of(utTenantA));
+        when(refreshTokenService.crearRefreshToken(usuario, TENANT_A)).thenReturn(refreshTokenEntity);
+        when(suscripcionService.obtenerSuscripcionPorTenant(TENANT_A)).thenReturn(Optional.of(suscripcionTenantA));
+
+        JwtResponseDTO response = authService.refresh("rt-tenant-a-v2");
+
+        assertThat(response.getTenantId()).isEqualTo(TENANT_A);
+        assertThat(response.getRol()).isEqualTo("ADMIN");
+        assertThat(response.getSuscripcion()).isNotNull();
+        assertThat(response.getSuscripcion().getTenantId()).isEqualTo(TENANT_A);
+        verify(suscripcionService).obtenerSuscripcionPorTenant(TENANT_A);
+        verify(suscripcionService, never()).obtenerSuscripcionPorTenant(TENANT_B);
     }
 }
