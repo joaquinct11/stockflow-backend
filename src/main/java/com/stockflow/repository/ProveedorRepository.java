@@ -23,4 +23,6 @@ public interface ProveedorRepository extends JpaRepository<Proveedor, Long> {
     long countByTenantId(String tenantId);
 
     Optional<Proveedor> findByNombreIgnoreCaseAndTenantId(String nombre, String tenantId);
+
+    Optional<Proveedor> findByIdAndTenantId(Long id, String tenantId);
 }

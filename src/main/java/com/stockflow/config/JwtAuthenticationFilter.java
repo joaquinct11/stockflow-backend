@@ -49,9 +49,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtUtil.isTokenExpired(token)) {
                     request.setAttribute("jwt_error", "Token JWT expirado");
                     log.warn("⏰ Token expirado detectado");
-                } else if ("refresh".equals(jwtUtil.getTypeFromToken(token))) {
+                } else if ("REFRESH".equals(jwtUtil.getTypeFromToken(token))
+                        || "refresh".equals(jwtUtil.getTypeFromToken(token))) {
                     request.setAttribute("jwt_error", "Refresh token no válido para autenticación");
                     log.warn("🚫 Intento de usar refresh token como access token rechazado");
+                } else if ("TENANT_SELECTION".equals(jwtUtil.getTypeFromToken(token))) {
+                    // Selection token: solo permite acceder a /auth/select-tenant
+                    String uri = request.getRequestURI();
+                    if (!uri.endsWith("/auth/select-tenant") && !uri.endsWith("/auth/tenants")) {
+                        request.setAttribute("jwt_error", "Selection token no válido para este endpoint");
+                        log.warn("🚫 Intento de usar selection token en endpoint de negocio: {}", uri);
+                    } else if (jwtUtil.validateToken(token)) {
+                        // Contexto mínimo: solo usuarioId, sin permisos de negocio
+                        Long usuarioId = jwtUtil.getUserIdFromToken(token);
+                        String email   = jwtUtil.getEmailFromToken(token);
+                        TenantContext.setCurrentUserId(usuarioId);
+                        MDC.put("userId", String.valueOf(usuarioId));
+                        UsernamePasswordAuthenticationToken auth =
+                                new UsernamePasswordAuthenticationToken(email, null, List.of());
+                        auth.setDetails(usuarioId);
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                        log.debug("✅ Selection token aceptado para usuarioId={} uri={}", usuarioId, uri);
+                    }
                 } else if (jwtUtil.validateToken(token)) {
                     // ✅ Token válido y no expirado
                     String email = jwtUtil.getEmailFromToken(token);
@@ -132,7 +151,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             request.setAttribute("jwt_error", "Error al procesar token de autenticación");
         }
 
-        filterChain.doFilter(request, response);
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            TenantContext.clear();
+            MDC.remove("tenantId");
+            MDC.remove("userId");
+        }
     }
 
     private String getTokenFromRequest(HttpServletRequest request) {

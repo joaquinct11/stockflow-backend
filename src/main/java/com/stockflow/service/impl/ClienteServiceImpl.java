@@ -4,6 +4,7 @@ import com.stockflow.entity.Cliente;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.ClienteRepository;
 import com.stockflow.service.ClienteService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +28,8 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     public Optional<Cliente> obtenerClientePorId(Long id) {
-        return clienteRepository.findById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId);
     }
 
     @Override
@@ -43,7 +45,8 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public Cliente actualizarCliente(Long id, Cliente cliente) {
         log.info("✏️ Actualizando cliente ID: {}", id);
-        return clienteRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId)
                 .map(existing -> {
                     existing.setNombre(cliente.getNombre());
                     existing.setTipoDocumento(cliente.getTipoDocumento());
@@ -59,7 +62,8 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public Cliente activarCliente(Long id) {
         log.info("✅ Activando cliente ID: {}", id);
-        return clienteRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId)
                 .map(cliente -> {
                     cliente.setActivo(true);
                     cliente.setDeletedAt(null);
@@ -71,7 +75,8 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public Cliente desactivarCliente(Long id) {
         log.info("🔒 Desactivando cliente ID: {}", id);
-        return clienteRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId)
                 .map(cliente -> {
                     cliente.setActivo(false);
                     cliente.setDeletedAt(LocalDateTime.now());
@@ -83,7 +88,10 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public void eliminarCliente(Long id) {
         log.warn("🗑️ Eliminando cliente ID: {}", id);
-        clienteRepository.deleteById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        Cliente cliente = clienteRepository.findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+        clienteRepository.delete(cliente);
     }
 
     @Override
