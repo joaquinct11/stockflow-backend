@@ -128,4 +128,17 @@ public class AuthController {
         JwtResponseDTO response = authService.selectTenant(usuarioId, dto);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/create-tenant")
+    @Operation(summary = "Agregar un nuevo negocio",
+               description = """
+                   Crea un nuevo tenant y lo vincula al usuario autenticado como ADMIN.
+                   No crea un nuevo usuario.
+                   Acepta TENANT_SELECTION token (flujo SelectTenant) o ACCESS token normal.
+                   """)
+    public ResponseEntity<TenantInfoDTO> crearNegocio(@Valid @RequestBody CrearNegocioRequestDTO dto) {
+        Long usuarioId = TenantContext.getCurrentUserId();
+        TenantInfoDTO result = authService.crearNegocio(usuarioId, dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
 }

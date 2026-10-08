@@ -106,9 +106,10 @@ public class CulqiController {
         }
         log.info("📋 [Culqi] Usando planId de Culqi: {} ({})", culqiPlanId, isPro ? "PRO" : "BASICO");
 
-        // 4. Culqi: crear cliente → tarjeta → suscripción
-        log.info("📡 [Culqi] Creando customer para email={}", email);
-        String customerId = culqiService.crearCliente(email, firstName, lastName, phoneNumber);
+        // 4. Culqi: crear cliente → tarjeta → suscripción (email tenant-scoped para customers independientes por tenant)
+        String culqiEmail = buildCulqiEmail(email, tenantId);
+        log.info("📡 [Culqi] Creando customer para culqiEmail={}", culqiEmail);
+        String customerId = culqiService.crearCliente(culqiEmail, firstName, lastName, phoneNumber);
 
         log.info("📡 [Culqi] Registrando tarjeta para customerId={}", customerId);
         Map<String, Object> cardData = culqiService.crearTarjeta(customerId, request.getTokenId());
@@ -116,7 +117,10 @@ public class CulqiController {
         String[] datosTarjeta = extraerDatosTarjeta(cardData);
 
         log.info("📡 [Culqi] Creando suscripción con cardId={}, planId={}", cardId, culqiPlanId);
-        String culqiSubscriptionId = culqiService.crearSuscripcion(cardId, culqiPlanId);
+        Map<String, String> suscripcionMetadata = Map.of(
+                "tenant_id",  tenantId,
+                "usuario_id", String.valueOf(usuarioId));
+        String culqiSubscriptionId = culqiService.crearSuscripcion(cardId, culqiPlanId, suscripcionMetadata);
 
         // 5. Persistir / actualizar suscripción local
         LocalDateTime ahora        = LocalDateTime.now();
@@ -161,6 +165,15 @@ public class CulqiController {
 
         Suscripcion guardada = suscripcionRepository.save(suscripcion);
         log.info("✅ [Culqi] Suscripción activada localmente id={}, culqiSubId={}", guardada.getId(), culqiSubscriptionId);
+
+        // Email de confirmación (usa el email real, nunca el tenant-scoped)
+        try {
+            emailService.enviarConfirmacionSuscripcionCulqi(
+                    email, firstName, tenantId, planIdLocal, precio,
+                    ahora, proximoCobro, datosTarjeta[0], datosTarjeta[1], culqiSubscriptionId);
+        } catch (Exception e) {
+            log.warn("⚠️ [Culqi] No se pudo enviar email de confirmación de suscripción: {}", e.getMessage());
+        }
 
         // Si el plan es PRO, desbloquear sucursales previas e inicializar la principal
         if (isPro) {
@@ -214,35 +227,95 @@ public class CulqiController {
         Usuario usuario = usuarioService.obtenerUsuarioPorId(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado: " + usuarioId));
 
-        // Cancelar suscripción Básico vigente en Culqi si existe
-        suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId).ifPresent(s -> {
-            if (s.getPreapprovalId() != null && "ACTIVA".equals(s.getEstado())) {
-                try {
-                    culqiService.cancelarSuscripcion(s.getPreapprovalId());
-                    log.info("✅ [Culqi] Suscripción Básico cancelada en Culqi: {}", s.getPreapprovalId());
-                } catch (Exception e) {
-                    log.warn("⚠️ [Culqi] No se pudo cancelar suscripción anterior en Culqi (continuando): {}", e.getMessage());
-                }
-            }
-        });
+        // Cargar suscripción actual (puede no existir si el tenant es nuevo)
+        Suscripcion suscripcionActual = suscripcionRepository
+                .findFirstByTenantIdOrderByIdDesc(tenantId)
+                .orElse(null);
+        String preapprovalIdBasico = suscripcionActual != null ? suscripcionActual.getPreapprovalId() : null;
 
-        // Crear cliente + tarjeta + suscripción PRO en Culqi
+        // ── FASE 1: Validar todo ANTES de cancelar el Básico ────────────────────
+        // Si algún paso falla aquí, el cliente sigue con su Básico activo.
+
+        // 1a. Resolver/crear customer (email tenant-scoped, con URL-encode correcto en búsqueda)
+        String culqiEmail = buildCulqiEmail(usuario.getEmail(), tenantId);
+        log.info("⬆️  [Culqi] Fase 1 — resolviendo customer para culqiEmail={}", culqiEmail);
         String customerId = culqiService.crearCliente(
-                usuario.getEmail(), usuario.getNombre(),
-                usuario.getApellido(), usuario.getNumeroCelular());
+                culqiEmail, usuario.getNombre(), usuario.getApellido(), usuario.getNumeroCelular());
+        log.info("✅ [Culqi] Customer resuelto: {}", customerId);
+
+        // 1b. Registrar la nueva tarjeta (valida que el token sea válido antes de cancelar)
+        log.info("⬆️  [Culqi] Fase 1 — registrando tarjeta para customerId={}", customerId);
         Map<String, Object> cardDataPro = culqiService.crearTarjeta(customerId, request.getTokenId());
         String cardId = (String) cardDataPro.get("id");
         String[] datosTarjetaPro = extraerDatosTarjeta(cardDataPro);
-        String culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdPro);
+        log.info("✅ [Culqi] Tarjeta registrada: cardId={}", cardId);
 
-        // Actualizar suscripción local a PRO
-        LocalDateTime ahora = LocalDateTime.now();
+        // ── FASE 2: Cancelar Básico ─────────────────────────────────────────────
+        // Solo se ejecuta si customer y tarjeta fueron resueltos correctamente.
+        if (preapprovalIdBasico != null && suscripcionActual != null && "ACTIVA".equals(suscripcionActual.getEstado())) {
+            try {
+                culqiService.cancelarSuscripcion(preapprovalIdBasico);
+                log.info("✅ [Culqi] Suscripción Básico cancelada en Culqi: {}", preapprovalIdBasico);
+            } catch (Exception e) {
+                log.warn("⚠️ [Culqi] No se pudo cancelar suscripción anterior en Culqi (continuando): {}", e.getMessage());
+            }
+        }
+
+        // ── FASE 3: Crear suscripción PRO ───────────────────────────────────────
+        // Si falla aquí, el cliente ya canceló el Básico → recuperación automática si es posible.
+        LocalDateTime ahora    = LocalDateTime.now();
         LocalDateTime proxCobro = ahora.plusMonths(1);
-        BigDecimal precioPro = culqiProperties.getPrecioPro();
+        BigDecimal precioPro   = culqiProperties.getPrecioPro();
+        Map<String, String> metadataPro = Map.of("tenant_id", tenantId, "usuario_id", String.valueOf(usuarioId));
 
-        Suscripcion suscripcion = suscripcionRepository
-                .findFirstByTenantIdOrderByIdDesc(tenantId)
-                .orElse(Suscripcion.builder().usuarioPrincipal(usuario).tenantId(tenantId).build());
+        String culqiSubId;
+        try {
+            culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdPro, metadataPro);
+            log.info("✅ [Culqi] Suscripción PRO creada: {}", culqiSubId);
+        } catch (Exception proError) {
+            // PRO falló después de cancelar Básico — intentar recuperación creando un Básico nuevo
+            log.error("❌ [Culqi] Fallo crítico al crear suscripción PRO para tenant={} tras cancelar Básico. Error: {}",
+                    tenantId, proError.getMessage());
+
+            String planIdBasico = culqiProperties.getPlanIdBasico();
+            if (planIdBasico != null && !planIdBasico.isBlank()) {
+                try {
+                    Map<String, String> metadataRecovery = Map.of("tenant_id", tenantId, "usuario_id", String.valueOf(usuarioId));
+                    String recoverySubId = culqiService.crearSuscripcion(cardId, planIdBasico, metadataRecovery);
+                    log.warn("⚠️ [Culqi] RECUPERACIÓN: nueva suscripción Básico creada tras fallo PRO. subId={}. " +
+                             "Tenant={} queda en BASICO ACTIVO con la tarjeta recién registrada.", recoverySubId, tenantId);
+
+                    if (suscripcionActual != null) {
+                        suscripcionActual.setEstado("ACTIVA");
+                        suscripcionActual.setPlanId("BASICO");
+                        suscripcionActual.setPreapprovalId(recoverySubId);
+                        suscripcionActual.setFechaInicio(ahora);
+                        suscripcionActual.setFechaProximoCobro(proxCobro);
+                        suscripcionActual.setCurrentPeriodStart(ahora);
+                        suscripcionActual.setCurrentPeriodEnd(proxCobro);
+                        suscripcionActual.setMetodoPago(datosTarjetaPro[1] != null ? datosTarjetaPro[1] : "CULQI");
+                        suscripcionActual.setUltimos4Digitos(datosTarjetaPro[0]);
+                        suscripcionActual.setPrecioMensual(culqiProperties.getPrecioBasico());
+                        suscripcionRepository.save(suscripcionActual);
+                    }
+                } catch (Exception recoveryError) {
+                    log.error("❌ [Culqi] ESTADO INCONSISTENTE: fallo PRO Y fallo recuperación Básico para tenant={}. " +
+                              "El cliente quedó SIN suscripción activa en Culqi. Requiere intervención manual. " +
+                              "customerId={}, cardId={}. Error recuperación: {}",
+                              tenantId, customerId, cardId, recoveryError.getMessage());
+                }
+            }
+
+            throw new BadRequestException(
+                    "No se pudo activar el plan Pro. Tu suscripción Básico fue cancelada pero el upgrade falló. " +
+                    "Se intentó una recuperación automática. Si el problema persiste, contacta a soporte. " +
+                    "Detalle técnico: " + proError.getMessage());
+        }
+
+        // ── FASE 4: Persistir upgrade PRO localmente ────────────────────────────
+        Suscripcion suscripcion = suscripcionActual != null
+                ? suscripcionActual
+                : Suscripcion.builder().usuarioPrincipal(usuario).tenantId(tenantId).build();
 
         suscripcion.setPlanId("PRO");
         suscripcion.setEstado("ACTIVA");
@@ -262,6 +335,15 @@ public class CulqiController {
             log.info("🔓 [Culqi] {} sucursal(es) reactivada(s) para tenant={}", desbloqueadas, tenantId);
         }
         sucursalService.inicializarPrincipal(tenantId);
+
+        // Email de confirmación — SOLO después de que todo el flujo local haya completado exitosamente
+        try {
+            emailService.enviarConfirmacionSuscripcionCulqi(
+                    usuario.getEmail(), usuario.getNombre(), tenantId, "PRO", precioPro,
+                    ahora, proxCobro, datosTarjetaPro[0], datosTarjetaPro[1], culqiSubId);
+        } catch (Exception e) {
+            log.warn("⚠️ [Culqi] No se pudo enviar email de confirmación de upgrade: {}", e.getMessage());
+        }
 
         log.info("✅ [Culqi] Upgrade PRO completado para tenant={}. SubId={}", tenantId, culqiSubId);
 
@@ -320,8 +402,8 @@ public class CulqiController {
         log.info("💳 [Culqi] Cambio de tarjeta para tenant={}, subId={}", tenantId, suscripcion.getPreapprovalId());
 
         String customerId = culqiService.crearCliente(
-                usuario.getEmail(), usuario.getNombre(),
-                usuario.getApellido(), usuario.getNumeroCelular());
+                buildCulqiEmail(usuario.getEmail(), tenantId),
+                usuario.getNombre(), usuario.getApellido(), usuario.getNumeroCelular());
 
         Map<String, Object> cardDataCambio = culqiService.crearTarjeta(customerId, tokenId);
         String cardId = (String) cardDataCambio.get("id");
@@ -396,14 +478,15 @@ public class CulqiController {
             }
         }
 
-        // 2. Crear cliente + tarjeta + suscripción BÁSICO en Culqi (cobra S/89 de inmediato)
+        // 2. Crear cliente + tarjeta + suscripción BÁSICO en Culqi (cobra S/89 de inmediato; email tenant-scoped)
         String customerId = culqiService.crearCliente(
-                usuario.getEmail(), usuario.getNombre(),
-                usuario.getApellido(), usuario.getNumeroCelular());
+                buildCulqiEmail(usuario.getEmail(), tenantId),
+                usuario.getNombre(), usuario.getApellido(), usuario.getNumeroCelular());
         Map<String, Object> cardDataDown = culqiService.crearTarjeta(customerId, request.getTokenId());
         String cardId = (String) cardDataDown.get("id");
         String[] datosTarjetaDown = extraerDatosTarjeta(cardDataDown);
-        String culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdBasico);
+        Map<String, String> metadataDown = Map.of("tenant_id", tenantId, "usuario_id", String.valueOf(usuarioId));
+        String culqiSubId = culqiService.crearSuscripcion(cardId, culqiPlanIdBasico, metadataDown);
 
         // 3. Actualizar suscripción local a BÁSICO
         LocalDateTime ahora     = LocalDateTime.now();
@@ -491,6 +574,49 @@ public class CulqiController {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Construye un email tenant-scoped para crear customers independientes por tenant en Culqi.
+     * user@domain.com + tenantId → user+tenantId@domain.com
+     * Esto evita que dos tenants del mismo usuario compartan el mismo customer_id en Culqi,
+     * lo que causaría HTTP 400 al intentar crear una segunda suscripción al mismo plan.
+     */
+    static String buildCulqiEmail(String email, String tenantId) {
+        if (email == null || tenantId == null || tenantId.isBlank()) return email;
+        int atIdx = email.indexOf('@');
+        if (atIdx < 0) return email;
+        return email.substring(0, atIdx) + "+" + tenantId + email.substring(atIdx);
+    }
+
+    /**
+     * Normaliza un email tenant-scoped a su forma real.
+     * user+tenantId@domain.com → user@domain.com
+     * Emails sin sufijo se devuelven sin cambios.
+     */
+    static String normalizarEmailCulqi(String email) {
+        if (email == null) return null;
+        int plusIdx = email.indexOf('+');
+        int atIdx   = email.indexOf('@');
+        if (plusIdx >= 0 && atIdx > plusIdx) {
+            return email.substring(0, plusIdx) + email.substring(atIdx);
+        }
+        return email;
+    }
+
+    /**
+     * Extrae el tenantId del sufijo de un email tenant-scoped.
+     * user+tenantId@domain.com → tenantId
+     * Retorna null si el email no tiene sufijo.
+     */
+    static String extraerTenantIdDeEmail(String email) {
+        if (email == null) return null;
+        int plusIdx = email.indexOf('+');
+        int atIdx   = email.indexOf('@');
+        if (plusIdx >= 0 && atIdx > plusIdx) {
+            return email.substring(plusIdx + 1, atIdx);
+        }
+        return null;
+    }
 
     /**
      * Extrae [ultimos4Digitos, brand] de la respuesta de Culqi POST /cards.

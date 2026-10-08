@@ -139,6 +139,27 @@ public class EmailServiceImpl implements EmailService {
         enviar(email, "Activa tu cuenta en Fluxus — " + empresaNombre, html);
     }
 
+    @Override
+    @Async
+    public void enviarIncorporacionNuevoNegocio(String email, String nombre, String tenantId) {
+        log.info("📧 Enviando email de incorporación a negocio a: {}", email);
+
+        String empresaNombre = tenantRepository.findByTenantId(tenantId)
+                .map(t -> t.getNombre() != null ? t.getNombre() : tenantId)
+                .orElse(tenantId);
+
+        String html = buildHtml(
+                "Incorporado a nuevo negocio",
+                "¡Hola " + nombre + "!",
+                "Se te ha incorporado al equipo de <b>" + empresaNombre + "</b> en Fluxus.<br>"
+                + "Ya puedes acceder con tu cuenta actual — no necesitas crear una nueva.",
+                frontendUrl + "/login",
+                "Ir a Fluxus",
+                "Si no esperabas este correo o crees que fue un error, contacta al administrador del negocio."
+        );
+        enviar(email, "Te incorporaron al equipo de " + empresaNombre, html);
+    }
+
     // ── Resumen cierre de caja ────────────────────────────────────────────────
 
     @Override
@@ -703,6 +724,156 @@ public class EmailServiceImpl implements EmailService {
 
         log.info("📧 Enviando acuse de reclamación al consumidor: {}", correoConsumidor);
         enviar(correoConsumidor, "Hemos recibido tu " + tipo.toLowerCase() + " — Fluxus", htmlAcuse);
+    }
+
+    // ── Confirmación suscripción Culqi ────────────────────────────────────────
+
+    @Override
+    @Async
+    public void enviarConfirmacionSuscripcionCulqi(
+            String emailReal, String nombreUsuario, String tenantId,
+            String planId, BigDecimal precioMensual,
+            LocalDateTime fechaActivacion, LocalDateTime fechaProximoCobro,
+            String ultimos4Digitos, String metodoPago, String culqiSubscriptionId) {
+
+        log.info("📧 Enviando confirmación de suscripción Culqi a: {}", emailReal);
+
+        String empresaNombre = tenantRepository.findByTenantId(tenantId)
+                .map(t -> t.getNombre() != null ? t.getNombre() : tenantId)
+                .orElse(tenantId);
+
+        String planNombre = "PRO".equalsIgnoreCase(planId) ? "Pro" : "Básico";
+        String precioTexto = precioMensual != null
+                ? "S/ " + precioMensual.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
+                : "—";
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String fechaActivacionTexto = fechaActivacion != null
+                ? fechaActivacion.format(fmt) : LocalDate.now().format(fmt);
+        String fechaProximoCobroTexto = fechaProximoCobro != null
+                ? fechaProximoCobro.format(fmt) : "—";
+
+        String tarjetaTexto = (metodoPago != null && !metodoPago.isBlank()
+                              && ultimos4Digitos != null && !ultimos4Digitos.isBlank())
+                ? metodoPago + " ****" + ultimos4Digitos
+                : (ultimos4Digitos != null && !ultimos4Digitos.isBlank() ? "****" + ultimos4Digitos : "—");
+
+        String refTexto = culqiSubscriptionId != null ? culqiSubscriptionId : "—";
+
+        String html = """
+            <!DOCTYPE html>
+            <html lang="es">
+            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+              <table width="100%%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 16px;">
+                <tr><td align="center">
+                  <table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);max-width:580px;">
+
+                    <!-- HEADER -->
+                    <tr>
+                      <td style="background:#2563eb;padding:28px 40px;">
+                        <p style="margin:0;color:#fff;font-size:20px;font-weight:700;letter-spacing:-0.3px;">📦 Fluxus</p>
+                        <p style="margin:4px 0 0;color:#bfdbfe;font-size:12px;text-transform:uppercase;letter-spacing:0.8px;">Suscripción activada ✅</p>
+                      </td>
+                    </tr>
+
+                    <!-- TÍTULO -->
+                    <tr>
+                      <td style="padding:32px 40px 8px;">
+                        <h2 style="margin:0 0 8px;color:#111827;font-size:20px;font-weight:600;">¡Tu plan %s está activo!</h2>
+                        <p style="margin:0;color:#4b5563;font-size:15px;line-height:1.6;">
+                          Hola <b>%s</b>, tu suscripción a <b>Fluxus</b> para el negocio
+                          <b>%s</b> fue activada correctamente.
+                        </p>
+                      </td>
+                    </tr>
+
+                    <!-- DETALLE -->
+                    <tr>
+                      <td style="padding:20px 40px;">
+                        <table width="100%%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+                          <tr style="background:#f9fafb;">
+                            <td colspan="2" style="padding:10px 16px;font-size:12px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">
+                              Detalle de la suscripción
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#6b7280;border-top:1px solid #e5e7eb;width:50%%;">Plan</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:600;border-top:1px solid #e5e7eb;text-align:right;">%s</td>
+                          </tr>
+                          <tr style="background:#f9fafb;">
+                            <td style="padding:10px 16px;font-size:14px;color:#6b7280;border-top:1px solid #e5e7eb;">Precio mensual</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#059669;font-weight:700;border-top:1px solid #e5e7eb;text-align:right;">%s</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#6b7280;border-top:1px solid #e5e7eb;">Negocio</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#111827;border-top:1px solid #e5e7eb;text-align:right;">%s</td>
+                          </tr>
+                          <tr style="background:#f9fafb;">
+                            <td style="padding:10px 16px;font-size:14px;color:#6b7280;border-top:1px solid #e5e7eb;">Fecha de activación</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#111827;border-top:1px solid #e5e7eb;text-align:right;">%s</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:14px;color:#6b7280;border-top:1px solid #e5e7eb;">Próximo cobro</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#111827;border-top:1px solid #e5e7eb;text-align:right;">%s</td>
+                          </tr>
+                          <tr style="background:#f9fafb;">
+                            <td style="padding:10px 16px;font-size:14px;color:#6b7280;border-top:1px solid #e5e7eb;">Tarjeta</td>
+                            <td style="padding:10px 16px;font-size:14px;color:#111827;border-top:1px solid #e5e7eb;text-align:right;">%s</td>
+                          </tr>
+                          <tr>
+                            <td style="padding:10px 16px;font-size:12px;color:#9ca3af;border-top:1px solid #e5e7eb;">Referencia</td>
+                            <td style="padding:10px 16px;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;text-align:right;word-break:break-all;">%s</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- BOTÓN -->
+                    <tr>
+                      <td style="padding:4px 40px 32px;">
+                        <table cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="border-radius:8px;background:#2563eb;">
+                              <a href="%s/dashboard"
+                                 style="display:inline-block;padding:13px 28px;color:#fff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">
+                                Ir a mi panel &rarr;
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- NOTA -->
+                    <tr>
+                      <td style="padding:16px 40px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+                        <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6;">
+                          El cobro se realizará automáticamente cada mes. Si tienes alguna consulta sobre tu suscripción, responde a este correo.
+                        </p>
+                      </td>
+                    </tr>
+
+                    <!-- FOOTER -->
+                    <tr>
+                      <td style="padding:16px 40px;border-top:1px solid #e5e7eb;text-align:center;">
+                        <p style="margin:0;color:#9ca3af;font-size:11px;">© 2026 Fluxus &middot; Todos los derechos reservados.</p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>
+            """.formatted(
+                planNombre, nombreUsuario, empresaNombre,
+                planNombre, precioTexto, empresaNombre,
+                fechaActivacionTexto, fechaProximoCobroTexto,
+                tarjetaTexto, refTexto,
+                frontendUrl);
+
+        enviar(emailReal, "✅ Suscripción activada — Plan " + planNombre + " · " + empresaNombre + " · Fluxus", html);
     }
 
     // ── Alerta de certificado ─────────────────────────────────────────────────

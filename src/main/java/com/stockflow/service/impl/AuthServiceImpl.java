@@ -12,6 +12,7 @@ import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.config.properties.JwtProperties;
 import com.stockflow.service.*;
 import com.stockflow.util.JwtUtil;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -61,17 +62,15 @@ public class AuthServiceImpl implements AuthService {
         usuario.setUltimoLogin(LocalDateTime.now());
         usuarioRepository.save(usuario);
 
-        // SUPER_ADMIN: acceso global sin tenant — bypass lógica usuario_tenant
-        if ("SUPER_ADMIN".equals(usuario.getRol().getNombre())) {
-            log.info("👑 Login SUPER_ADMIN: {} — bypass usuario_tenant", usuario.getEmail());
-            return buildFullJwtResponse(usuario, null, "SUPER_ADMIN");
-        }
-
-        // Determinar tenants activos del usuario (multi-tenant)
+        // Determinar tenants activos del usuario (fuente de verdad: usuario_tenant)
         List<UsuarioTenant> tenantsActivos = usuarioTenantRepository.findActivosConRolByUsuarioId(usuario.getId());
 
+        if (tenantsActivos.isEmpty()) {
+            throw new UnauthorizedException("El usuario no está activo en ningún negocio");
+        }
+
         if (tenantsActivos.size() > 1) {
-            // Case B: múltiples tenants → devolver selectionToken + lista para el selector
+            // Múltiples tenants → devolver selectionToken + lista para el selector
             log.info("🏢 Usuario {} tiene {} tenants — requiere selector", usuario.getEmail(), tenantsActivos.size());
             String selectionToken = jwtUtil.generateSelectionToken(
                     usuario.getId(), usuario.getEmail(), usuario.getNombre());
@@ -89,22 +88,9 @@ public class AuthServiceImpl implements AuthService {
                     .build();
         }
 
-        // Case A: tenant único (o fallback a usuarios.tenant_id si usuario_tenant está vacío)
-        String activeTenantId;
-        String activeRolNombre;
-
-        if (!tenantsActivos.isEmpty()) {
-            UsuarioTenant ut = tenantsActivos.get(0);
-            activeTenantId   = ut.getTenantId();
-            activeRolNombre  = ut.getRol().getNombre();
-        } else {
-            // Fallback backward compat (usuarios sin fila en usuario_tenant todavía)
-            activeTenantId  = usuario.getTenantId();
-            activeRolNombre = usuario.getRol().getNombre();
-            log.warn("⚠️ Usuario {} sin fila en usuario_tenant — usando fallback tenant_id", usuario.getEmail());
-        }
-
-        return buildFullJwtResponse(usuario, activeTenantId, activeRolNombre);
+        // Tenant único
+        UsuarioTenant ut = tenantsActivos.get(0);
+        return buildFullJwtResponse(usuario, ut.getTenantId(), ut.getRol().getNombre());
     }
 
     @Override
@@ -128,7 +114,7 @@ public class AuthServiceImpl implements AuthService {
         );
         log.info("✅ Tenant creado: {}", tenant.getTenantId());
 
-        // 3. Crear USUARIO (rol ADMIN)
+        // 3. Crear USUARIO (identidad global) + ADMIN en UsuarioTenant
         Rol rolAdmin = rolRepository.findByNombre("ADMIN")
                 .orElseThrow(() -> new BadRequestException("Rol ADMIN no encontrado"));
 
@@ -136,9 +122,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(request.getEmail())
                 .contraseña(passwordEncoder.encode(request.getContraseña()))
                 .nombre(request.getNombre())
-                .rol(rolAdmin)
                 .activo(true)
-                .tenantId(tenant.getTenantId())
                 .ultimoLogin(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
                 .apellido(request.getApellido())
@@ -148,9 +132,9 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         Usuario usuarioCreado = usuarioRepository.save(usuario);
-        log.info("✅ Usuario creado: {} con tenant: {}", usuarioCreado.getEmail(), tenant.getTenantId());
+        log.info("✅ Usuario creado: {}", usuarioCreado.getEmail());
 
-        // Insertar en usuario_tenant para soporte multi-tenant
+        // Relación propietario ↔ tenant (fuente de verdad para rol y tenant)
         UsuarioTenant usuarioTenant = UsuarioTenant.builder()
                 .usuario(usuarioCreado)
                 .tenantId(tenant.getTenantId())
@@ -158,6 +142,7 @@ public class AuthServiceImpl implements AuthService {
                 .activo(true)
                 .build();
         usuarioTenantRepository.save(usuarioTenant);
+        log.info("✅ UsuarioTenant creado: {} → tenant:{}", usuarioCreado.getEmail(), tenant.getTenantId());
 
         // 4. Crear SUSCRIPCIÓN en período de prueba de 14 días
         BigDecimal precioMensual = obtenerPrecioPlan(request.getPlanId());
@@ -217,7 +202,7 @@ public class AuthServiceImpl implements AuthService {
                 .usuarioId(usuarioCreado.getId())
                 .email(usuarioCreado.getEmail())
                 .nombre(usuarioCreado.getNombre())
-                .rol(usuarioCreado.getRol().getNombre())
+                .rol(rolAdmin.getNombre())
                 .tenantId(tenant.getTenantId())
                 .expiresIn((int) (jwtProperties.getExpiration() / 1000))
                 .suscripcion(mapToSuscripcionDTO(suscripcionCreada))
@@ -231,31 +216,27 @@ public class AuthServiceImpl implements AuthService {
         Usuario usuario = refreshToken.getUsuario();
 
         // Obtener tenantId del claim del refresh token (multi-tenant)
-        // Fallback a usuarios.tenant_id para refresh tokens legacy sin el claim
         String tenantIdFromToken = jwtUtil.getTenantIdFromToken(refreshTokenString);
         String activeTenantId;
         String activeRolNombre;
+        Long   activeSucursalId;
 
-        if (tenantIdFromToken != null && !tenantIdFromToken.isBlank()) {
-            // Validar que la relación usuario_tenant sigue activa
-            UsuarioTenant ut = usuarioTenantRepository
-                    .findByUsuarioIdAndTenantIdAndActivoTrue(usuario.getId(), tenantIdFromToken)
-                    .orElse(null);
-
-            if (ut != null) {
-                activeTenantId  = tenantIdFromToken;
-                activeRolNombre = ut.getRol().getNombre();
-            } else {
-                // Relación inactiva o eliminada — revocar y rechazar
-                refreshTokenService.revocarRefreshToken(refreshTokenString);
-                throw new UnauthorizedException("El usuario ya no pertenece al tenant del refresh token");
-            }
-        } else {
-            // Token legacy sin tenantId claim — usar fallback y actualizar al nuevo formato
-            log.info("🔄 Refresh token legacy sin tenantId para usuario {} — usando fallback", usuario.getEmail());
-            activeTenantId  = usuario.getTenantId();
-            activeRolNombre = resolveRolForTenant(usuario.getId(), activeTenantId, usuario.getRol().getNombre());
+        if (tenantIdFromToken == null || tenantIdFromToken.isBlank()) {
+            refreshTokenService.revocarRefreshToken(refreshTokenString);
+            throw new UnauthorizedException("Refresh token inválido: sin tenantId");
         }
+
+        // Validar que la relación usuario_tenant sigue activa
+        UsuarioTenant ut = usuarioTenantRepository
+                .findByUsuarioIdAndTenantIdAndActivoTrue(usuario.getId(), tenantIdFromToken)
+                .orElseThrow(() -> {
+                    refreshTokenService.revocarRefreshToken(refreshTokenString);
+                    return new UnauthorizedException("El usuario ya no pertenece al tenant del refresh token");
+                });
+
+        activeTenantId   = tenantIdFromToken;
+        activeRolNombre  = ut.getRol().getNombre();
+        activeSucursalId = ut.getSucursalId();
 
         // Rotación: revocar el refresh token usado y crear uno nuevo
         refreshTokenService.revocarRefreshToken(refreshTokenString);
@@ -292,7 +273,7 @@ public class AuthServiceImpl implements AuthService {
                 .rol(activeRolNombre)
                 .tenantId(activeTenantId)
                 .suscripcion(suscripcionDTO)
-                .sucursalId(usuario.getSucursalId())
+                .sucursalId(activeSucursalId)
                 .build();
     }
 
@@ -339,6 +320,15 @@ public class AuthServiceImpl implements AuthService {
 
         RefreshToken refreshToken = refreshTokenService.crearRefreshToken(usuario, tenantId);
 
+        // sucursalId desde usuario_tenant (fuente de verdad para tenant activo)
+        Long sucursalId = null;
+        if (tenantId != null) {
+            sucursalId = usuarioTenantRepository
+                    .findByUsuarioIdAndTenantIdAndActivoTrue(usuario.getId(), tenantId)
+                    .map(UsuarioTenant::getSucursalId)
+                    .orElse(null);
+        }
+
         Suscripcion suscripcion = (tenantId != null)
                 ? suscripcionService.obtenerSuscripcionPorTenant(tenantId).orElse(null)
                 : null;
@@ -364,8 +354,61 @@ public class AuthServiceImpl implements AuthService {
                 .tenantId(tenantId)
                 .expiresIn((int) (jwtProperties.getExpiration() / 1000))
                 .suscripcion(suscripcionDTO)
-                .sucursalId(usuario.getSucursalId())
+                .sucursalId(sucursalId)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public TenantInfoDTO crearNegocio(Long usuarioId, CrearNegocioRequestDTO dto) {
+        log.info("🏢 Creando nuevo negocio para usuario {}: {}", usuarioId, dto.getNombreNegocio());
+
+        BigDecimal precioMensual = obtenerPrecioPlan(dto.getPlanId());
+
+        Usuario usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new UnauthorizedException("Usuario no encontrado"));
+
+        Tenant tenant = tenantService.crearTenant(
+                dto.getNombreNegocio(),
+                dto.getRubro(),
+                dto.getRuc(),
+                dto.getEmailContacto(),
+                dto.getTelefono()
+        );
+
+        Rol rolAdmin = rolRepository.findByNombre("ADMIN")
+                .orElseThrow(() -> new BadRequestException("Rol ADMIN no encontrado"));
+
+        UsuarioTenant usuarioTenant = UsuarioTenant.builder()
+                .usuario(usuario)
+                .tenantId(tenant.getTenantId())
+                .rol(rolAdmin)
+                .activo(true)
+                .build();
+        usuarioTenantRepository.save(usuarioTenant);
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime trialEnd = ahora.plusDays(14);
+
+        Suscripcion suscripcion = Suscripcion.builder()
+                .usuarioPrincipal(usuario)
+                .planId(dto.getPlanId())
+                .precioMensual(precioMensual)
+                .estado("TRIAL")
+                .trialEndDate(trialEnd)
+                .tenantId(tenant.getTenantId())
+                .fechaInicio(ahora)
+                .fechaProximoCobro(trialEnd)
+                .build();
+        suscripcionService.crearSuscripcion(suscripcion);
+
+        if ("PRO".equals(dto.getPlanId())) {
+            sucursalService.inicializarPrincipal(tenant.getTenantId());
+            log.info("✅ Sucursal principal inicializada para nuevo negocio PRO: {}", tenant.getTenantId());
+        }
+
+        log.info("✅ Nuevo negocio creado: {} para usuario {}", tenant.getTenantId(), usuario.getEmail());
+
+        return buildTenantInfo(usuarioTenant);
     }
 
     private TenantInfoDTO buildTenantInfo(UsuarioTenant ut) {
@@ -377,13 +420,6 @@ public class AuthServiceImpl implements AuthService {
                 .logoUrl(null)
                 .rol(ut.getRol().getNombre())
                 .build();
-    }
-
-    private String resolveRolForTenant(Long usuarioId, String tenantId, String fallbackRol) {
-        return usuarioTenantRepository
-                .findByUsuarioIdAndTenantIdAndActivoTrue(usuarioId, tenantId)
-                .map(ut -> ut.getRol().getNombre())
-                .orElse(fallbackRol);
     }
 
     private BigDecimal obtenerPrecioPlan(String planId) {
@@ -415,20 +451,35 @@ public class AuthServiceImpl implements AuthService {
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new UnauthorizedException("Usuario no encontrado"));
 
-        // Obtener nombre de la farmacia desde el tenant
-        Tenant tenant = tenantService.obtenerTenant(usuario.getTenantId())
-                .orElse(null);
+        // Tenant activo desde el JWT (claim seteado por JwtAuthenticationFilter)
+        String effectiveTenantId = TenantContext.getCurrentTenant();
+        if (effectiveTenantId == null || effectiveTenantId.isBlank()) {
+            throw new UnauthorizedException("No hay tenant activo en la sesión");
+        }
 
-        Set<String> permisos = new TreeSet<>(rolePermissionDefaults.getBasePermissions(usuario.getRol().getNombre()));
-        permisos.addAll(usuarioPermisoService.obtenerPermisosCodigos(usuario.getId(), usuario.getTenantId()));
+        // Rol y sucursal exclusivamente desde usuario_tenant
+        UsuarioTenant ut = usuarioTenantRepository
+                .findByUsuarioIdAndTenantIdAndActivoTrue(usuario.getId(), effectiveTenantId)
+                .orElseThrow(() -> new UnauthorizedException(
+                        "El usuario no está activo en el tenant: " + effectiveTenantId));
+
+        String effectiveRol = ut.getRol().getNombre();
+        Long sucursalId = ut.getSucursalId();
+
+        log.info("👤 Perfil — userId:{} tenant:{} rol:{}", usuarioId, effectiveTenantId, effectiveRol);
+
+        Tenant tenant = tenantService.obtenerTenant(effectiveTenantId).orElse(null);
+
+        Set<String> permisos = new TreeSet<>(rolePermissionDefaults.getBasePermissions(effectiveRol));
+        permisos.addAll(usuarioPermisoService.obtenerPermisosCodigos(usuario.getId(), effectiveTenantId));
 
         return UsuarioProfileDTO.builder()
                 .usuarioId(usuario.getId())
                 .email(usuario.getEmail())
                 .nombre(usuario.getNombre())
                 .apellido(usuario.getApellido())
-                .rol(usuario.getRol().getNombre())
-                .tenantId(usuario.getTenantId())
+                .rol(effectiveRol)
+                .tenantId(effectiveTenantId)
                 .ultimoLogin(usuario.getUltimoLogin())
                 .createdAt(usuario.getCreatedAt())
                 .activo(usuario.getActivo())
@@ -437,7 +488,7 @@ public class AuthServiceImpl implements AuthService {
                 .tipoDocumento(usuario.getTipoDocumento())
                 .numeroDocumento(usuario.getNumeroDocumento())
                 .numeroCelular(usuario.getNumeroCelular())
-                .sucursalId(usuario.getSucursalId())
+                .sucursalId(sucursalId)
                 .build();
     }
 

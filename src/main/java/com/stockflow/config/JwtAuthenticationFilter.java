@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 } else if ("TENANT_SELECTION".equals(jwtUtil.getTypeFromToken(token))) {
                     // Selection token: solo permite acceder a /auth/select-tenant
                     String uri = request.getRequestURI();
-                    if (!uri.endsWith("/auth/select-tenant") && !uri.endsWith("/auth/tenants")) {
+                    if (!uri.endsWith("/auth/select-tenant") && !uri.endsWith("/auth/tenants") && !uri.endsWith("/auth/create-tenant")) {
                         request.setAttribute("jwt_error", "Selection token no válido para este endpoint");
                         log.warn("🚫 Intento de usar selection token en endpoint de negocio: {}", uri);
                     } else if (jwtUtil.validateToken(token)) {
@@ -72,56 +72,45 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         log.debug("✅ Selection token aceptado para usuarioId={} uri={}", usuarioId, uri);
                     }
                 } else if (jwtUtil.validateToken(token)) {
-                    // ✅ Token válido y no expirado
-                    String email = jwtUtil.getEmailFromToken(token);
-                    String rol   = jwtUtil.getRolFromToken(token);
+                    // Token válido y no expirado
+                    String email     = jwtUtil.getEmailFromToken(token);
+                    String rol       = jwtUtil.getRolFromToken(token);
+                    String tenantId  = jwtUtil.getTenantIdFromToken(token);
+                    Long   usuarioId = jwtUtil.getUserIdFromToken(token);
 
                     Set<SimpleGrantedAuthority> authoritySet = new LinkedHashSet<>();
                     authoritySet.add(new SimpleGrantedAuthority("ROLE_" + rol));
 
-                    if ("SUPER_ADMIN".equals(rol)) {
-                        // Token de super admin — sin tenant, sin permisos adicionales
-                        MDC.put("userId", "superadmin");
-                        List<SimpleGrantedAuthority> authorities = new ArrayList<>(authoritySet);
-                        UsernamePasswordAuthenticationToken authentication =
-                                new UsernamePasswordAuthenticationToken(email, null, authorities);
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                        log.debug("✅ SuperAdmin autenticado: {}", email);
-                    } else {
-                        String tenantId  = jwtUtil.getTenantIdFromToken(token);
-                        Long   usuarioId = jwtUtil.getUserIdFromToken(token);
+                    TenantContext.setCurrentUserId(usuarioId);
+                    TenantContext.setCurrentTenant(tenantId);
+                    MDC.put("tenantId", tenantId != null ? tenantId : "");
+                    MDC.put("userId",   String.valueOf(usuarioId));
 
-                        TenantContext.setCurrentUserId(usuarioId);
-                        TenantContext.setCurrentTenant(tenantId);
-                        MDC.put("tenantId", tenantId);
-                        MDC.put("userId",   String.valueOf(usuarioId));
-
-                        try {
-                            Set<String> basePerms = rolePermissionDefaults.getBasePermissions(rol);
-                            for (String codigo : basePerms) {
-                                authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
-                            }
-                        } catch (Exception e) {
-                            log.error("❌ Error cargando permisos base del rol {}: {}", rol, e.getMessage());
+                    try {
+                        Set<String> basePerms = rolePermissionDefaults.getBasePermissions(rol);
+                        for (String codigo : basePerms) {
+                            authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
                         }
-
-                        try {
-                            List<String> permisoCodigos = usuarioPermisoRepository.findPermisoCodigos(usuarioId, tenantId);
-                            for (String codigo : permisoCodigos) {
-                                authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
-                            }
-                        } catch (Exception e) {
-                            log.error("❌ Error cargando permisos del usuario {} en tenant {}: {}", usuarioId, tenantId, e.getMessage());
-                        }
-
-                        List<SimpleGrantedAuthority> authorities = new ArrayList<>(authoritySet);
-                        UsernamePasswordAuthenticationToken authentication =
-                                new UsernamePasswordAuthenticationToken(email, null, authorities);
-                        authentication.setDetails(usuarioId);
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                        log.debug("✅ Usuario autenticado: {} | Tenant: {} | Rol: {} | Permisos: {}",
-                                email, tenantId, rol, authorities.size() - 1);
+                    } catch (Exception e) {
+                        log.error("❌ Error cargando permisos base del rol {}: {}", rol, e.getMessage());
                     }
+
+                    try {
+                        List<String> permisoCodigos = usuarioPermisoRepository.findPermisoCodigos(usuarioId, tenantId);
+                        for (String codigo : permisoCodigos) {
+                            authoritySet.add(new SimpleGrantedAuthority("PERM_" + codigo));
+                        }
+                    } catch (Exception e) {
+                        log.error("❌ Error cargando permisos del usuario {} en tenant {}: {}", usuarioId, tenantId, e.getMessage());
+                    }
+
+                    List<SimpleGrantedAuthority> authorities = new ArrayList<>(authoritySet);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(email, null, authorities);
+                    authentication.setDetails(usuarioId);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    log.debug("✅ Usuario autenticado: {} | Tenant: {} | Rol: {} | Permisos: {}",
+                            email, tenantId, rol, authorities.size() - 1);
                 } else {
                     request.setAttribute("jwt_error", "Token JWT inválido");
                 }

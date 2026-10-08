@@ -14,6 +14,11 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
 
     Optional<Suscripcion> findByUsuarioPrincipalId(Long usuarioId);
 
+    /** Suscripción más reciente de un usuario en un tenant específico. */
+    Optional<Suscripcion> findFirstByUsuarioPrincipalIdAndTenantIdOrderByIdDesc(Long usuarioId, String tenantId);
+
+    List<Suscripcion> findAllByUsuarioPrincipalId(Long usuarioId);
+
     List<Suscripcion> findByEstado(String estado);
 
     // ✅ NUEVOS: Filtrar por tenant

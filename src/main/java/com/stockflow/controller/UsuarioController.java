@@ -1,13 +1,16 @@
 package com.stockflow.controller;
 
+import com.stockflow.dto.CrearUsuarioResult;
 import com.stockflow.dto.DeleteAccountValidationDTO;
 import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.dto.UsuarioUpdateDTO;
 import com.stockflow.entity.Rol;
 import com.stockflow.entity.Usuario;
 import com.stockflow.exception.BadRequestException;
+import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.mapper.UsuarioMapper;
 import com.stockflow.repository.RolRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.PlanLimitService;
 import com.stockflow.service.UsuarioService;
@@ -35,6 +38,7 @@ public class UsuarioController {
     private final RolRepository rolRepository;
     private final PlanLimitService planLimitService;
     private final EmailService emailService;
+    private final UsuarioTenantRepository usuarioTenantRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene usuarios del tenant actual
@@ -45,18 +49,31 @@ public class UsuarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👥 Obteniendo usuarios para tenant: {}", tenantId);
 
-        return ResponseEntity.ok(
-                usuarioMapper.toDTOList(usuarioService.obtenerUsuariosPorTenant(tenantId))
-        );
+        List<UsuarioDTO> dtos = usuarioTenantRepository.findByTenantIdAndActivoTrue(tenantId)
+                .stream()
+                .map(ut -> {
+                    UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
+                    dto.setRolNombre(ut.getRol().getNombre());
+                    dto.setSucursalId(ut.getSucursalId());
+                    dto.setTenantId(tenantId);
+                    return dto;
+                })
+                .toList();
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_USUARIOS')")
     public ResponseEntity<UsuarioDTO> obtenerPorId(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
-        return usuarioService.obtenerUsuarioPorId(id)
-                .filter(u -> tenantId.equals(u.getTenantId()))
-                .map(usuarioMapper::toDTO)
+        return usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(id, tenantId)
+                .map(ut -> {
+                    UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
+                    dto.setRolNombre(ut.getRol().getNombre());
+                    dto.setSucursalId(ut.getSucursalId());
+                    dto.setTenantId(tenantId);
+                    return dto;
+                })
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -66,8 +83,14 @@ public class UsuarioController {
     public ResponseEntity<UsuarioDTO> obtenerPorEmail(@PathVariable String email) {
         String tenantId = TenantContext.getCurrentTenant();
         return usuarioService.obtenerUsuarioPorEmail(email)
-                .filter(u -> tenantId.equals(u.getTenantId()))
-                .map(usuarioMapper::toDTO)
+                .flatMap(u -> usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(u.getId(), tenantId))
+                .map(ut -> {
+                    UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
+                    dto.setRolNombre(ut.getRol().getNombre());
+                    dto.setSucursalId(ut.getSucursalId());
+                    dto.setTenantId(tenantId);
+                    return dto;
+                })
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -89,12 +112,10 @@ public class UsuarioController {
         Rol rol = rolRepository.findByNombre(usuarioDTO.getRolNombre())
                 .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + usuarioDTO.getRolNombre()));
 
-        // Convertir DTO a Entity
+        // Convertir DTO a Entity — tenantId y rol los gestiona usuario_tenant, no Usuario
         Usuario usuario = usuarioMapper.toEntity(usuarioDTO);
-        usuario.setRol(rol);
         // Generar contraseña temporal aleatoria — el usuario la reemplazará al activar su cuenta
         usuario.setContraseña(UUID.randomUUID().toString());
-        usuario.setTenantId(tenantId);
         usuario.setCreatedAt(LocalDateTime.now());
 
         if (usuarioDTO.getTipoDocumento() != null && !usuarioDTO.getTipoDocumento().isBlank())
@@ -104,20 +125,31 @@ public class UsuarioController {
         if (usuarioDTO.getNumeroCelular() != null && !usuarioDTO.getNumeroCelular().isBlank())
             usuario.setNumeroCelular(usuarioDTO.getNumeroCelular());
 
-        Usuario usuarioCreado = usuarioService.crearUsuario(usuario);
+        // Tenant siempre desde TenantContext; rol y sucursalId van directo a usuario_tenant
+        CrearUsuarioResult resultado = usuarioService.crearUsuario(usuario, usuarioDTO.getSucursalId(), rol);
+        Usuario usuarioCreado = resultado.usuario();
 
-        // Generar token de activación (48h) y enviar email de bienvenida
-        String activationToken = UUID.randomUUID().toString();
-        usuarioCreado.setTokenActivacion(activationToken);
-        usuarioCreado.setTokenActivacionExpira(LocalDateTime.now().plusHours(48));
-        usuarioService.guardarUsuario(usuarioCreado);
+        if (resultado.esNuevo()) {
+            // CASO A: usuario nuevo — generar token de activación y enviar email
+            String activationToken = UUID.randomUUID().toString();
+            usuarioCreado.setTokenActivacion(activationToken);
+            usuarioCreado.setTokenActivacionExpira(LocalDateTime.now().plusHours(48));
+            usuarioService.guardarUsuario(usuarioCreado);
+            emailService.enviarBienvenidaUsuarioNuevo(
+                    usuarioCreado.getEmail(), usuarioCreado.getNombre(), tenantId, activationToken);
+            log.info("✅ Usuario nuevo creado y email de activación enviado: {}", usuarioCreado.getEmail());
+        } else {
+            // CASO B: usuario existente incorporado a este tenant — email informativo sin token
+            emailService.enviarIncorporacionNuevoNegocio(
+                    usuarioCreado.getEmail(), usuarioCreado.getNombre(), tenantId);
+            log.info("✅ Usuario existente {} incorporado al tenant: {}", usuarioCreado.getEmail(), tenantId);
+        }
 
-        emailService.enviarBienvenidaUsuarioNuevo(
-                usuarioCreado.getEmail(), usuarioCreado.getNombre(), tenantId, activationToken);
-
-        log.info("✅ Usuario creado y email de activación enviado: {}", usuarioCreado.getEmail());
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(usuarioMapper.toDTO(usuarioCreado));
+        UsuarioDTO dtoCreado = usuarioMapper.toDTO(usuarioCreado);
+        dtoCreado.setRolNombre(rol.getNombre());
+        dtoCreado.setSucursalId(usuarioDTO.getSucursalId());
+        dtoCreado.setTenantId(tenantId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(dtoCreado);
     }
 
     @PutMapping("/{id}")
@@ -131,34 +163,22 @@ public class UsuarioController {
         // ── Validar rol permitido por plan ──────────────────────────────────
         planLimitService.validarRolPermitido(tenantId, updateDTO.getRolNombre());
 
-        return usuarioService.obtenerUsuarioPorId(id)
-                .map(usuario -> {
-                    usuario.setNombre(updateDTO.getNombre());
-                    if (updateDTO.getApellido() != null) usuario.setApellido(updateDTO.getApellido());
-                    usuario.setActivo(updateDTO.getActivo());
+        // Seguridad cross-tenant: solo se puede editar un usuario que pertenece al tenant activo
+        usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(id, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-                    if (updateDTO.getTipoDocumento() != null)
-                        usuario.setTipoDocumento(updateDTO.getTipoDocumento());
-                    if (updateDTO.getNumeroDocumento() != null)
-                        usuario.setNumeroDocumento(updateDTO.getNumeroDocumento());
-                    if (updateDTO.getNumeroCelular() != null)
-                        usuario.setNumeroCelular(updateDTO.getNumeroCelular());
+        // Resolver Rol — sigue necesario para pasarlo explícitamente al servicio
+        Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())
+                .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + updateDTO.getRolNombre()));
 
-                    // ADMIN (sin sucursal) puede asignar/cambiar sucursal al vendedor
-                    usuario.setSucursalId(updateDTO.getSucursalId());
-
-                    Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())
-                            .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + updateDTO.getRolNombre()));
-                    usuario.setRol(rol);
-
-                    Usuario usuarioActualizado = usuarioService.actualizarUsuario(id, usuario);
-                    log.info("✅ Usuario actualizado exitosamente");
-                    return ResponseEntity.ok(usuarioMapper.toDTO(usuarioActualizado));
-                })
-                .orElseGet(() -> {
-                    log.error("❌ Usuario no encontrado: ID {}", id);
-                    return ResponseEntity.notFound().build();
-                });
+        // Pasar DTO + Rol directamente — no se muta la entidad Usuario aquí
+        Usuario usuarioActualizado = usuarioService.actualizarUsuario(id, updateDTO, rol);
+        log.info("✅ Usuario actualizado exitosamente");
+        UsuarioDTO dtoActualizado = usuarioMapper.toDTO(usuarioActualizado);
+        dtoActualizado.setRolNombre(rol.getNombre());
+        dtoActualizado.setSucursalId(updateDTO.getSucursalId());
+        dtoActualizado.setTenantId(tenantId);
+        return ResponseEntity.ok(dtoActualizado);
     }
 
     @PatchMapping("/{id}/desactivar")

@@ -4,6 +4,7 @@ import com.stockflow.dto.DatosEliminacionDTO;
 import com.stockflow.entity.Tenant;
 import com.stockflow.repository.TenantRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.VentaRepository;
 import com.stockflow.repository.ProveedorRepository;
@@ -29,6 +30,7 @@ public class TenantServiceImpl implements TenantService {
 
     private final TenantRepository tenantRepository;
     private final UsuarioRepository usuarioRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
     private final ProductoRepository productoRepository;
     private final VentaRepository ventaRepository;
     private final ProveedorRepository proveedorRepository;
@@ -170,7 +172,7 @@ public class TenantServiceImpl implements TenantService {
         Tenant tenant = tenantRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new RuntimeException("Tenant no encontrado"));
 
-        long usuarios = usuarioRepository.countByTenantId(tenantId);
+        long usuarios = usuarioTenantRepository.countByTenantIdAndActivoTrue(tenantId);
         long productos = productoRepository.countByTenantId(tenantId);
         long ventas = ventaRepository.countByTenantId(tenantId);
         long proveedores = proveedorRepository.countByTenantId(tenantId);

@@ -25,10 +25,15 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.stockflow.dto.UsuarioProfileDTO;
+import com.stockflow.util.TenantContext;
+import org.junit.jupiter.api.AfterEach;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -85,14 +90,12 @@ class MultiTenantAuthServiceTest {
                 .contraseña(HASH)
                 .nombre("Test User")
                 .activo(true)
-                .rol(rolAdmin)
-                .tenantId(TENANT_A)
                 .build();
 
         utTenantA = UsuarioTenant.builder()
-                .id(1L).usuario(usuario).tenantId(TENANT_A).rol(rolAdmin).activo(true).build();
+                .id(1L).usuario(usuario).tenantId(TENANT_A).rol(rolAdmin).activo(true).sucursalId(101L).build();
         utTenantB = UsuarioTenant.builder()
-                .id(2L).usuario(usuario).tenantId(TENANT_B).rol(rolCajero).activo(true).build();
+                .id(2L).usuario(usuario).tenantId(TENANT_B).rol(rolCajero).activo(true).sucursalId(202L).build();
 
         refreshTokenEntity = RefreshToken.builder()
                 .id(1L).token("rt-token").usuario(usuario).revocado(false)
@@ -117,6 +120,11 @@ class MultiTenantAuthServiceTest {
         when(suscripcionService.obtenerSuscripcionPorUsuario(any())).thenReturn(Optional.empty());
         when(suscripcionService.obtenerSuscripcionPorTenant(any())).thenReturn(Optional.empty());
         when(tenantService.obtenerTenant(any())).thenReturn(Optional.empty());
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContext.clear();
     }
 
     // ── Case A: un solo tenant ────────────────────────────────────────────────
@@ -279,32 +287,81 @@ class MultiTenantAuthServiceTest {
                 .hasMessageContaining("inactivo");
     }
 
-    // ── SUPER_ADMIN ───────────────────────────────────────────────────────────
+    // ── login sin usuario_tenant activo ──────────────────────────────────────
 
     @Test
-    @DisplayName("login: SUPER_ADMIN no consulta usuario_tenant y recibe access+refresh directamente")
-    void login_superAdmin_bypassesUsuarioTenant() {
-        Rol rolSuperAdmin = Rol.builder().id(99L).nombre("SUPER_ADMIN").build();
-        Usuario superAdmin = Usuario.builder()
-                .id(99L).email("super@admin.com").contraseña(HASH)
-                .nombre("Super Admin").activo(true).rol(rolSuperAdmin)
-                .tenantId(null).build();
+    @DisplayName("login: usuario sin ningún usuario_tenant activo lanza UnauthorizedException")
+    void login_sinUsuarioTenant_lanzaUnauthorized() {
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L)).thenReturn(List.of());
 
-        when(usuarioRepository.findByEmail("super@admin.com")).thenReturn(Optional.of(superAdmin));
-        when(passwordEncoder.matches(PASSWORD, HASH)).thenReturn(true);
-        when(jwtUtil.generateToken(99L, "super@admin.com", "Super Admin", "SUPER_ADMIN", null))
-                .thenReturn("super-access-token");
-        when(refreshTokenService.crearRefreshToken(superAdmin, null)).thenReturn(refreshTokenEntity);
+        assertThatThrownBy(() -> authService.login(
+                LoginDTO.builder().email(EMAIL).contraseña(PASSWORD).build()))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("no está activo en ningún negocio");
+    }
+
+    @Test
+    @DisplayName("refresh: token sin tenantId claim es rechazado (no se usa fallback legacy)")
+    void refresh_sinTenantIdEnToken_lanzaUnauthorized() {
+        RefreshToken rt = RefreshToken.builder().id(9L).token("rt-legacy").usuario(usuario)
+                .revocado(false).expiracion(LocalDateTime.now().plusDays(7)).build();
+
+        when(refreshTokenService.validarRefreshToken("rt-legacy")).thenReturn(rt);
+        when(jwtUtil.getTenantIdFromToken("rt-legacy")).thenReturn(null);
+
+        assertThatThrownBy(() -> authService.refresh("rt-legacy"))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("sin tenantId");
+
+        verify(refreshTokenService).revocarRefreshToken("rt-legacy");
+    }
+
+    @Test
+    @DisplayName("obtenerPerfil: sin TenantContext activo lanza UnauthorizedException")
+    void obtenerPerfil_sinTenantContext_lanzaUnauthorized() {
+        TenantContext.clear(); // sin tenant activo
+
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(usuario));
+
+        assertThatThrownBy(() -> authService.obtenerPerfil(10L))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("No hay tenant activo");
+    }
+
+    @Test
+    @DisplayName("obtenerPerfil: rol viene exclusivamente de usuario_tenant, no de usuarios.rol_id")
+    void obtenerPerfil_rolDesdeusuarioTenant_noDesdeusuarios() {
+        // El usuario tiene rol ADMIN en usuarios.rol_id (legacy),
+        // pero CAJERO en usuario_tenant de TENANT_B
+        TenantContext.setCurrentTenant(TENANT_B);
+
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(usuario));
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_B))
+                .thenReturn(Optional.of(utTenantB)); // utTenantB tiene rol CAJERO
+        when(rolePermissionDefaults.getBasePermissions("CAJERO")).thenReturn(Set.of());
+        when(usuarioPermisoService.obtenerPermisosCodigos(10L, TENANT_B)).thenReturn(List.of());
+
+        UsuarioProfileDTO profile = authService.obtenerPerfil(10L);
+
+        assertThat(profile.getRol()).isEqualTo("CAJERO"); // de usuario_tenant, NO de usuarios.rol_id
+    }
+
+    @Test
+    @DisplayName("login: tenant único — rol viene de usuario_tenant, no de usuarios.rol_id")
+    void login_tenantUnico_rolDesdeUsuarioTenant() {
+        // usuarios.rol tiene ADMIN, usuario_tenant tiene CAJERO para este tenant
+        UsuarioTenant utCajero = UsuarioTenant.builder()
+                .id(5L).usuario(usuario).tenantId(TENANT_A).rol(rolCajero).activo(true).build();
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L)).thenReturn(List.of(utCajero));
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_A))
+                .thenReturn(Optional.of(utCajero));
 
         JwtResponseDTO response = authService.login(
-                LoginDTO.builder().email("super@admin.com").contraseña(PASSWORD).build());
+                LoginDTO.builder().email(EMAIL).contraseña(PASSWORD).build());
 
-        assertThat(response.getAccessToken()).isEqualTo("super-access-token");
-        assertThat(response.getRol()).isEqualTo("SUPER_ADMIN");
-        assertThat(response.getTenantId()).isNull();
-        assertThat(response.getSelectionToken()).isNull();
-        // Nunca debe consultar usuario_tenant para SUPER_ADMIN
-        verify(usuarioTenantRepository, never()).findActivosConRolByUsuarioId(99L);
+        assertThat(response.getRol()).isEqualTo("CAJERO");
+        assertThat(response.getTenantId()).isEqualTo(TENANT_A);
+        verify(jwtUtil).generateToken(10L, EMAIL, "Test User", "CAJERO", TENANT_A);
     }
 
     // ── Seguridad enumeración de tenants ─────────────────────────────────────
@@ -442,5 +499,73 @@ class MultiTenantAuthServiceTest {
         assertThat(response.getSuscripcion().getTenantId()).isEqualTo(TENANT_A);
         verify(suscripcionService).obtenerSuscripcionPorTenant(TENANT_A);
         verify(suscripcionService, never()).obtenerSuscripcionPorTenant(TENANT_B);
+    }
+
+    // ── sucursalId por tenant ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("F: JWT de Tenant A usa sucursalId=101 de usuario_tenant de Tenant A")
+    void sucursalId_buildFullJwtResponse_usaTenantA() {
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L))
+                .thenReturn(List.of(utTenantA));
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_A))
+                .thenReturn(Optional.of(utTenantA));
+
+        JwtResponseDTO response = authService.login(
+                LoginDTO.builder().email(EMAIL).contraseña(PASSWORD).build());
+
+        assertThat(response.getSucursalId()).isEqualTo(101L);
+    }
+
+    @Test
+    @DisplayName("G: JWT de Tenant B usa sucursalId=202 de usuario_tenant de Tenant B")
+    void sucursalId_selectTenant_usaTenantB() {
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_B))
+                .thenReturn(Optional.of(utTenantB));
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(usuario));
+
+        SelectTenantRequestDTO dto = new SelectTenantRequestDTO();
+        dto.setTenantId(TENANT_B);
+
+        JwtResponseDTO response = authService.selectTenant(10L, dto);
+
+        assertThat(response.getSucursalId()).isEqualTo(202L);
+        assertThat(response.getRol()).isEqualTo("CAJERO");
+    }
+
+    @Test
+    @DisplayName("H: refresh mantiene sucursalId del tenant seleccionado (sucursalId=101 para Tenant A)")
+    void sucursalId_refresh_mantieneDelTenantSeleccionado() {
+        RefreshToken rt = RefreshToken.builder().id(7L).token("rt-suc-a").usuario(usuario)
+                .revocado(false).expiracion(LocalDateTime.now().plusDays(7)).build();
+
+        when(refreshTokenService.validarRefreshToken("rt-suc-a")).thenReturn(rt);
+        when(jwtUtil.getTenantIdFromToken("rt-suc-a")).thenReturn(TENANT_A);
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_A))
+                .thenReturn(Optional.of(utTenantA));
+        when(refreshTokenService.crearRefreshToken(usuario, TENANT_A)).thenReturn(refreshTokenEntity);
+
+        JwtResponseDTO response = authService.refresh("rt-suc-a");
+
+        assertThat(response.getSucursalId()).isEqualTo(101L);
+        assertThat(response.getTenantId()).isEqualTo(TENANT_A);
+    }
+
+    @Test
+    @DisplayName("I: obtenerPerfil devuelve sucursalId=202 cuando el tenant activo es Tenant B")
+    void sucursalId_obtenerPerfil_usaTenantActivo() {
+        TenantContext.setCurrentTenant(TENANT_B);
+
+        when(usuarioRepository.findById(10L)).thenReturn(Optional.of(usuario));
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(10L, TENANT_B))
+                .thenReturn(Optional.of(utTenantB));
+        when(rolePermissionDefaults.getBasePermissions(anyString())).thenReturn(Set.of());
+        when(usuarioPermisoService.obtenerPermisosCodigos(eq(10L), eq(TENANT_B))).thenReturn(List.of());
+
+        UsuarioProfileDTO profile = authService.obtenerPerfil(10L);
+
+        assertThat(profile.getSucursalId()).isEqualTo(202L);
+        assertThat(profile.getTenantId()).isEqualTo(TENANT_B);
+        assertThat(profile.getRol()).isEqualTo("CAJERO");
     }
 }

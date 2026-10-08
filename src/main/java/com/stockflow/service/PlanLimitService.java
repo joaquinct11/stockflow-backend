@@ -4,6 +4,7 @@ import com.stockflow.exception.BadRequestException;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,9 +22,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PlanLimitService {
 
-    private final SuscripcionRepository suscripcionRepository;
-    private final UsuarioRepository     usuarioRepository;
-    private final ProductoRepository    productoRepository;
+    private final SuscripcionRepository   suscripcionRepository;
+    private final UsuarioRepository       usuarioRepository;
+    private final ProductoRepository      productoRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
 
     // ── Límites del plan Básico ──────────────────────────────────────────────
     public static final int         BASICO_MAX_USUARIOS        = 5;
@@ -54,7 +56,7 @@ public class PlanLimitService {
      */
     public void validarLimiteUsuarios(String tenantId) {
         if (isBasico(tenantId)) {
-            long total = usuarioRepository.countByTenantId(tenantId);
+            long total = usuarioTenantRepository.countByTenantIdAndActivoTrue(tenantId);
             log.debug("Plan BASICO — usuarios actuales: {} / {}", total, BASICO_MAX_USUARIOS);
             if (total >= BASICO_MAX_USUARIOS) {
                 throw new BadRequestException(
@@ -63,7 +65,7 @@ public class PlanLimitService {
                 );
             }
         } else {
-            long total = usuarioRepository.countByTenantId(tenantId);
+            long total = usuarioTenantRepository.countByTenantIdAndActivoTrue(tenantId);
             log.debug("Plan PRO — usuarios actuales: {} / {}", total, PRO_MAX_USUARIOS);
             if (total >= PRO_MAX_USUARIOS) {
                 throw new BadRequestException(

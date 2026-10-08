@@ -36,6 +36,10 @@ public class UsuarioTenant {
     @Builder.Default
     private Boolean activo = true;
 
+    /** Sucursal asignada dentro de este tenant. NULL = ADMIN o plan Básico. */
+    @Column(name = "sucursal_id")
+    private Long sucursalId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

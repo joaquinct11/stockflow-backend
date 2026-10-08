@@ -37,7 +37,7 @@ public class SucursalServiceImpl implements SucursalService {
     private final OrdenCompraRepository   ordenCompraRepository;
     private final RecepcionRepository     recepcionRepository;
     private final ComprobanteRepository   comprobanteRepository;
-    private final UsuarioRepository       usuarioRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
     private final CertificadoRepository   certificadoRepository;
 
     // ── Listado ──────────────────────────────────────────────────────────────
@@ -134,7 +134,11 @@ public class SucursalServiceImpl implements SucursalService {
                 .nombre("Sucursal Principal")
                 .esPrincipal(true)
                 .activo(true)
+                .bloqueadaPorPlan(false)
                 .build();
+
+        log.info("[Sucursal] antes de save: bloqueadaPorPlan={}, activo={}, esPrincipal={}",
+                principal.getBloqueadaPorPlan(), principal.getActivo(), principal.getEsPrincipal());
 
         Sucursal guardada = sucursalRepository.save(principal);
         Long sucursalId = guardada.getId();
@@ -152,7 +156,7 @@ public class SucursalServiceImpl implements SucursalService {
         recepcionRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
         comprobanteRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
         certificadoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
-        usuarioRepository.asignarSucursalAdminNulo(sucursalId, tenantId);
+        usuarioTenantRepository.asignarSucursalDondeEsNuloByTenant(sucursalId, tenantId);
 
         // Inicializar stock de todos los productos y variantes para esta sucursal principal
         stockSucursalRepository.inicializarStockParaSucursal(sucursalId, tenantId);

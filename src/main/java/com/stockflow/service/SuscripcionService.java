@@ -12,6 +12,9 @@ public interface SuscripcionService {
 
     Optional<Suscripcion> obtenerSuscripcionPorUsuario(Long usuarioId);
 
+    /** Suscripción más reciente del usuario dentro de un tenant específico. */
+    Optional<Suscripcion> obtenerSuscripcionPorUsuarioYTenant(Long usuarioId, String tenantId);
+
     /** Suscripción vigente del tenant (la más reciente). Usar en flujos auth. */
     Optional<Suscripcion> obtenerSuscripcionPorTenant(String tenantId);
 

@@ -264,7 +264,20 @@
       "PowerShell(Select-String -Path \"D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java\" -Pattern \"obtenerVentasPorPeriodo|obtenerVentasPorVendedorYTenantYPeriodo\" -Recurse | ForEach-Object { \"$\\($_.Path.Split\\('\\\\'\\)[-1]\\):$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" })",
       "PowerShell(ls D:\\\\projects\\\\abc\\\\stockflow-backend\\\\src\\\\main\\\\java -Recurse -Directory | Where-Object { $_.Name -match \"suscri|culqi|payment|webhook\" } | Select-Object FullName)",
       "PowerShell(& \"C:\\\\Program Files\\\\Java\\\\jdk-21\\\\bin\\\\javac\" --version 2>&1)",
-      "PowerShell(Get-Command mvn -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Command mvn -ErrorAction SilentlyContinue)",
+      "Bash(./mvnw.cmd clean *)",
+      "Bash(mvn test *)",
+      "Bash(mvn dependency:tree -Dincludes=org.projectlombok:lombok)",
+      "Bash(javap -p target/classes/com/stockflow/entity/Sucursal.class)",
+      "Bash(grep -E \"Boolean|boolean|bloqueada|esPrincipal|activo|default\\\\$|<init>\")",
+      "Bash(javap -p -c 'target/classes/com/stockflow/entity/Sucursal$SucursalBuilder.class')",
+      "Bash(awk '/public com.stockflow.entity.Sucursal build/,/^  public/')",
+      "Bash(javap -p -c -verbose 'target/classes/com/stockflow/entity/Sucursal$SucursalBuilder.class')",
+      "Bash(./mvnw clean *)",
+      "Bash(./mvnw test *)",
+      "Bash(grep -v \"//.*tenant\")",
+      "Bash(PGPASSWORD=stockflow_password psql -h localhost -p 5433 -U stockflow_user -d stockflows -c ' *)",
+      "Bash(grep -v \"//.*getTenantId\\\\|//.*setRol\\\\|//.*getRol\\\\|//.*setTenantId\")"
     ]
   }
 }

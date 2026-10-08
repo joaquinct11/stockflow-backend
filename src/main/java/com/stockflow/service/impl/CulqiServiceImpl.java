@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stockflow.config.properties.CulqiProperties;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.service.CulqiService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -37,7 +39,16 @@ public class CulqiServiceImpl implements CulqiService {
 
     private final CulqiProperties culqiProperties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    // Sin inicializador — Spring llama a initHttpClient() vía @PostConstruct.
+    // En tests unitarios (sin contexto Spring) se inyecta vía ReflectionTestUtils.
+    private HttpClient httpClient;
+
+    @PostConstruct
+    void initHttpClient() {
+        if (httpClient == null) {
+            httpClient = HttpClient.newHttpClient();
+        }
+    }
 
     // ── Clientes ─────────────────────────────────────────────────────────────
 
@@ -116,7 +127,10 @@ public class CulqiServiceImpl implements CulqiService {
     @SuppressWarnings("unchecked")
     private String buscarClientePorEmail(String email) {
         try {
-            String url = culqiProperties.getBaseUrl() + "/customers?email=" + email;
+            // URL-encode el email para que caracteres como '+' y '@' viajen correctamente
+            // '+' sin encode → Culqi lo interpreta como espacio → "email inválido"
+            String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
+            String url = culqiProperties.getBaseUrl() + "/customers?email=" + encodedEmail;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .header("Authorization", "Bearer " + culqiProperties.getSecretKey())
@@ -166,11 +180,15 @@ public class CulqiServiceImpl implements CulqiService {
     // ── Suscripciones ─────────────────────────────────────────────────────────
 
     @Override
-    public String crearSuscripcion(String cardId, String planId) {
+    public String crearSuscripcion(String cardId, String planId, Map<String, String> metadata) {
         Map<String, Object> body = new HashMap<>();
         body.put("card_id", cardId);
         body.put("plan_id", planId);
         body.put("tyc",     true);   // términos y condiciones requerido por Culqi
+
+        if (metadata != null && !metadata.isEmpty()) {
+            body.put("metadata", metadata);
+        }
 
         // Endpoint correcto según docs oficiales: POST /recurrent/subscriptions/create
         // Body: plain JSON (el cifrado AES+RSA solo aplica al PATCH /actualizar)

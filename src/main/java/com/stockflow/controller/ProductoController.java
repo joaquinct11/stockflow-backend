@@ -80,14 +80,17 @@ public class ProductoController {
                 }
             });
 
-            // Opción B: mostrar producto en una sucursal si tiene stock > 0
-            // O si alguna vez tuvo un movimiento en esa sucursal.
+            // Un producto pertenece a esta sucursal si tiene fila en producto_stock_sucursal
+            // (con o sin stock) o si alguna vez tuvo un movimiento aquí.
+            // stock_actual = 0 es válido: producto agotado en la sucursal, pero sigue existiendo.
             java.util.Set<Long> conMovimiento = new java.util.HashSet<>(
                     movimientoRepository.findProductoIdsConMovimientoEnSucursal(tenantId, sucursalId));
 
             dtos = dtos.stream()
                     .filter(dto -> dto.getId() != null
-                            && (dto.getStockActual() > 0 || conMovimiento.contains(dto.getId())))
+                            && (stockConVariante.containsKey(dto.getId())
+                                || stockSinVariante.containsKey(dto.getId())
+                                || conMovimiento.contains(dto.getId())))
                     .collect(Collectors.toList());
         }
 

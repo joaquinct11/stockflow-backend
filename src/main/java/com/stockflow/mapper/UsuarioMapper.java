@@ -10,15 +10,16 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface UsuarioMapper {
 
-    @Mapping(source = "rol.nombre",      target = "rolNombre")
-    @Mapping(source = "apellido",        target = "apellido")
-    @Mapping(source = "tipoDocumento",   target = "tipoDocumento")
-    @Mapping(source = "numeroDocumento", target = "numeroDocumento")
-    @Mapping(source = "numeroCelular",   target = "numeroCelular")
+    @Mapping(target = "rolNombre",        ignore = true)
+    @Mapping(target = "tenantId",         ignore = true)
+    @Mapping(target = "sucursalId",       ignore = true)
+    @Mapping(source = "apellido",         target = "apellido")
+    @Mapping(source = "tipoDocumento",    target = "tipoDocumento")
+    @Mapping(source = "numeroDocumento",  target = "numeroDocumento")
+    @Mapping(source = "numeroCelular",    target = "numeroCelular")
     UsuarioDTO toDTO(Usuario usuario);
 
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "rol", ignore = true)
     @Mapping(target = "activo", defaultValue = "true")
     @Mapping(source = "tipoDocumento",   target = "tipoDocumento")
     @Mapping(source = "numeroDocumento", target = "numeroDocumento")
@@ -28,7 +29,6 @@ public interface UsuarioMapper {
     List<UsuarioDTO> toDTOList(List<Usuario> usuarios);
 
     @Mapping(target = "id", ignore = true)
-    @Mapping(target = "rol", ignore = true)
     @Mapping(target = "contraseña", ignore = true)
     void updateEntityFromDTO(UsuarioDTO dto, @MappingTarget Usuario usuario);
 }

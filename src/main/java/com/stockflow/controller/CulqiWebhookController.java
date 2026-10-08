@@ -369,22 +369,42 @@ public class CulqiWebhookController {
     }
 
     private Optional<Suscripcion> buscarPorEmail(Object emailObj) {
-        if (!(emailObj instanceof String email) || email.isBlank()) return Optional.empty();
-        Optional<Usuario> optUsuario = usuarioRepository.findByEmail(email);
+        if (!(emailObj instanceof String culqiEmail) || culqiEmail.isBlank()) return Optional.empty();
+
+        // Si el email tiene sufijo tenant-scoped (user+tenantId@domain.com), extraer el tenantId
+        // y usar búsqueda directa por tenant — evita ambigüedad multi-tenant.
+        String tenantIdExtraido = CulqiController.extraerTenantIdDeEmail(culqiEmail);
+        if (tenantIdExtraido != null) {
+            Optional<Suscripcion> porTenant = suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantIdExtraido);
+            if (porTenant.isPresent()) {
+                log.info("🔍 [Culqi] Suscripción encontrada por tenantId={} (extraído de email={})",
+                        tenantIdExtraido, culqiEmail);
+                return porTenant;
+            }
+            log.warn("⚠️ [Culqi] tenantId={} extraído de email={} no tiene suscripción registrada",
+                    tenantIdExtraido, culqiEmail);
+        }
+
+        // Fallback: normalizar email (quitar sufijo si lo tiene) y buscar por usuario
+        String realEmail = CulqiController.normalizarEmailCulqi(culqiEmail);
+        Optional<Usuario> optUsuario = usuarioRepository.findByEmail(realEmail);
         if (optUsuario.isEmpty()) {
-            log.warn("⚠️ [Culqi] No se encontró usuario con email={}", email);
+            log.warn("⚠️ [Culqi] No se encontró usuario con email={}", realEmail);
             return Optional.empty();
         }
         Long usuarioId = optUsuario.get().getId();
-        Optional<Suscripcion> susPorUsuario = suscripcionRepository.findByUsuarioPrincipalId(usuarioId);
-        if (susPorUsuario.isPresent()) {
-            log.info("🔍 [Culqi] Suscripción encontrada por email={}: id={}", email, susPorUsuario.get().getId());
-            return susPorUsuario;
+        java.util.List<Suscripcion> suscripciones =
+                suscripcionRepository.findAllByUsuarioPrincipalId(usuarioId);
+        if (suscripciones.isEmpty()) {
+            return Optional.empty();
         }
-        String tenantId = optUsuario.get().getTenantId();
-        if (tenantId != null) {
-            return suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId);
+        if (suscripciones.size() == 1) {
+            log.info("🔍 [Culqi] Suscripción encontrada por email={}: id={}", realEmail, suscripciones.get(0).getId());
+            return Optional.of(suscripciones.get(0));
         }
+        // El usuario pertenece a múltiples tenants y no se pudo resolver por preapprovalId ni por sufijo.
+        log.warn("⚠️ [Culqi] Email ambiguo: '{}' tiene {} suscripciones. Se requiere subscription_id para identificar el tenant.",
+                realEmail, suscripciones.size());
         return Optional.empty();
     }
 

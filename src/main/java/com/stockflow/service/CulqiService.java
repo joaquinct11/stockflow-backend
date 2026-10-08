@@ -1,6 +1,7 @@
 package com.stockflow.service;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 public interface CulqiService {
 
@@ -13,8 +14,11 @@ public interface CulqiService {
      */
     java.util.Map<String, Object> crearTarjeta(String customerId, String tokenId);
 
-    /** Crea la suscripción recurrente en Culqi y devuelve el subscription ID (sub_live_xxx) */
-    String crearSuscripcion(String cardId, String planId);
+    /**
+     * Crea la suscripción recurrente en Culqi y devuelve el subscription ID (sxn_xxx).
+     * @param metadata pares clave-valor adicionales (ej: tenant_id, usuario_id); puede ser null o vacío.
+     */
+    String crearSuscripcion(String cardId, String planId, Map<String, String> metadata);
 
     /** Cancela una suscripción en Culqi */
     void cancelarSuscripcion(String subscriptionId);
@@ -36,5 +40,5 @@ public interface CulqiService {
      * el chargeId y no el subscription_id ni el email directamente.
      * Devuelve null si el cargo no existe o hay un error de red.
      */
-    java.util.Map<String, Object> obtenerCargo(String chargeId);
+    Map<String, Object> obtenerCargo(String chargeId);
 }
