@@ -17,6 +17,7 @@ import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.NotaCreditoService;
 import com.stockflow.service.StockLoteService;
+import com.stockflow.service.SucursalService;
 import com.stockflow.service.VentaService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -42,10 +43,12 @@ public class VentaServiceImpl implements VentaService {
     private final ProductoStockSucursalRepository   stockSucursalRepository;
     private final SucursalRepository                sucursalRepository;
     private final StockLoteService                  stockLoteService;
+    private final SucursalService                   sucursalService;
 
     @Override
     @Transactional
     public Venta crearVenta(Venta venta) {
+        sucursalService.validarSucursalOperativa(venta.getSucursalId(), venta.getTenantId());
         for (DetalleVenta detalle : venta.getDetalles()) {
             detalle.setVenta(venta);
             detalle.calcularSubtotal();

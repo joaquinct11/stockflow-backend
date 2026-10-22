@@ -1,8 +1,11 @@
 package com.stockflow.service.impl;
 
+import com.stockflow.dto.ClienteStatsDTO;
 import com.stockflow.entity.Cliente;
+import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.ClienteRepository;
+import com.stockflow.repository.MascotaRepository;
 import com.stockflow.service.ClienteService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import java.util.Optional;
 public class ClienteServiceImpl implements ClienteService {
 
     private final ClienteRepository clienteRepository;
+    private final MascotaRepository mascotaRepository;
 
     @Override
     public Cliente crearCliente(Cliente cliente) {
@@ -91,6 +95,14 @@ public class ClienteServiceImpl implements ClienteService {
         String tenantId = TenantContext.getCurrentTenant();
         Cliente cliente = clienteRepository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+
+        long mascotas = mascotaRepository.countByCliente_IdAndTenantId(id, tenantId);
+        if (mascotas > 0) {
+            throw new ConflictException(
+                    "No se puede eliminar el cliente porque tiene " + mascotas +
+                    " mascota(s) registrada(s). Desactívelo en su lugar.");
+        }
+
         clienteRepository.delete(cliente);
     }
 
@@ -104,5 +116,13 @@ public class ClienteServiceImpl implements ClienteService {
     public List<Cliente> obtenerClientesActivosPorTenant(String tenantId) {
         log.info("✅ Obteniendo clientes activos para tenant: {}", tenantId);
         return clienteRepository.findByTenantIdAndActivoTrue(tenantId);
+    }
+
+    @Override
+    public ClienteStatsDTO getStats() {
+        String tenantId = TenantContext.getCurrentTenant();
+        long total   = clienteRepository.countByTenantId(tenantId);
+        long activos = clienteRepository.countByTenantIdAndActivoTrue(tenantId);
+        return new ClienteStatsDTO(total, activos);
     }
 }

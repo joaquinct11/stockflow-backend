@@ -22,6 +22,7 @@ import com.stockflow.repository.StockLoteRepository;
 import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.ProductoService;
+import com.stockflow.service.SucursalService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
 import com.stockflow.exception.ResourceNotFoundException;
@@ -61,6 +62,7 @@ public class MovimientoInventarioController {
     private final ProveedorRepository                       proveedorRepository;
     private final ProductoRepository                        productoRepository;
     private final UsuarioTenantRepository                    usuarioTenantRepository;
+    private final SucursalService                            sucursalService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -167,6 +169,8 @@ public class MovimientoInventarioController {
     public ResponseEntity<MovimientoInventarioDTO> crear(@Valid @RequestBody MovimientoInventarioDTO movimientoDTO) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando movimiento de inventario para tenant: {}", tenantId);
+
+        sucursalService.validarSucursalOperativa(movimientoDTO.getSucursalId(), tenantId);
 
         // Validar producto y que pertenece al tenant
         Producto producto = productoService.obtenerProductoPorId(movimientoDTO.getProductoId())
@@ -659,6 +663,8 @@ public class MovimientoInventarioController {
             throw new ResourceNotFoundException("Lote no encontrado.");
         if (lote.getStockActual() < cantidad)
             throw new BadRequestException("Cantidad mayor al stock del lote (" + lote.getStockActual() + ").");
+
+        sucursalService.validarSucursalOperativa(lote.getSucursalId(), tenantId);
 
         Producto producto = productoService.obtenerProductoPorId(lote.getProductoId())
                 .filter(p -> tenantId.equals(p.getTenantId()))

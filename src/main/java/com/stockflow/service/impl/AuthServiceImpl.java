@@ -6,6 +6,8 @@ import com.stockflow.entity.*;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.UnauthorizedException;
+import com.stockflow.entity.PlanCatalogo;
+import com.stockflow.repository.PlanCatalogoRepository;
 import com.stockflow.repository.RolRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.UsuarioTenantRepository;
@@ -42,6 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final RolePermissionDefaults rolePermissionDefaults;
     private final com.stockflow.config.properties.CulqiProperties culqiProperties;
     private final SucursalService sucursalService;
+    private final PlanCatalogoRepository planCatalogoRepository;
 
     @Override
     @Transactional
@@ -104,10 +107,26 @@ public class AuthServiceImpl implements AuthService {
             throw new ConflictException("El email ya está registrado");
         }
 
-        // 2. Crear TENANT
+        // 2. Resolver plan desde el catálogo si se envió planCodigo
+        String planIdFinal   = request.getPlanId();
+        String rubroFinal    = request.getRubro();
+        String planCodigoFinal = null;
+
+        if (request.getPlanCodigo() != null && !request.getPlanCodigo().isBlank()) {
+            PlanCatalogo planCat = planCatalogoRepository.findByCodigoAndActivoTrue(
+                    request.getPlanCodigo().toUpperCase())
+                    .orElseThrow(() -> new BadRequestException(
+                            "El código de plan '" + request.getPlanCodigo() + "' no existe o está inactivo."));
+            planIdFinal     = planCat.getNivel();
+            rubroFinal      = planCat.getRubroOperativo();
+            planCodigoFinal = planCat.getCodigo();
+            log.info("📋 Plan catálogo: {} → planId={}, rubro={}", planCodigoFinal, planIdFinal, rubroFinal);
+        }
+
+        // 3. Crear TENANT
         Tenant tenant = tenantService.crearTenant(
                 request.getNombreFarmacia(),
-                request.getRubro(),
+                rubroFinal,
                 request.getRucEmpresa(),
                 request.getEmail(),
                 request.getNumeroCelular()
@@ -145,13 +164,14 @@ public class AuthServiceImpl implements AuthService {
         log.info("✅ UsuarioTenant creado: {} → tenant:{}", usuarioCreado.getEmail(), tenant.getTenantId());
 
         // 4. Crear SUSCRIPCIÓN en período de prueba de 14 días
-        BigDecimal precioMensual = obtenerPrecioPlan(request.getPlanId());
+        BigDecimal precioMensual = obtenerPrecioPlan(planIdFinal, planCodigoFinal);
         LocalDateTime ahora = LocalDateTime.now();
         LocalDateTime trialEnd = ahora.plusDays(14);
 
         Suscripcion suscripcion = Suscripcion.builder()
                 .usuarioPrincipal(usuarioCreado)
-                .planId(request.getPlanId())
+                .planId(planIdFinal)
+                .planCodigo(planCodigoFinal)
                 .precioMensual(precioMensual)
                 .estado("TRIAL")
                 .trialEndDate(trialEnd)
@@ -161,14 +181,12 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         Suscripcion suscripcionCreada = suscripcionService.crearSuscripcion(suscripcion);
-        log.info("✅ Suscripción creada: Plan {} para usuario {}",
-                suscripcionCreada.getPlanId(), usuarioCreado.getEmail());
+        log.info("✅ Suscripción creada: Plan {} ({}) para usuario {}",
+                suscripcionCreada.getPlanId(), suscripcionCreada.getPlanCodigo(), usuarioCreado.getEmail());
 
-        // 5. Si se registra directamente con Plan PRO, crear sucursal principal
-        if ("PRO".equals(request.getPlanId())) {
-            sucursalService.inicializarPrincipal(tenant.getTenantId());
-            log.info("✅ Sucursal principal inicializada para registro PRO: {}", tenant.getTenantId());
-        }
+        // 5. Crear sucursal principal para todos los planes (BASICO con 1 sucursal, PRO con hasta 5)
+        sucursalService.inicializarPrincipal(tenant.getTenantId());
+        log.info("✅ Sucursal principal inicializada para tenant: {}", tenant.getTenantId());
 
         // 7. Generar tokens JWT (rol desde usuario_tenant)
         String accessToken = jwtUtil.generateToken(
@@ -363,14 +381,28 @@ public class AuthServiceImpl implements AuthService {
     public TenantInfoDTO crearNegocio(Long usuarioId, CrearNegocioRequestDTO dto) {
         log.info("🏢 Creando nuevo negocio para usuario {}: {}", usuarioId, dto.getNombreNegocio());
 
-        BigDecimal precioMensual = obtenerPrecioPlan(dto.getPlanId());
+        String planIdFinal     = dto.getPlanId();
+        String rubroFinal      = dto.getRubro();
+        String planCodigoFinal = null;
+
+        if (dto.getPlanCodigo() != null && !dto.getPlanCodigo().isBlank()) {
+            PlanCatalogo planCat = planCatalogoRepository.findByCodigoAndActivoTrue(
+                    dto.getPlanCodigo().toUpperCase())
+                    .orElseThrow(() -> new BadRequestException(
+                            "El código de plan '" + dto.getPlanCodigo() + "' no existe o está inactivo."));
+            planIdFinal     = planCat.getNivel();
+            rubroFinal      = planCat.getRubroOperativo();
+            planCodigoFinal = planCat.getCodigo();
+        }
+
+        BigDecimal precioMensual = obtenerPrecioPlan(planIdFinal, planCodigoFinal);
 
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new UnauthorizedException("Usuario no encontrado"));
 
         Tenant tenant = tenantService.crearTenant(
                 dto.getNombreNegocio(),
-                dto.getRubro(),
+                rubroFinal,
                 dto.getRuc(),
                 dto.getEmailContacto(),
                 dto.getTelefono()
@@ -391,7 +423,8 @@ public class AuthServiceImpl implements AuthService {
 
         Suscripcion suscripcion = Suscripcion.builder()
                 .usuarioPrincipal(usuario)
-                .planId(dto.getPlanId())
+                .planId(planIdFinal)
+                .planCodigo(planCodigoFinal)
                 .precioMensual(precioMensual)
                 .estado("TRIAL")
                 .trialEndDate(trialEnd)
@@ -401,10 +434,9 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         suscripcionService.crearSuscripcion(suscripcion);
 
-        if ("PRO".equals(dto.getPlanId())) {
-            sucursalService.inicializarPrincipal(tenant.getTenantId());
-            log.info("✅ Sucursal principal inicializada para nuevo negocio PRO: {}", tenant.getTenantId());
-        }
+        // Crear sucursal principal para todos los planes (BASICO con 1 sucursal, PRO con hasta 5)
+        sucursalService.inicializarPrincipal(tenant.getTenantId());
+        log.info("✅ Sucursal principal inicializada para nuevo negocio: {}", tenant.getTenantId());
 
         log.info("✅ Nuevo negocio creado: {} para usuario {}", tenant.getTenantId(), usuario.getEmail());
 
@@ -422,13 +454,21 @@ public class AuthServiceImpl implements AuthService {
                 .build();
     }
 
-    private BigDecimal obtenerPrecioPlan(String planId) {
-        if ("PRO".equals(planId)) {
-            return culqiProperties.getPrecioPro();
+    /**
+     * Resuelve el precio mensual.
+     * Si planCodigo está presente, consulta el catálogo (fuente de verdad).
+     * Si no, usa CulqiProperties como fallback para suscripciones legado.
+     * El precio nunca proviene del cliente.
+     */
+    private BigDecimal obtenerPrecioPlan(String planId, String planCodigo) {
+        if (planCodigo != null && !planCodigo.isBlank()) {
+            return planCatalogoRepository.findByCodigoAndActivoTrue(planCodigo)
+                    .map(PlanCatalogo::getPrecioMensual)
+                    .orElseThrow(() -> new BadRequestException(
+                            "Plan no encontrado en el catálogo: " + planCodigo));
         }
-        if ("BASICO".equals(planId)) {
-            return culqiProperties.getPrecioBasico();
-        }
+        if ("PRO".equalsIgnoreCase(planId)) return culqiProperties.getPrecioPro();
+        if ("BASICO".equalsIgnoreCase(planId)) return culqiProperties.getPrecioBasico();
         throw new BadRequestException("Plan inválido: " + planId + ". Planes válidos: BASICO, PRO");
     }
 
@@ -437,6 +477,7 @@ public class AuthServiceImpl implements AuthService {
                 .id(suscripcion.getId())
                 .usuarioPrincipalId(suscripcion.getUsuarioPrincipal().getId())
                 .planId(suscripcion.getPlanId())
+                .planCodigo(suscripcion.getPlanCodigo())
                 .precioMensual(suscripcion.getPrecioMensual())
                 .estado(suscripcion.getEstado())
                 .tenantId(suscripcion.getTenantId())

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 @Slf4j
@@ -20,7 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SucursalServiceImpl implements SucursalService {
 
-    private static final int MAX_SUCURSALES_PRO = 5;
+    // Conservado como fallback para suscripciones legado sin plan_codigo.
+    private static final int MAX_SUCURSALES_PRO_LEGADO = 5;
 
     private final SucursalRepository                        sucursalRepository;
     private final ProductoStockSucursalRepository           stockSucursalRepository;
@@ -201,6 +203,45 @@ public class SucursalServiceImpl implements SucursalService {
     }
 
     @Override
+    @Transactional
+    public int desbloquearSucursalesConLimite(String tenantId, int maxSucursales) {
+        long activasActuales = sucursalRepository.countByTenantIdAndActivoTrue(tenantId);
+        long espaciosDisponibles = maxSucursales - activasActuales;
+        if (espaciosDisponibles <= 0) {
+            log.info("🔒 [Desbloqueo] Límite de {} sucursales ya alcanzado para tenant={} ({} activas). No se reactiva ninguna.",
+                    maxSucursales, tenantId, activasActuales);
+            return 0;
+        }
+
+        // Criterio determinista: id ASC (más antiguas primero → más datos históricos preservados)
+        List<Sucursal> bloqueadas = sucursalRepository.findByTenantIdAndBloqueadaPorPlanTrue(tenantId)
+                .stream()
+                .sorted(Comparator.comparing(Sucursal::getId))
+                .toList();
+
+        if (bloqueadas.isEmpty()) return 0;
+
+        int aDesbloquear = (int) Math.min(bloqueadas.size(), espaciosDisponibles);
+        List<Sucursal> paraReactivar = bloqueadas.subList(0, aDesbloquear);
+        for (Sucursal s : paraReactivar) {
+            s.setActivo(true);
+            s.setBloqueadaPorPlan(false);
+            s.setDeletedAt(null);
+            s.setUpdatedAt(LocalDateTime.now());
+        }
+        sucursalRepository.saveAll(paraReactivar);
+
+        int excedente = bloqueadas.size() - aDesbloquear;
+        if (excedente > 0) {
+            log.info("🔓 [Desbloqueo] {}/{} sucursal(es) reactivada(s) para tenant={}. {} excede(n) el límite de {} y permanece(n) bloqueada(s).",
+                    aDesbloquear, bloqueadas.size(), tenantId, excedente, maxSucursales);
+        } else {
+            log.info("🔓 [Desbloqueo] {} sucursal(es) reactivada(s) para tenant={}", aDesbloquear, tenantId);
+        }
+        return aDesbloquear;
+    }
+
+    @Override
     public List<SucursalDTO> listarConBloqueadas(String tenantId) {
         return sucursalRepository
                 .findByTenantIdAndActivoTrueOrTenantIdAndBloqueadaPorPlanTrueOrderByEsPrincipalDescNombreAsc(
@@ -208,6 +249,24 @@ public class SucursalServiceImpl implements SucursalService {
                 .stream()
                 .map(this::toDTO)
                 .toList();
+    }
+
+    // ── Validación operativa ─────────────────────────────────────────────────
+
+    @Override
+    public void validarSucursalOperativa(Long sucursalId, String tenantId) {
+        if (sucursalId == null) return;
+        Sucursal sucursal = sucursalRepository.findById(sucursalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sucursal no encontrada: " + sucursalId));
+        if (!tenantId.equals(sucursal.getTenantId())) {
+            throw new ResourceNotFoundException("Sucursal no encontrada: " + sucursalId);
+        }
+        if (Boolean.FALSE.equals(sucursal.getActivo())) {
+            String msg = Boolean.TRUE.equals(sucursal.getBloqueadaPorPlan())
+                    ? "La sucursal está bloqueada por tu plan actual. Actualiza tu suscripción para operar en ella."
+                    : "La sucursal está desactivada y no puede recibir operaciones.";
+            throw new BadRequestException(msg);
+        }
     }
 
     // ── Resync ───────────────────────────────────────────────────────────────
@@ -237,11 +296,11 @@ public class SucursalServiceImpl implements SucursalService {
     }
 
     private void validarLimiteSucursales(String tenantId) {
+        int limite = planLimitService.getMaxSucursales(tenantId);
         long total = sucursalRepository.countByTenantIdAndActivoTrue(tenantId);
-        if (total >= MAX_SUCURSALES_PRO) {
+        if (total >= limite) {
             throw new BadRequestException(
-                    "El plan Pro permite máximo " + MAX_SUCURSALES_PRO + " sucursales activas."
-            );
+                    "Tu plan permite máximo " + limite + " sucursales activas.");
         }
     }
 

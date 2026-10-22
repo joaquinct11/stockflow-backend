@@ -48,4 +48,8 @@ public class RegistrationRequestDTO {
 
     // RUC de la empresa (va a tenants.ruc)
     private String rucEmpresa;
+
+    // Código del plan comercial del catálogo (e.g. "VETERINARIA_BASICO").
+    // Cuando se envía, el backend deriva planId y rubro desde el catálogo.
+    private String planCodigo;
 }

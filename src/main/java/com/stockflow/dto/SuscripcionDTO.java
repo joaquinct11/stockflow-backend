@@ -23,6 +23,8 @@ public class SuscripcionDTO {
     @NotBlank(message = "El plan es requerido")
     private String planId;
 
+    private String planCodigo;
+
     @NotNull(message = "El precio mensual es requerido")
     private BigDecimal precioMensual;
 

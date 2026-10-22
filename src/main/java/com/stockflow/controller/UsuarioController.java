@@ -11,8 +11,10 @@ import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.mapper.UsuarioMapper;
 import com.stockflow.repository.RolRepository;
 import com.stockflow.repository.UsuarioTenantRepository;
+import com.stockflow.exception.ForbiddenException;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.PlanLimitService;
+import com.stockflow.service.TenantService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,7 @@ public class UsuarioController {
     private final UsuarioMapper usuarioMapper;
     private final RolRepository rolRepository;
     private final PlanLimitService planLimitService;
+    private final TenantService tenantService;
     private final EmailService emailService;
     private final UsuarioTenantRepository usuarioTenantRepository;
 
@@ -108,7 +111,16 @@ public class UsuarioController {
         planLimitService.validarLimiteUsuarios(tenantId);
         planLimitService.validarRolPermitido(tenantId, usuarioDTO.getRolNombre());
 
-        // Buscar el rol
+        // ── Validación de rubro para roles veterinarios ─────────────────────
+        if (PlanLimitService.ROLES_EXCLUSIVOS_VETERINARIA.contains(usuarioDTO.getRolNombre())) {
+            tenantService.requireRubro(tenantId, "VETERINARIA");
+        }
+
+        // Roles de plataforma no pueden asignarse desde la administración de un tenant
+        if ("SUPERADMIN".equalsIgnoreCase(usuarioDTO.getRolNombre())) {
+            throw new BadRequestException(
+                    "El rol SUPERADMIN es exclusivo de la plataforma y no puede asignarse desde la administración del tenant.");
+        }
         Rol rol = rolRepository.findByNombre(usuarioDTO.getRolNombre())
                 .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + usuarioDTO.getRolNombre()));
 
@@ -163,11 +175,20 @@ public class UsuarioController {
         // ── Validar rol permitido por plan ──────────────────────────────────
         planLimitService.validarRolPermitido(tenantId, updateDTO.getRolNombre());
 
+        // ── Validación de rubro para roles veterinarios ─────────────────────
+        if (PlanLimitService.ROLES_EXCLUSIVOS_VETERINARIA.contains(updateDTO.getRolNombre())) {
+            tenantService.requireRubro(tenantId, "VETERINARIA");
+        }
+
         // Seguridad cross-tenant: solo se puede editar un usuario que pertenece al tenant activo
         usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-        // Resolver Rol — sigue necesario para pasarlo explícitamente al servicio
+        // Roles de plataforma no pueden asignarse desde la administración de un tenant
+        if ("SUPERADMIN".equalsIgnoreCase(updateDTO.getRolNombre())) {
+            throw new BadRequestException(
+                    "El rol SUPERADMIN es exclusivo de la plataforma y no puede asignarse desde la administración del tenant.");
+        }
         Rol rol = rolRepository.findByNombre(updateDTO.getRolNombre())
                 .orElseThrow(() -> new BadRequestException("Rol no encontrado: " + updateDTO.getRolNombre()));
 

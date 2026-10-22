@@ -56,7 +56,11 @@ public class RolePermissionDefaults {
             // Gastos / Egresos
             "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO", "ELIMINAR_GASTO",
             // Certificados (BOTICA/FARMACIA)
-            "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO", "ELIMINAR_CERTIFICADO"
+            "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO", "ELIMINAR_CERTIFICADO",
+            // Veterinaria — mascotas
+            "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA", "CAMBIAR_ESTADO_MASCOTA",
+            // Veterinaria — citas
+            "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA"
     );
 
     /**
@@ -113,7 +117,13 @@ public class RolePermissionDefaults {
                     // Gastos (gerente puede registrar y ver gastos)
                     "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO",
                     // Certificados
-                    "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO"
+                    "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO",
+                    // Veterinaria — gerente de clínica necesita visibilidad sobre mascotas y citas
+                    "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA", "CAMBIAR_ESTADO_MASCOTA",
+                    // Citas
+                    "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA",
+                    // Sucursales — necesario para que AppLayout cargue las sedes
+                    "VER_SUCURSALES"
             );
 
             // Foco en inventario: compras, recepciones, productos y proveedores.
@@ -153,6 +163,62 @@ public class RolePermissionDefaults {
                     // Clientes (vendedor puede crear y ver clientes para las ventas)
                     "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE",
                     // Sucursales — necesario para que AppLayout cargue las sedes
+                    "VER_SUCURSALES"
+            );
+
+            // Veterinario: acceso clínico + mascotas — sin activar/desactivar mascotas
+            case "VETERINARIO" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — puede ver, crear y editar, pero no activar/desactivar
+                    "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA",
+                    // Citas — puede ver y cambiar estado
+                    "VER_CITAS", "CAMBIAR_ESTADO_CITA",
+                    // Clientes (necesita ver al dueño de la mascota)
+                    "VER_CLIENTES",
+                    // Productos (insumos, medicamentos)
+                    "VER_PRODUCTOS",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Recepcionista: puede registrar y editar mascotas al ingresarlas, sin cambiar estado
+            case "RECEPCIONISTA" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — puede ver, crear y editar
+                    "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA",
+                    // Citas — gestión completa de agenda
+                    "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA",
+                    // Clientes — puede crear y editar (registrar dueños)
+                    "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Auxiliar veterinario: soporte clínico — ve mascotas, no las administra
+            case "AUXILIAR_VETERINARIO" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — solo lectura
+                    "VER_MASCOTAS",
+                    // Citas — solo lectura
+                    "VER_CITAS",
+                    // Clientes — solo ver
+                    "VER_CLIENTES",
+                    // Productos (aplica insumos)
+                    "VER_PRODUCTOS",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Groomer: ve mascotas para conocer datos del animal, gestiona su agenda de peluquería
+            case "GROOMER" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — solo lectura
+                    "VER_MASCOTAS",
+                    // Citas — solo lectura (para ver su agenda de peluquería)
+                    "VER_CITAS",
+                    // Clientes — solo ver
+                    "VER_CLIENTES",
+                    // Sucursales
                     "VER_SUCURSALES"
             );
 

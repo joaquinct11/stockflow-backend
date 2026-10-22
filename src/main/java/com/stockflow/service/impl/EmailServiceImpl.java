@@ -849,7 +849,7 @@ public class EmailServiceImpl implements EmailService {
                     <tr>
                       <td style="padding:16px 40px;background:#f9fafb;border-top:1px solid #e5e7eb;">
                         <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6;">
-                          El cobro se realizará automáticamente cada mes. Si tienes alguna consulta sobre tu suscripción, responde a este correo.
+                          El primer cobro ya está siendo procesado por Culqi. Los siguientes cobros se realizarán automáticamente cada mes. Si tienes alguna consulta, responde a este correo.
                         </p>
                       </td>
                     </tr>

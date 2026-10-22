@@ -43,7 +43,9 @@ public class ApiSunatService {
     private static final String DAILY_SUMMARY_PATH = "/api/v3/daily-summary";
     private static final String VOIDED_PATH         = "/api/v3/voided";
 
-    private final RestClient http = RestClient.create();
+    private final RestClient http = RestClient.builder()
+            .requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory())
+            .build();
     private final ObjectMapper mapper = new ObjectMapper();
 
     /**

@@ -89,8 +89,8 @@ culqi:
   precio-basico:  ${CULQI_PRECIO_BASICO:}
   plan-id-pro:    ${CULQI_PLAN_ID_PRO:}      # vacío hasta crear el plan con POST /api/culqi/admin/crear-plan-pro
   precio-pro:     ${CULQI_PRECIO_PRO:}
-  rsa-public-key: ${CULQI_RSA_PUBLIC_KEY:}   # Culqi Panel → Desarrollo → RSA Keys → llave pública
-  rsa-id:         ${CULQI_RSA_ID:}           # Culqi Panel → Desarrollo → RSA Keys → columna ID (UUID)
+  rsa-public-key:     ${CULQI_RSA_PUBLIC_KEY:}   # Culqi Panel → Desarrollo → RSA Keys → llave pública
+  rsa-id:             ${CULQI_RSA_ID:}           # Culqi Panel → Desarrollo → RSA Keys → columna ID (UUID)
 
 # ── App ──────────────────────────────────────────────────────
 app:

@@ -16,7 +16,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.net.http.HttpClient;
+import com.stockflow.service.impl.CulqiHttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
@@ -46,7 +46,7 @@ class CulqiClienteEmailEncodingTest {
 
     @Mock private CulqiProperties culqiProperties;
     @Mock private ObjectMapper    objectMapper;
-    @Mock private HttpClient      httpClient;
+    @Mock private CulqiHttpClient httpClient;
 
     @InjectMocks private CulqiServiceImpl culqiService;
 
@@ -92,13 +92,13 @@ class CulqiClienteEmailEncodingTest {
         void plusEsEncodedComoPorcentaje2B() throws Exception {
             HttpResponse<String> searchResp = mockResponseWithCustomer(CUSTOMER_ID);
             doReturn(searchResp)
-                    .when(httpClient).send(any(HttpRequest.class), any());
+                    .when(httpClient).send(any(HttpRequest.class));
 
             ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
 
             culqiService.crearCliente(EMAIL_SCOPED, "Joaquín", "Castillo", null);
 
-            verify(httpClient, atLeastOnce()).send(captor.capture(), any());
+            verify(httpClient, atLeastOnce()).send(captor.capture());
 
             // La primera llamada debe ser el GET /customers?email=...
             HttpRequest getRequest = captor.getAllValues().stream()
@@ -117,13 +117,13 @@ class CulqiClienteEmailEncodingTest {
         void urlNoContieneSignoMasLiteral() throws Exception {
             HttpResponse<String> searchResp = mockResponseWithCustomer(CUSTOMER_ID);
             doReturn(searchResp)
-                    .when(httpClient).send(any(HttpRequest.class), any());
+                    .when(httpClient).send(any(HttpRequest.class));
 
             ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
 
             culqiService.crearCliente(EMAIL_SCOPED, "Joaquín", "Castillo", null);
 
-            verify(httpClient, atLeastOnce()).send(captor.capture(), any());
+            verify(httpClient, atLeastOnce()).send(captor.capture());
 
             HttpRequest getRequest = captor.getAllValues().stream()
                     .filter(r -> r.method().equals("GET"))
@@ -156,7 +156,7 @@ class CulqiClienteEmailEncodingTest {
                     .thenReturn(Map.of());
 
             doReturn(searchResp).doReturn(patchResp)
-                    .when(httpClient).send(any(HttpRequest.class), any());
+                    .when(httpClient).send(any(HttpRequest.class));
 
             String result = culqiService.crearCliente(EMAIL_SCOPED, "Joaquín", "Castillo", null);
 
@@ -164,7 +164,7 @@ class CulqiClienteEmailEncodingTest {
 
             // Verificar que NO se llamó POST /customers
             ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
-            verify(httpClient, atLeastOnce()).send(captor.capture(), any());
+            verify(httpClient, atLeastOnce()).send(captor.capture());
 
             long postCustomersCount = captor.getAllValues().stream()
                     .filter(r -> r.method().equals("POST") && r.uri().getPath().endsWith("/customers"))
@@ -183,7 +183,7 @@ class CulqiClienteEmailEncodingTest {
                     .thenReturn(Map.of());
 
             doReturn(searchResp).doReturn(patchResp)
-                    .when(httpClient).send(any(HttpRequest.class), any());
+                    .when(httpClient).send(any(HttpRequest.class));
 
             String customerId = culqiService.crearCliente(EMAIL_SCOPED, "Joaquín", "Castillo", null);
             assertThat(customerId).isEqualTo("cus_test_HczFohTtZcIM75HT");
@@ -209,12 +209,12 @@ class CulqiClienteEmailEncodingTest {
                     .thenReturn(Map.of("id", "cus_nuevo"));
 
             doReturn(searchResp).doReturn(postResp)
-                    .when(httpClient).send(any(HttpRequest.class), any());
+                    .when(httpClient).send(any(HttpRequest.class));
 
             culqiService.crearCliente(EMAIL_SIMPLE, "User", "Test", null);
 
             ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
-            verify(httpClient, atLeastOnce()).send(captor.capture(), any());
+            verify(httpClient, atLeastOnce()).send(captor.capture());
 
             HttpRequest getRequest = captor.getAllValues().stream()
                     .filter(r -> r.method().equals("GET"))

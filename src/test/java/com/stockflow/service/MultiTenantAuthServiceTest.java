@@ -227,6 +227,61 @@ class MultiTenantAuthServiceTest {
                 .containsExactlyInAnyOrder(TENANT_A, TENANT_B);
     }
 
+    @Test
+    @DisplayName("getTenants: la lista incluye rubro correcto para VETERINARIA")
+    void getTenants_devuelveRubroCorrecto_veterinaria() {
+        Tenant tenantVet = Tenant.builder().tenantId(TENANT_A).nombre("Vet Centro").rubro("VETERINARIA").activo(true).build();
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L)).thenReturn(List.of(utTenantA));
+        when(tenantService.obtenerTenant(TENANT_A)).thenReturn(Optional.of(tenantVet));
+
+        List<TenantInfoDTO> tenants = authService.getTenants(10L);
+
+        assertThat(tenants).hasSize(1);
+        assertThat(tenants.get(0).getRubro()).isEqualTo("VETERINARIA");
+        assertThat(tenants.get(0).getNombre()).isEqualTo("Vet Centro");
+    }
+
+    @Test
+    @DisplayName("getTenants: la lista incluye rubro correcto para BOTICA")
+    void getTenants_devuelveRubroCorrecto_botica() {
+        Tenant tenantBotica = Tenant.builder().tenantId(TENANT_A).nombre("Botica Sur").rubro("BOTICA").activo(true).build();
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L)).thenReturn(List.of(utTenantA));
+        when(tenantService.obtenerTenant(TENANT_A)).thenReturn(Optional.of(tenantBotica));
+
+        List<TenantInfoDTO> tenants = authService.getTenants(10L);
+
+        assertThat(tenants.get(0).getRubro()).isEqualTo("BOTICA");
+    }
+
+    @Test
+    @DisplayName("getTenants: la lista incluye rubro correcto para FERRETERIA")
+    void getTenants_devuelveRubroCorrecto_ferreteria() {
+        Tenant tenantFer = Tenant.builder().tenantId(TENANT_B).nombre("Ferretería Norte").rubro("FERRETERIA").activo(true).build();
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L)).thenReturn(List.of(utTenantB));
+        when(tenantService.obtenerTenant(TENANT_B)).thenReturn(Optional.of(tenantFer));
+
+        List<TenantInfoDTO> tenants = authService.getTenants(10L);
+
+        assertThat(tenants.get(0).getRubro()).isEqualTo("FERRETERIA");
+    }
+
+    @Test
+    @DisplayName("getTenants: usuario con VETERINARIA y BOTICA recibe ambos rubros correctamente")
+    void getTenants_multiTenant_devuelveRubrosPorTenant() {
+        Tenant tenantVet    = Tenant.builder().tenantId(TENANT_A).nombre("Vet A").rubro("VETERINARIA").activo(true).build();
+        Tenant tenantBotica = Tenant.builder().tenantId(TENANT_B).nombre("Botica B").rubro("BOTICA").activo(true).build();
+        when(usuarioTenantRepository.findActivosConRolByUsuarioId(10L)).thenReturn(List.of(utTenantA, utTenantB));
+        when(tenantService.obtenerTenant(TENANT_A)).thenReturn(Optional.of(tenantVet));
+        when(tenantService.obtenerTenant(TENANT_B)).thenReturn(Optional.of(tenantBotica));
+
+        List<TenantInfoDTO> tenants = authService.getTenants(10L);
+
+        TenantInfoDTO infoA = tenants.stream().filter(t -> TENANT_A.equals(t.getTenantId())).findFirst().orElseThrow();
+        TenantInfoDTO infoB = tenants.stream().filter(t -> TENANT_B.equals(t.getTenantId())).findFirst().orElseThrow();
+        assertThat(infoA.getRubro()).isEqualTo("VETERINARIA");
+        assertThat(infoB.getRubro()).isEqualTo("BOTICA");
+    }
+
     // ── refresh con tenantId en el token ──────────────────────────────────────
 
     @Test

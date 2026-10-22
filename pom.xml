@@ -217,6 +217,10 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+					<!-- JDK 21 on Windows defaults to WEPollSelectorProvider which uses
+					     Unix Domain Sockets for Pipe.open(); that fails on some Windows
+					     environments. Force the pre-JDK-21 TCP-loopback selector. -->
+					<jvmArguments>-Djava.nio.channels.spi.SelectorProvider=sun.nio.ch.WindowsSelectorProvider</jvmArguments>
 				</configuration>
 			</plugin>
 		</plugins>

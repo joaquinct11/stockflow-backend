@@ -2,9 +2,11 @@ package com.stockflow.repository;
 
 import com.stockflow.entity.Suscripcion;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -36,7 +38,25 @@ public interface SuscripcionRepository extends JpaRepository<Suscripcion, Long> 
 
     Optional<Suscripcion> findByPreapprovalId(String preapprovalId);
 
+    Optional<Suscripcion> findFirstByCulqiCustomerIdOrderByIdDesc(String culqiCustomerId);
+
+    /** Todas las suscripciones de un mismo cliente Culqi, de más reciente a más antigua. */
+    java.util.List<Suscripcion> findAllByCulqiCustomerIdOrderByIdDesc(String culqiCustomerId);
+
     long countByTenantId(String tenantId);
+
+    /**
+     * CAS atómico: actualiza el estado solo si preapprovalId sigue siendo el esperado.
+     * Retorna 1 si se actualizó, 0 si preapprovalId ya fue reemplazado (race condition).
+     * Protege contra webhooks de suscripciones obsoletas que lleguen tras un upgrade/downgrade.
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE Suscripcion s SET s.estado = :estado WHERE s.id = :id AND s.preapprovalId = :expectedPreapprovalId")
+    int updateEstadoIfPreapprovalIdMatches(
+            @Param("id") Long id,
+            @Param("estado") String estado,
+            @Param("expectedPreapprovalId") String expectedPreapprovalId);
 
     /**
      * Suscripciones ACTIVAS sin preapprovalId (cobro manual) cuya fechaProximoCobro
