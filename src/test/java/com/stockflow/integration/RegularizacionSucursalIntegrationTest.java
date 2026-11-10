@@ -15,8 +15,6 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -34,15 +32,17 @@ import static org.mockito.Mockito.doThrow;
  * correctamente sobre PostgreSQL real. Usa tenants únicos por escenario para aislamiento.
  */
 @SpringBootTest
-@Testcontainers
 @ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class RegularizacionSucursalIntegrationTest {
 
-    @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+
+    static {
+        postgres.start();
+    }
 
     @Autowired
     private SucursalService sucursalService;

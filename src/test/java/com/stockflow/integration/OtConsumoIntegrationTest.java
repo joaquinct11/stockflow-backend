@@ -21,8 +21,6 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -42,14 +40,16 @@ import static org.mockito.Mockito.doThrow;
  * FT-6: Una excepción en saveAll(consumoLotes) revierte todos los cambios de stock.
  */
 @SpringBootTest
-@Testcontainers
 @ActiveProfiles("test")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OtConsumoIntegrationTest {
 
-    @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
+
+    static {
+        postgres.start();
+    }
 
     @Autowired
     private OtConsumoService otConsumoService;
