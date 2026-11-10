@@ -1,8 +1,13 @@
 package com.stockflow.repository;
 
 import com.stockflow.entity.StockLote;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
@@ -155,6 +160,12 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     // ¿El producto tiene algún lote con vencimiento registrado?
     boolean existsByProductoIdAndTenantId(Long productoId, String tenantId);
 
+    // Lock pesimista sobre un lote específico — usar en orden ascendente de ID para evitar deadlock
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "5000"))
+    @Query("SELECT s FROM StockLote s WHERE s.id = :id")
+    Optional<StockLote> findByIdForUpdate(@Param("id") Long id);
+
     // Batch: ¿qué productos tienen lotes?
     @Query("""
             SELECT DISTINCT s.productoId FROM StockLote s
@@ -221,6 +232,12 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
               AND sl.stock_actual > 0
             """, nativeQuery = true)
     long countProductosConStockEnLotes(@Param("tenantId") String tenantId);
+
+    /** Backfill de regularización: asigna la sucursal principal a lotes históricos sin sucursal.
+     *  Solo actualiza filas con sucursal_id IS NULL. Idempotente. */
+    @Modifying
+    @Query(value = "UPDATE stock_lotes SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
+    void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
 
     /** Lotes VENCIDOS con stock > 0 para el tenant (para módulo de baja). */
     @Query("""

@@ -41,6 +41,7 @@ public class SucursalServiceImpl implements SucursalService {
     private final ComprobanteRepository   comprobanteRepository;
     private final UsuarioTenantRepository usuarioTenantRepository;
     private final CertificadoRepository   certificadoRepository;
+    private final StockLoteRepository     stockLoteRepository;
 
     // ── Listado ──────────────────────────────────────────────────────────────
 
@@ -267,6 +268,43 @@ public class SucursalServiceImpl implements SucursalService {
                     : "La sucursal está desactivada y no puede recibir operaciones.";
             throw new BadRequestException(msg);
         }
+    }
+
+    // ── Regularización de tenants históricos ────────────────────────────────
+
+    @Override
+    @Transactional
+    public SucursalDTO regularizarDatosSucursalPrincipal(String tenantId) {
+        Sucursal principal = sucursalRepository.findByTenantIdAndEsPrincipalTrue(tenantId)
+                .orElseThrow(() -> new BadRequestException(
+                        "No existe sucursal principal para el tenant " + tenantId +
+                        ". Creá primero la sucursal vía SQL con es_principal=true y luego ejecutá este endpoint."));
+
+        Long sucursalId = principal.getId();
+        log.info("[Regularización] Iniciando backfill para tenant={}, sucursalId={}", tenantId, sucursalId);
+
+        // Asignar sucursal a registros históricos sin sucursal (WHERE sucursal_id IS NULL → idempotente)
+        ventaRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        movimientoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        gastoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        cajaRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        devolucionRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        notaCreditoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        ordenCompraRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        recepcionRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        comprobanteRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        certificadoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        // Excluye ADMINs: mantiene sucursal_id=NULL para usuarios con rol ADMIN
+        usuarioTenantRepository.asignarSucursalDondeEsNuloByTenant(sucursalId, tenantId);
+        // Lotes históricos: solo actualiza sucursal_id IS NULL, no toca cantidades ni fechas
+        stockLoteRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+
+        // Inicializar stock (copia productos.stock_actual; ON CONFLICT DO NOTHING → idempotente)
+        stockSucursalRepository.inicializarStockParaSucursal(sucursalId, tenantId);
+        varianteStockSucursalRepository.inicializarStockPrincipalParaSucursal(sucursalId, tenantId);
+
+        log.info("[Regularización] Backfill completado para tenant={}, sucursalId={}", tenantId, sucursalId);
+        return toDTO(principal);
     }
 
     // ── Resync ───────────────────────────────────────────────────────────────
