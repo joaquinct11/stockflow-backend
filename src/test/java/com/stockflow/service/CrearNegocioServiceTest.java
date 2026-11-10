@@ -197,11 +197,11 @@ class CrearNegocioServiceTest {
         verify(sucursalService).inicializarPrincipal(TENANT_NUEVO);
     }
 
-    // ── 6. Plan BASICO — NO inicializa sucursal ───────────────────────────────
+    // ── 6. Plan BASICO — también inicializa sucursal principal ───────────────────
 
     @Test
-    @DisplayName("Plan BASICO — NO invoca sucursalService.inicializarPrincipal")
-    void crearNegocio_planBasico_noInicializaSucursal() {
+    @DisplayName("Plan BASICO — también invoca sucursalService.inicializarPrincipal")
+    void crearNegocio_planBasico_inicializaSucursal() {
         CrearNegocioRequestDTO dto = CrearNegocioRequestDTO.builder()
                 .nombreNegocio("Mi Negocio")
                 .planId("BASICO")
@@ -209,7 +209,7 @@ class CrearNegocioServiceTest {
 
         authService.crearNegocio(USUARIO_ID, dto);
 
-        verify(sucursalService, never()).inicializarPrincipal(any());
+        verify(sucursalService).inicializarPrincipal(TENANT_NUEVO);
     }
 
     // ── 7. Plan inválido lanza BadRequestException ────────────────────────────

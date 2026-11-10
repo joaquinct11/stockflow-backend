@@ -56,7 +56,29 @@ public class RolePermissionDefaults {
             // Gastos / Egresos
             "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO", "ELIMINAR_GASTO",
             // Certificados (BOTICA/FARMACIA)
-            "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO", "ELIMINAR_CERTIFICADO"
+            "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO", "ELIMINAR_CERTIFICADO",
+            // Veterinaria — mascotas
+            "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA", "CAMBIAR_ESTADO_MASCOTA",
+            // Veterinaria — citas
+            "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA",
+            // Ventas — edición de precio manual (rubros con precio negociable, ej. TIENDA_ROPA)
+            // No se asigna a roles base; se concede individualmente a usuarios autorizados.
+            "DESCUENTO_MANUAL",
+            // Comisiones — existentes en DB (V71) pero faltaban del catálogo en código.
+            // No se asignan a roles base; se conceden individualmente según necesidad del rubro.
+            "VER_COMISIONES", "CREAR_COMISION", "EDITAR_COMISION", "ELIMINAR_COMISION",
+            // Equipos de clientes (EMPRESA_SERVICIOS) — no se asignan a roles base.
+            "VER_EQUIPOS", "CREAR_EQUIPO", "EDITAR_EQUIPO", "CAMBIAR_ESTADO_EQUIPO",
+            // Órdenes de trabajo (EMPRESA_SERVICIOS) — no se asignan a roles base.
+            "VER_OT", "CREAR_OT", "EDITAR_OT", "ASIGNAR_TECNICO_OT", "CAMBIAR_ESTADO_OT",
+            "REGISTRAR_CONSUMO_OT", "DEVOLVER_CONSUMO_OT", "CLASIFICAR_CONSUMO_OT",
+            "CERRAR_TECNICO_OT",
+            // Visibilidad global de OT (ADMIN/GERENTE ven todas; TECNICO_SERVICIO solo las propias).
+            "VER_TODAS_OT",
+            // Facturación y entrega de OT (EMPRESA_SERVICIOS) — no se asignan a roles base.
+            "FACTURAR_OT",
+            "REGISTRAR_ENTREGA_OT",
+            "ANULAR_FACTURA_OT"
     );
 
     /**
@@ -113,7 +135,17 @@ public class RolePermissionDefaults {
                     // Gastos (gerente puede registrar y ver gastos)
                     "VER_GASTOS", "CREAR_GASTO", "EDITAR_GASTO",
                     // Certificados
-                    "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO"
+                    "VER_CERTIFICADOS", "CREAR_CERTIFICADO", "EDITAR_CERTIFICADO",
+                    // Veterinaria — gerente de clínica necesita visibilidad sobre mascotas y citas
+                    "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA", "CAMBIAR_ESTADO_MASCOTA",
+                    // Citas
+                    "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA",
+                    // Órdenes de trabajo — gerente ve todas las OTs del tenant
+                    "VER_OT", "VER_TODAS_OT",
+                    // Equipos de clientes (solo lectura)
+                    "VER_EQUIPOS",
+                    // Sucursales — necesario para que AppLayout cargue las sedes
+                    "VER_SUCURSALES"
             );
 
             // Foco en inventario: compras, recepciones, productos y proveedores.
@@ -153,6 +185,80 @@ public class RolePermissionDefaults {
                     // Clientes (vendedor puede crear y ver clientes para las ventas)
                     "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE",
                     // Sucursales — necesario para que AppLayout cargue las sedes
+                    "VER_SUCURSALES"
+            );
+
+            // Veterinario: acceso clínico + mascotas — sin activar/desactivar mascotas
+            case "VETERINARIO" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — puede ver, crear y editar, pero no activar/desactivar
+                    "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA",
+                    // Citas — puede ver y cambiar estado
+                    "VER_CITAS", "CAMBIAR_ESTADO_CITA",
+                    // Clientes (necesita ver al dueño de la mascota)
+                    "VER_CLIENTES",
+                    // Productos (insumos, medicamentos)
+                    "VER_PRODUCTOS",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Recepcionista: puede registrar y editar mascotas al ingresarlas, sin cambiar estado
+            case "RECEPCIONISTA" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — puede ver, crear y editar
+                    "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA",
+                    // Citas — gestión completa de agenda
+                    "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA",
+                    // Clientes — puede crear y editar (registrar dueños)
+                    "VER_CLIENTES", "CREAR_CLIENTE", "EDITAR_CLIENTE",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Auxiliar veterinario: soporte clínico — ve mascotas, no las administra
+            case "AUXILIAR_VETERINARIO" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — solo lectura
+                    "VER_MASCOTAS",
+                    // Citas — solo lectura
+                    "VER_CITAS",
+                    // Clientes — solo ver
+                    "VER_CLIENTES",
+                    // Productos (aplica insumos)
+                    "VER_PRODUCTOS",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Groomer: ve mascotas para conocer datos del animal, gestiona su agenda de peluquería
+            case "GROOMER" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Mascotas — solo lectura
+                    "VER_MASCOTAS",
+                    // Citas — solo lectura (para ver su agenda de peluquería)
+                    "VER_CITAS",
+                    // Clientes — solo ver
+                    "VER_CLIENTES",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Técnico de servicio (EMPRESA_SERVICIOS): opera órdenes de trabajo y consume materiales.
+            // Sin acceso a caja, facturación, administración de usuarios ni configuración avanzada.
+            case "TECNICO_SERVICIO" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Órdenes de trabajo — operaciones del técnico
+                    "VER_OT", "CAMBIAR_ESTADO_OT",
+                    "REGISTRAR_CONSUMO_OT", "DEVOLVER_CONSUMO_OT", "CLASIFICAR_CONSUMO_OT",
+                    "CERRAR_TECNICO_OT",
+                    // Equipos de clientes — solo lectura
+                    "VER_EQUIPOS",
+                    // Clientes — solo lectura (para identificar al cliente de la OT)
+                    "VER_CLIENTES",
+                    // Productos — solo lectura (para registrar consumos)
+                    "VER_PRODUCTOS",
+                    // Sucursales
                     "VER_SUCURSALES"
             );
 

@@ -32,6 +32,25 @@ public interface UsuarioTenantRepository extends JpaRepository<UsuarioTenant, Lo
     List<UsuarioTenant> findActivosConRolByUsuarioId(@Param("usuarioId") Long usuarioId);
 
     /**
+     * Profesionales activos por tenant y rol, filtrados opcionalmente por sucursal.
+     * Si sucursalId es null, devuelve todos los que tengan ese rol activo en el tenant
+     * (incluye ADMIN con sucursalId null y cualquier sucursal).
+     */
+    @Query("""
+           SELECT ut FROM UsuarioTenant ut
+           JOIN FETCH ut.usuario
+           JOIN FETCH ut.rol
+           WHERE ut.tenantId = :tenantId
+             AND ut.activo   = true
+             AND ut.rol.nombre = :rolNombre
+             AND (:sucursalId IS NULL OR ut.sucursalId IS NULL OR ut.sucursalId = :sucursalId)
+           """)
+    List<UsuarioTenant> findProfesionalesElegibles(
+            @Param("tenantId")   String tenantId,
+            @Param("rolNombre")  String rolNombre,
+            @Param("sucursalId") Long   sucursalId);
+
+    /**
      * Al crear la sucursal principal de un tenant (upgrade PRO), asigna esa sucursal
      * a todos los usuario_tenant del tenant que aún no tienen sucursal, excepto los ADMIN.
      * Filtra por tenant_id → no afecta a otros tenants.

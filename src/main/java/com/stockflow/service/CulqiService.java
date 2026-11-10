@@ -41,4 +41,12 @@ public interface CulqiService {
      * Devuelve null si el cargo no existe o hay un error de red.
      */
     Map<String, Object> obtenerCargo(String chargeId);
+
+    /**
+     * Obtiene una suscripción recurrente de Culqi por su ID (GET /recurrent/subscriptions/{subscriptionId}).
+     * Usado en la verificación previa a procesar cancel.succeeded: si Culqi reporta la suscripción
+     * como "active", el evento es sospechoso y se marca PENDIENTE_REVISION.
+     * Devuelve null si la suscripción no existe en Culqi o hay un error de red.
+     */
+    Map<String, Object> obtenerSuscripcion(String subscriptionId);
 }

@@ -65,39 +65,43 @@ public class ProductoServiceImpl implements ProductoService {
 
         Producto productoCreado = productoRepository.save(producto);
 
-        Long userId = TenantContext.getCurrentUserId();
-        Usuario usuario = usuarioRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
+        boolean esServicio = "SERVICIO".equals(productoCreado.getTipo());
 
-        MovimientoInventario mov = MovimientoInventario.builder()
-                .producto(productoCreado)
-                .usuario(usuario)
-                .tipo("SALDO_INICIAL")
-                .cantidad(productoCreado.getStockActual() != null ? productoCreado.getStockActual() : 0)
-                .descripcion("Saldo inicial al crear producto")
-                .referencia("CREACION_PRODUCTO")
-                .tenantId(productoCreado.getTenantId())
-                .costoUnitario(productoCreado.getCostoUnitario())
-                .sucursalId(sucursalId)
-                .build();
+        if (!esServicio) {
+            Long userId = TenantContext.getCurrentUserId();
+            Usuario usuario = usuarioRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + userId));
 
-        movimientoInventarioRepository.save(mov);
+            MovimientoInventario mov = MovimientoInventario.builder()
+                    .producto(productoCreado)
+                    .usuario(usuario)
+                    .tipo("SALDO_INICIAL")
+                    .cantidad(productoCreado.getStockActual() != null ? productoCreado.getStockActual() : 0)
+                    .descripcion("Saldo inicial al crear producto")
+                    .referencia("CREACION_PRODUCTO")
+                    .tenantId(productoCreado.getTenantId())
+                    .costoUnitario(productoCreado.getCostoUnitario())
+                    .sucursalId(sucursalId)
+                    .build();
 
-        // Inicializar stock por sucursal para tenants multi-local (plan Pro)
-        int stockInicial = productoCreado.getStockActual() != null ? productoCreado.getStockActual() : 0;
-        sucursalRepository.findByTenantIdAndActivoTrueOrderByEsPrincipalDescNombreAsc(productoCreado.getTenantId())
-                .forEach(sucursal -> {
-                    boolean esPrincipal = Boolean.TRUE.equals(sucursal.getEsPrincipal());
-                    stockSucursalRepository.findByProductoIdAndSucursalId(productoCreado.getId(), sucursal.getId())
-                            .orElseGet(() -> stockSucursalRepository.save(
-                                    ProductoStockSucursal.builder()
-                                            .producto(productoCreado)
-                                            .sucursal(sucursal)
-                                            .tenantId(productoCreado.getTenantId())
-                                            .stockActual(esPrincipal ? stockInicial : 0)
-                                            .build()
-                            ));
-                });
+            movimientoInventarioRepository.save(mov);
+
+            // Inicializar stock por sucursal para tenants multi-local (plan Pro)
+            int stockInicial = productoCreado.getStockActual() != null ? productoCreado.getStockActual() : 0;
+            sucursalRepository.findByTenantIdAndActivoTrueOrderByEsPrincipalDescNombreAsc(productoCreado.getTenantId())
+                    .forEach(sucursal -> {
+                        boolean esPrincipal = Boolean.TRUE.equals(sucursal.getEsPrincipal());
+                        stockSucursalRepository.findByProductoIdAndSucursalId(productoCreado.getId(), sucursal.getId())
+                                .orElseGet(() -> stockSucursalRepository.save(
+                                        ProductoStockSucursal.builder()
+                                                .producto(productoCreado)
+                                                .sucursal(sucursal)
+                                                .tenantId(productoCreado.getTenantId())
+                                                .stockActual(esPrincipal ? stockInicial : 0)
+                                                .build()
+                                ));
+                    });
+        }
 
         // Recargar con JOIN FETCH para que categoriaRef y unidadMedida estén
         // completamente inicializados en el DTO de respuesta.

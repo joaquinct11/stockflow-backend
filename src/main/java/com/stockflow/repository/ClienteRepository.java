@@ -19,5 +19,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Long> {
 
     long countByTenantId(String tenantId);
 
+    long countByTenantIdAndActivoTrue(String tenantId);
+
     java.util.Optional<Cliente> findByIdAndTenantId(Long id, String tenantId);
 }

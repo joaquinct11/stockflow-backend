@@ -86,9 +86,11 @@ public class ProductoController {
             java.util.Set<Long> conMovimiento = new java.util.HashSet<>(
                     movimientoRepository.findProductoIdsConMovimientoEnSucursal(tenantId, sucursalId));
 
+            // Servicios (tipo=SERVICIO) no tienen stock por sucursal — siempre se incluyen
             dtos = dtos.stream()
                     .filter(dto -> dto.getId() != null
-                            && (stockConVariante.containsKey(dto.getId())
+                            && ("SERVICIO".equals(dto.getTipo())
+                                || stockConVariante.containsKey(dto.getId())
                                 || stockSinVariante.containsKey(dto.getId())
                                 || conMovimiento.contains(dto.getId())))
                     .collect(Collectors.toList());

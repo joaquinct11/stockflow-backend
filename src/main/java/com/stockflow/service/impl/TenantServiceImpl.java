@@ -2,6 +2,8 @@ package com.stockflow.service.impl;
 
 import com.stockflow.dto.DatosEliminacionDTO;
 import com.stockflow.entity.Tenant;
+import com.stockflow.exception.ForbiddenException;
+import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.TenantRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.UsuarioTenantRepository;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -142,14 +145,19 @@ public class TenantServiceImpl implements TenantService {
             nativeDelete("DELETE FROM categorias WHERE tenant_id = :t", tenantId);
 
             // ── 7. Usuarios y sesiones ─────────────────────────────────────────
+            // V103 eliminó usuarios.tenant_id; la relación usuario↔tenant vive en usuario_tenant
             nativeDelete(
                 "DELETE FROM refresh_tokens WHERE usuario_id IN " +
-                "(SELECT id FROM usuarios WHERE tenant_id = :t)", tenantId);
-            nativeDelete(
-                "DELETE FROM usuario_permisos WHERE usuario_id IN " +
-                "(SELECT id FROM usuarios WHERE tenant_id = :t)", tenantId);
+                "(SELECT usuario_id FROM usuario_tenant WHERE tenant_id = :t)", tenantId);
+            // usuario_permisos tiene su propio tenant_id — no depende de usuarios
+            nativeDelete("DELETE FROM usuario_permisos WHERE tenant_id = :t", tenantId);
             nativeDelete("DELETE FROM suscripciones WHERE tenant_id = :t", tenantId);
-            nativeDelete("DELETE FROM usuarios WHERE tenant_id = :t", tenantId);
+            // Eliminar solo los usuarios exclusivos de este tenant (sin asociaciones a otros tenants)
+            nativeDelete(
+                "DELETE FROM usuarios WHERE id IN " +
+                "(SELECT ut.usuario_id FROM usuario_tenant ut WHERE ut.tenant_id = :t " +
+                "AND NOT EXISTS (SELECT 1 FROM usuario_tenant ut2 " +
+                "WHERE ut2.usuario_id = ut.usuario_id AND ut2.tenant_id <> :t))", tenantId);
 
             // ── 8. Tenant (último) ─────────────────────────────────────────────
             tenantRepository.delete(tenant);
@@ -203,5 +211,18 @@ public class TenantServiceImpl implements TenantService {
     public Optional<Tenant> obtenerTenant(String tenantId) {
         log.debug("Buscando tenant: {}", tenantId);
         return tenantRepository.findByTenantId(tenantId);
+    }
+
+    @Override
+    public void requireRubro(String tenantId, String... rubrosPermitidos) {
+        String rubroActual = tenantRepository.findByTenantId(tenantId)
+                .map(t -> t.getRubro() != null ? t.getRubro().toUpperCase() : "OTRO")
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado"));
+        boolean ok = Arrays.stream(rubrosPermitidos)
+                .anyMatch(r -> r.equalsIgnoreCase(rubroActual));
+        if (!ok) {
+            throw new ForbiddenException(
+                    "El módulo Veterinaria no está disponible para negocios de tipo " + rubroActual);
+        }
     }
 }

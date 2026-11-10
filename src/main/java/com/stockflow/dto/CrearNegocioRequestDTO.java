@@ -36,4 +36,8 @@ public class CrearNegocioRequestDTO {
 
     @NotBlank(message = "El plan es obligatorio")
     private String planId;
+
+    // Código del plan comercial del catálogo (e.g. "VETERINARIA_BASICO").
+    // Cuando se envía, el backend deriva planId y rubro desde el catálogo.
+    private String planCodigo;
 }

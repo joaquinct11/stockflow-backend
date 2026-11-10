@@ -62,6 +62,8 @@ public class ProductoPresentacionServiceImpl implements ProductoPresentacionServ
                 .precioVenta(dto.getPrecioVenta())
                 .factor(dto.getFactor() != null ? dto.getFactor() : 1)
                 .esPrincipal(dto.getEsPrincipal() != null && dto.getEsPrincipal())
+                .precioMayorista(dto.getPrecioMayorista())
+                .cantidadMinimaMayorista(dto.getCantidadMinimaMayorista())
                 .tenantId(tenantId)
                 .build();
 
@@ -97,6 +99,8 @@ public class ProductoPresentacionServiceImpl implements ProductoPresentacionServ
         presentacion.setPrecioVenta(dto.getPrecioVenta());
         presentacion.setFactor(dto.getFactor() != null ? dto.getFactor() : 1);
         presentacion.setEsPrincipal(dto.getEsPrincipal() != null && dto.getEsPrincipal());
+        presentacion.setPrecioMayorista(dto.getPrecioMayorista());
+        presentacion.setCantidadMinimaMayorista(dto.getCantidadMinimaMayorista());
 
         return toDTO(repo.save(presentacion));
     }
@@ -124,6 +128,8 @@ public class ProductoPresentacionServiceImpl implements ProductoPresentacionServ
                 .precioVenta(p.getPrecioVenta())
                 .factor(p.getFactor())
                 .esPrincipal(p.getEsPrincipal())
+                .precioMayorista(p.getPrecioMayorista())
+                .cantidadMinimaMayorista(p.getCantidadMinimaMayorista())
                 .tenantId(p.getTenantId())
                 .build();
     }

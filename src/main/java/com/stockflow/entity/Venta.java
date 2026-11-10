@@ -59,6 +59,10 @@ public class Venta {
     @Column(name = "descuento_nota_credito", precision = 12, scale = 2)
     private java.math.BigDecimal descuentoNotaCredito;
 
+    /** ID de la OT que generó esta venta (null para ventas normales). */
+    @Column(name = "orden_trabajo_id")
+    private Long ordenTrabajoId;
+
     @OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetalleVenta> detalles = new ArrayList<>();
 

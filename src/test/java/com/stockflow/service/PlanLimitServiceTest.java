@@ -1,8 +1,10 @@
 package com.stockflow.service;
 
 import com.stockflow.exception.BadRequestException;
+import com.stockflow.repository.PlanCatalogoRepository;
 import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.SuscripcionRepository;
+import com.stockflow.repository.TenantRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.UsuarioTenantRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +20,7 @@ import org.mockito.quality.Strictness;
 
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -35,6 +38,8 @@ class PlanLimitServiceTest {
     @Mock private UsuarioRepository       usuarioRepository;
     @Mock private ProductoRepository      productoRepository;
     @Mock private UsuarioTenantRepository usuarioTenantRepository;
+    @Mock private TenantRepository        tenantRepository;
+    @Mock private PlanCatalogoRepository  planCatalogoRepository;
 
     @InjectMocks private PlanLimitService planLimitService;
 
@@ -235,6 +240,99 @@ class PlanLimitServiceTest {
                     .doesNotThrowAnyException();
             assertThatCode(() -> planLimitService.validarRolPermitido(TENANT_ID, "GESTOR_INVENTARIO"))
                     .doesNotThrowAnyException();
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Límites desde catálogo vs comportamiento legado
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Resolución de límites desde catálogo")
+    class LimitesDesideCatalogo {
+
+        @Test
+        @DisplayName("veterinaria con plan_codigo usa límite 10 del catálogo")
+        void veterinariaConPlanCodigo_usaLimite10() {
+            com.stockflow.entity.Suscripcion susVet = com.stockflow.entity.Suscripcion.builder()
+                    .planId("BASICO").planCodigo("VETERINARIA_BASICO").tenantId(TENANT_ID).build();
+            when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_ID))
+                    .thenReturn(Optional.of(susVet));
+
+            com.stockflow.entity.PlanCatalogo planCat = com.stockflow.entity.PlanCatalogo.builder()
+                    .codigo("VETERINARIA_BASICO").nivel("BASICO").maxUsuarios(10)
+                    .maxSucursales(1).maxProductos(2000).activo(true).build();
+            when(planCatalogoRepository.findByCodigoAndActivoTrue("VETERINARIA_BASICO"))
+                    .thenReturn(Optional.of(planCat));
+
+            assertThat(planLimitService.getMaxUsuarios(TENANT_ID)).isEqualTo(10);
+        }
+
+        @Test
+        @DisplayName("suscripción legado sin plan_codigo usa límite 5 (BASICO)")
+        void legadoSinPlanCodigo_usaLimite5() {
+            // setUp() ya configura plan=BASICO sin plan_codigo
+            assertThat(planLimitService.getMaxUsuarios(TENANT_ID))
+                    .isEqualTo(PlanLimitService.BASICO_MAX_USUARIOS);
+        }
+
+        @Test
+        @DisplayName("PRO legado sin plan_codigo usa límite 15")
+        void legadoProSinPlanCodigo_usaLimite15() {
+            when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_ID))
+                    .thenReturn(Optional.of(
+                            com.stockflow.entity.Suscripcion.builder()
+                                    .planId("PRO").tenantId(TENANT_ID).build()));
+            assertThat(planLimitService.getMaxUsuarios(TENANT_ID))
+                    .isEqualTo(PlanLimitService.PRO_MAX_USUARIOS);
+        }
+
+        @Test
+        @DisplayName("plan_codigo inactivo o inválido cae al límite legado")
+        void planCodigoInvalido_caeALegado() {
+            com.stockflow.entity.Suscripcion sus = com.stockflow.entity.Suscripcion.builder()
+                    .planId("BASICO").planCodigo("PLAN_INEXISTENTE").tenantId(TENANT_ID).build();
+            when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_ID))
+                    .thenReturn(Optional.of(sus));
+            when(planCatalogoRepository.findByCodigoAndActivoTrue("PLAN_INEXISTENTE"))
+                    .thenReturn(Optional.empty());
+
+            assertThat(planLimitService.getMaxUsuarios(TENANT_ID))
+                    .isEqualTo(PlanLimitService.BASICO_MAX_USUARIOS);
+        }
+
+        @Test
+        @DisplayName("getMaxSucursales PRO del catálogo devuelve 5")
+        void planProCatalogo_maxSucursales5() {
+            com.stockflow.entity.Suscripcion sus = com.stockflow.entity.Suscripcion.builder()
+                    .planId("PRO").planCodigo("VETERINARIA_PRO").tenantId(TENANT_ID).build();
+            when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_ID))
+                    .thenReturn(Optional.of(sus));
+
+            com.stockflow.entity.PlanCatalogo planCat = com.stockflow.entity.PlanCatalogo.builder()
+                    .codigo("VETERINARIA_PRO").nivel("PRO").maxUsuarios(15)
+                    .maxSucursales(5).maxProductos(5000).activo(true).build();
+            when(planCatalogoRepository.findByCodigoAndActivoTrue("VETERINARIA_PRO"))
+                    .thenReturn(Optional.of(planCat));
+
+            assertThat(planLimitService.getMaxSucursales(TENANT_ID)).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("getMaxSucursales BASICO del catálogo devuelve 1")
+        void planBasicoCatalogo_maxSucursales1() {
+            com.stockflow.entity.Suscripcion sus = com.stockflow.entity.Suscripcion.builder()
+                    .planId("BASICO").planCodigo("BOTICA_BASICO").tenantId(TENANT_ID).build();
+            when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_ID))
+                    .thenReturn(Optional.of(sus));
+
+            com.stockflow.entity.PlanCatalogo planCat = com.stockflow.entity.PlanCatalogo.builder()
+                    .codigo("BOTICA_BASICO").nivel("BASICO").maxUsuarios(5)
+                    .maxSucursales(1).maxProductos(2000).activo(true).build();
+            when(planCatalogoRepository.findByCodigoAndActivoTrue("BOTICA_BASICO"))
+                    .thenReturn(Optional.of(planCat));
+
+            assertThat(planLimitService.getMaxSucursales(TENANT_ID)).isEqualTo(1);
         }
     }
 }
