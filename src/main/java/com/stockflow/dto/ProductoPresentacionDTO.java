@@ -37,5 +37,16 @@ public class ProductoPresentacionDTO {
 
     private Boolean esPrincipal = false;
 
+    /**
+     * Precio mayorista opcional. Si se configura junto con cantidadMinimaMayorista,
+     * el backend lo aplica automáticamente cuando la cantidad vendida alcanza el mínimo.
+     */
+    @DecimalMin(value = "0.01", message = "El precio mayorista debe ser mayor a 0")
+    private BigDecimal precioMayorista;
+
+    /** Cantidad mínima de unidades de esta presentación para activar el precio mayorista. */
+    @Min(value = 1, message = "La cantidad mínima mayorista debe ser al menos 1")
+    private Integer cantidadMinimaMayorista;
+
     private String tenantId;
 }
