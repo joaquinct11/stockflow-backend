@@ -78,6 +78,17 @@ public class JwtUtil {
                 .compact();
     }
 
+    public String generateSuperAdminToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .claim("rol", "SUPER_ADMIN")
+                .claim("type", "superadmin")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 8 * 60 * 60 * 1000L))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     public String getEmailFromToken(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey()).build()

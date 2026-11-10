@@ -71,6 +71,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         SecurityContextHolder.getContext().setAuthentication(auth);
                         log.debug("✅ Selection token aceptado para usuarioId={} uri={}", usuarioId, uri);
                     }
+                } else if ("superadmin".equals(jwtUtil.getTypeFromToken(token))) {
+                    // Token de SuperAdmin: identidad global, sin tenantId
+                    if (jwtUtil.validateToken(token)) {
+                        String email = jwtUtil.getEmailFromToken(token);
+                        UsernamePasswordAuthenticationToken auth =
+                                new UsernamePasswordAuthenticationToken(
+                                        email, null,
+                                        List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN")));
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                        log.debug("SuperAdmin autenticado: {}", email);
+                    } else {
+                        request.setAttribute("jwt_error", "Token SuperAdmin inválido");
+                    }
                 } else if (jwtUtil.validateToken(token)) {
                     // Token válido y no expirado
                     String email     = jwtUtil.getEmailFromToken(token);

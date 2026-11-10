@@ -67,10 +67,13 @@ public class SecurityConfig {
                                 "/info/**",
                                 "/api-docs/**",
                                 "/webhooks/culqi",
-                                "/internal/**"
+                                "/internal/**",
+                                "/superadmin/auth/login"
                         ).permitAll()
                         // Endpoints de administración solo para ADMIN
                         .requestMatchers("/admin/**").hasRole("ADMIN")
+                        // Endpoints de SuperAdmin: identidad global, independiente de tenant
+                        .requestMatchers("/superadmin/**").hasRole("SUPER_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
