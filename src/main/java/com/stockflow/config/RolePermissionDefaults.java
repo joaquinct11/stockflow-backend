@@ -60,7 +60,25 @@ public class RolePermissionDefaults {
             // Veterinaria — mascotas
             "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA", "CAMBIAR_ESTADO_MASCOTA",
             // Veterinaria — citas
-            "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA"
+            "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA",
+            // Ventas — edición de precio manual (rubros con precio negociable, ej. TIENDA_ROPA)
+            // No se asigna a roles base; se concede individualmente a usuarios autorizados.
+            "DESCUENTO_MANUAL",
+            // Comisiones — existentes en DB (V71) pero faltaban del catálogo en código.
+            // No se asignan a roles base; se conceden individualmente según necesidad del rubro.
+            "VER_COMISIONES", "CREAR_COMISION", "EDITAR_COMISION", "ELIMINAR_COMISION",
+            // Equipos de clientes (EMPRESA_SERVICIOS) — no se asignan a roles base.
+            "VER_EQUIPOS", "CREAR_EQUIPO", "EDITAR_EQUIPO", "CAMBIAR_ESTADO_EQUIPO",
+            // Órdenes de trabajo (EMPRESA_SERVICIOS) — no se asignan a roles base.
+            "VER_OT", "CREAR_OT", "EDITAR_OT", "ASIGNAR_TECNICO_OT", "CAMBIAR_ESTADO_OT",
+            "REGISTRAR_CONSUMO_OT", "DEVOLVER_CONSUMO_OT", "CLASIFICAR_CONSUMO_OT",
+            "CERRAR_TECNICO_OT",
+            // Visibilidad global de OT (ADMIN/GERENTE ven todas; TECNICO_SERVICIO solo las propias).
+            "VER_TODAS_OT",
+            // Facturación y entrega de OT (EMPRESA_SERVICIOS) — no se asignan a roles base.
+            "FACTURAR_OT",
+            "REGISTRAR_ENTREGA_OT",
+            "ANULAR_FACTURA_OT"
     );
 
     /**
@@ -122,6 +140,10 @@ public class RolePermissionDefaults {
                     "VER_MASCOTAS", "CREAR_MASCOTA", "EDITAR_MASCOTA", "CAMBIAR_ESTADO_MASCOTA",
                     // Citas
                     "VER_CITAS", "CREAR_CITA", "EDITAR_CITA", "CAMBIAR_ESTADO_CITA", "CANCELAR_CITA",
+                    // Órdenes de trabajo — gerente ve todas las OTs del tenant
+                    "VER_OT", "VER_TODAS_OT",
+                    // Equipos de clientes (solo lectura)
+                    "VER_EQUIPOS",
                     // Sucursales — necesario para que AppLayout cargue las sedes
                     "VER_SUCURSALES"
             );
@@ -218,6 +240,24 @@ public class RolePermissionDefaults {
                     "VER_CITAS",
                     // Clientes — solo ver
                     "VER_CLIENTES",
+                    // Sucursales
+                    "VER_SUCURSALES"
+            );
+
+            // Técnico de servicio (EMPRESA_SERVICIOS): opera órdenes de trabajo y consume materiales.
+            // Sin acceso a caja, facturación, administración de usuarios ni configuración avanzada.
+            case "TECNICO_SERVICIO" -> Set.of(
+                    "VER_DASHBOARD",
+                    // Órdenes de trabajo — operaciones del técnico
+                    "VER_OT", "CAMBIAR_ESTADO_OT",
+                    "REGISTRAR_CONSUMO_OT", "DEVOLVER_CONSUMO_OT", "CLASIFICAR_CONSUMO_OT",
+                    "CERRAR_TECNICO_OT",
+                    // Equipos de clientes — solo lectura
+                    "VER_EQUIPOS",
+                    // Clientes — solo lectura (para identificar al cliente de la OT)
+                    "VER_CLIENTES",
+                    // Productos — solo lectura (para registrar consumos)
+                    "VER_PRODUCTOS",
                     // Sucursales
                     "VER_SUCURSALES"
             );

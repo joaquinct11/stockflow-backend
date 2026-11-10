@@ -25,6 +25,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
+// Rubros con flujo implementado y disponibles en el registro público.
+// RESTAURANTE y OTRO están excluidos hasta que sus módulos estén completos.
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,6 +45,11 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final com.stockflow.service.UsuarioPermisoService usuarioPermisoService;
     private final RolePermissionDefaults rolePermissionDefaults;
+
+    private static final Set<String> RUBROS_REGISTRO_PERMITIDOS = Set.of(
+            "BOTICA", "FARMACIA", "VETERINARIA", "MINIMARKET",
+            "FERRETERIA", "TIENDA_ROPA", "TIENDA", "EMPRESA_SERVICIOS"
+    );
     private final com.stockflow.config.properties.CulqiProperties culqiProperties;
     private final SucursalService sucursalService;
     private final PlanCatalogoRepository planCatalogoRepository;
@@ -123,7 +131,13 @@ public class AuthServiceImpl implements AuthService {
             log.info("📋 Plan catálogo: {} → planId={}, rubro={}", planCodigoFinal, planIdFinal, rubroFinal);
         }
 
-        // 3. Crear TENANT
+        // 3. Validar que el rubro esté en la lista de rubros permitidos para registro
+        if (rubroFinal == null || !RUBROS_REGISTRO_PERMITIDOS.contains(rubroFinal.toUpperCase())) {
+            throw new BadRequestException(
+                    "El tipo de negocio '" + rubroFinal + "' no está disponible para registro en este momento.");
+        }
+
+        // 4. Crear TENANT
         Tenant tenant = tenantService.crearTenant(
                 request.getNombreFarmacia(),
                 rubroFinal,

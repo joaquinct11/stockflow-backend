@@ -47,6 +47,9 @@ public class PlanLimitService {
     public static final Set<String> ROLES_EXCLUSIVOS_VETERINARIA  = Set.of(
             "VETERINARIO", "RECEPCIONISTA", "AUXILIAR_VETERINARIO", "GROOMER"
     );
+    public static final Set<String> ROLES_EXCLUSIVOS_SERVICIOS    = Set.of(
+            "TECNICO_SERVICIO"
+    );
 
     // ── Resolución de plan ───────────────────────────────────────────────────
 
@@ -125,6 +128,10 @@ public class PlanLimitService {
         return "VETERINARIA".equals(getRubro(tenantId));
     }
 
+    private boolean isServicios(String tenantId) {
+        return "EMPRESA_SERVICIOS".equals(getRubro(tenantId));
+    }
+
     /**
      * Lanza BadRequestException si el tenant BÁSICO intenta asignar un rol no permitido.
      * Los roles veterinarios se permiten en plan BÁSICO únicamente cuando el tenant tiene rubro VETERINARIA.
@@ -133,6 +140,7 @@ public class PlanLimitService {
         if (!isBasico(tenantId)) return;
         if (BASICO_ROLES_PERMITIDOS.contains(rolNombre)) return;
         if (ROLES_EXCLUSIVOS_VETERINARIA.contains(rolNombre) && isVeterinaria(tenantId)) return;
+        if (ROLES_EXCLUSIVOS_SERVICIOS.contains(rolNombre) && isServicios(tenantId)) return;
         throw new BadRequestException(
                 "El plan Básico solo permite los roles Administrador, Vendedor y Almacenero."
         );

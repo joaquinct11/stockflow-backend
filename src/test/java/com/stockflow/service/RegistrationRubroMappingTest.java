@@ -1,6 +1,7 @@
 package com.stockflow.service;
 
 import com.stockflow.config.RolePermissionDefaults;
+import com.stockflow.exception.BadRequestException;
 import com.stockflow.config.properties.CulqiProperties;
 import com.stockflow.config.properties.JwtProperties;
 import com.stockflow.dto.RegistrationRequestDTO;
@@ -14,6 +15,7 @@ import com.stockflow.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -134,11 +136,11 @@ class RegistrationRubroMappingTest {
         verify(tenantService, never()).crearTenant(any(), eq("TIENDA_BODEGA"), any(), any(), any());
     }
 
-    // ── ALMACEN_BASICO → rubro_operativo = OTRO (temporal hasta migración) ──────
+    // ── ALMACEN_BASICO → rubro_operativo = OTRO → bloqueado por allowlist ──────
 
     @Test
-    @DisplayName("ALMACEN_BASICO deriva rubro=OTRO hasta que exista rubro_operativo propio")
-    void almacenBasico_derivaRubroOtro() {
+    @DisplayName("ALMACEN_BASICO (rubro=OTRO) es rechazado porque OTRO no está en el allowlist de registro")
+    void almacenBasico_conRubroOtro_esRechazado() {
         PlanCatalogo plan = PlanCatalogo.builder()
                 .codigo("ALMACEN_BASICO").segmento("ALMACENES").rubroOperativo("OTRO")
                 .nivel("BASICO").precioMensual(new BigDecimal("89.00"))
@@ -147,9 +149,8 @@ class RegistrationRubroMappingTest {
         when(planCatalogoRepository.findByCodigoAndActivoTrue("ALMACEN_BASICO"))
                 .thenReturn(Optional.of(plan));
 
-        authService.registrar(buildRequest("ALMACEN_BASICO", "BASICO"));
-
-        verify(tenantService).crearTenant(any(), eq("OTRO"), any(), any(), any());
+        assertThrows(BadRequestException.class,
+                () -> authService.registrar(buildRequest("ALMACEN_BASICO", "BASICO")));
     }
 
     // ── Sin planCodigo: usa el rubro enviado en el request ───────────────────────

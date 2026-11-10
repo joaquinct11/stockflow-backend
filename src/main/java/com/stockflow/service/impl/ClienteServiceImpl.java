@@ -5,6 +5,7 @@ import com.stockflow.entity.Cliente;
 import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.ClienteRepository;
+import com.stockflow.repository.EquipoClienteRepository;
 import com.stockflow.repository.MascotaRepository;
 import com.stockflow.service.ClienteService;
 import com.stockflow.util.TenantContext;
@@ -23,6 +24,7 @@ public class ClienteServiceImpl implements ClienteService {
 
     private final ClienteRepository clienteRepository;
     private final MascotaRepository mascotaRepository;
+    private final EquipoClienteRepository equipoClienteRepository;
 
     @Override
     public Cliente crearCliente(Cliente cliente) {
@@ -101,6 +103,13 @@ public class ClienteServiceImpl implements ClienteService {
             throw new ConflictException(
                     "No se puede eliminar el cliente porque tiene " + mascotas +
                     " mascota(s) registrada(s). Desactívelo en su lugar.");
+        }
+
+        long equipos = equipoClienteRepository.countByCliente_IdAndTenantId(id, tenantId);
+        if (equipos > 0) {
+            throw new ConflictException(
+                    "No se puede eliminar el cliente porque tiene " + equipos +
+                    " equipo(s) registrado(s). Desactívelo en su lugar.");
         }
 
         clienteRepository.delete(cliente);
