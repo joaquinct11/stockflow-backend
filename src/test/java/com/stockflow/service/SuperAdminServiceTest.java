@@ -4,8 +4,7 @@ import com.stockflow.dto.superadmin.*;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Tenant;
 import com.stockflow.exception.BadRequestException;
-import com.stockflow.repository.SuscripcionRepository;
-import com.stockflow.repository.TenantRepository;
+import com.stockflow.repository.*;
 import com.stockflow.service.impl.SuperAdminServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,8 +31,12 @@ import static org.mockito.Mockito.*;
 @DisplayName("SuperAdminServiceImpl — operaciones globales de administración")
 class SuperAdminServiceTest {
 
-    @Mock private TenantRepository      tenantRepository;
-    @Mock private SuscripcionRepository suscripcionRepository;
+    @Mock private TenantRepository        tenantRepository;
+    @Mock private SuscripcionRepository   suscripcionRepository;
+    @Mock private UsuarioTenantRepository usuarioTenantRepository;
+    @Mock private ProductoRepository      productoRepository;
+    @Mock private VentaRepository         ventaRepository;
+    @Mock private ComprobanteRepository   comprobanteRepository;
 
     @InjectMocks private SuperAdminServiceImpl service;
 
@@ -50,6 +53,7 @@ class SuperAdminServiceTest {
         tenantA = Tenant.builder()
                 .id(1L).tenantId(TENANT_A).nombre("Empresa A")
                 .activo(true).rubro("FERRETERIA")
+                .ruc("20123456789").emailContacto("admin@empresa-a.com")
                 .oseUrl("https://ose.test").oseToken("tok-ose")
                 .build();
 
@@ -62,6 +66,10 @@ class SuperAdminServiceTest {
                 .id(10L).tenantId(TENANT_A)
                 .planId("plan-basico").planCodigo("FERRETERIA_BASICO")
                 .precioMensual(new BigDecimal("89.00")).estado("ACTIVA")
+                .preapprovalId("pre-123").ultimos4Digitos("4242")
+                .metodoPago("TARJETA")
+                .currentPeriodEnd(LocalDateTime.of(2026, 12, 1, 0, 0))
+                .createdAt(LocalDateTime.of(2026, 1, 1, 0, 0))
                 .fechaInicio(LocalDateTime.now().minusDays(30))
                 .fechaProximoCobro(LocalDateTime.now().plusDays(1))
                 .build();
@@ -72,6 +80,12 @@ class SuperAdminServiceTest {
                 .precioMensual(new BigDecimal("89.00")).estado("TRIAL")
                 .trialEndDate(LocalDateTime.now().plusDays(7))
                 .build();
+
+        // Default stubs for count repos (return 0 unless overridden per test)
+        when(usuarioTenantRepository.countByTenantIdAndActivoTrue(anyString())).thenReturn(0L);
+        when(productoRepository.countByTenantId(anyString())).thenReturn(0L);
+        when(ventaRepository.countByTenantId(anyString())).thenReturn(0L);
+        when(comprobanteRepository.countByTenantId(anyString())).thenReturn(0L);
     }
 
     // ── 1. obtenerStats ───────────────────────────────────────────────────────
@@ -108,7 +122,7 @@ class SuperAdminServiceTest {
     // ── 2. obtenerFinanzas ────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("obtenerFinanzas — MRR, cantBasico y conOse correctos")
+    @DisplayName("obtenerFinanzas — MRR actual, MRR anual, cantBasico, tenantsActivos y tenantsConOse correctos")
     void obtenerFinanzas_calculaCorrecto() {
         when(tenantRepository.findAll()).thenReturn(List.of(tenantA, tenantB));
         when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_A)).thenReturn(Optional.of(susActivaA));
@@ -116,11 +130,12 @@ class SuperAdminServiceTest {
 
         SuperAdminFinanzasDTO fin = service.obtenerFinanzas();
 
-        assertThat(fin.getMrr()).isEqualByComparingTo("89.00");
+        assertThat(fin.getMrrActual()).isEqualByComparingTo("89.00");
+        assertThat(fin.getMrrAnualProyectado()).isEqualByComparingTo("1068.00");
         assertThat(fin.getCantBasico()).isEqualTo(1);
         assertThat(fin.getCantPro()).isEqualTo(0);
-        assertThat(fin.getActivos()).isEqualTo(1);
-        assertThat(fin.getConOse()).isEqualTo(1); // tenantA tiene oseToken
+        assertThat(fin.getTenantsActivos()).isEqualTo(1);
+        assertThat(fin.getTenantsConOse()).isEqualTo(1); // tenantA tiene oseToken
     }
 
     // ── 3. listarTenants ──────────────────────────────────────────────────────
@@ -259,5 +274,119 @@ class SuperAdminServiceTest {
 
         assertThatThrownBy(() -> service.actualizarOse("no-existe", new OseUpdateDTO()))
                 .isInstanceOf(BadRequestException.class);
+    }
+
+    // ── 9. TenantResumenDTO — datos completos (nuevos campos) ────────────────
+
+    @Test
+    @DisplayName("toResumen — incluye ruc, emailContacto, oseUrl, oseToken y campos de suscripción extendida")
+    void toResumen_datosCompletos() {
+        when(tenantRepository.findAll()).thenReturn(List.of(tenantA));
+        when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_A)).thenReturn(Optional.of(susActivaA));
+
+        List<TenantResumenDTO> tenants = service.listarTenants();
+        TenantResumenDTO dto = tenants.get(0);
+
+        assertThat(dto.getRuc()).isEqualTo("20123456789");
+        assertThat(dto.getEmailContacto()).isEqualTo("admin@empresa-a.com");
+        assertThat(dto.getOseUrl()).isEqualTo("https://ose.test");
+        assertThat(dto.getOseToken()).isEqualTo("tok-ose");
+        assertThat(dto.getSuscripcionId()).isEqualTo(10L);
+        assertThat(dto.getPreapprovalId()).isEqualTo("pre-123");
+        assertThat(dto.getUltimos4Digitos()).isEqualTo("4242");
+        assertThat(dto.getMetodoPago()).isEqualTo("TARJETA");
+        assertThat(dto.getCurrentPeriodEnd()).isEqualTo(LocalDateTime.of(2026, 12, 1, 0, 0));
+        assertThat(dto.getSuscripcionCreadaEn()).isEqualTo(LocalDateTime.of(2026, 1, 1, 0, 0));
+    }
+
+    // ── 10. Conteos por tenant ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("toResumen — totalUsuarios, totalProductos, totalVentas, totalComprobantes correctos")
+    void toResumen_conteosPorTenant() {
+        when(tenantRepository.findAll()).thenReturn(List.of(tenantA));
+        when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_A)).thenReturn(Optional.of(susActivaA));
+        when(usuarioTenantRepository.countByTenantIdAndActivoTrue(TENANT_A)).thenReturn(5L);
+        when(productoRepository.countByTenantId(TENANT_A)).thenReturn(100L);
+        when(ventaRepository.countByTenantId(TENANT_A)).thenReturn(200L);
+        when(comprobanteRepository.countByTenantId(TENANT_A)).thenReturn(150L);
+
+        TenantResumenDTO dto = service.listarTenants().get(0);
+
+        assertThat(dto.getTotalUsuarios()).isEqualTo(5);
+        assertThat(dto.getTotalProductos()).isEqualTo(100);
+        assertThat(dto.getTotalVentas()).isEqualTo(200);
+        assertThat(dto.getTotalComprobantes()).isEqualTo(150);
+    }
+
+    // ── 11. Sin suscripción — campos opcionales como null ────────────────────
+
+    @Test
+    @DisplayName("toResumen — tenant sin suscripción tiene campos de suscripción nulos pero conteos presentes")
+    void toResumen_sinSuscripcion_camposNulos() {
+        Tenant tenantSinSus = Tenant.builder()
+                .id(5L).tenantId("sin-sus").nombre("Sin Suscripcion").activo(true).build();
+        when(tenantRepository.findAll()).thenReturn(List.of(tenantSinSus));
+        when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc("sin-sus")).thenReturn(Optional.empty());
+        when(usuarioTenantRepository.countByTenantIdAndActivoTrue("sin-sus")).thenReturn(2L);
+        when(productoRepository.countByTenantId("sin-sus")).thenReturn(10L);
+        when(ventaRepository.countByTenantId("sin-sus")).thenReturn(0L);
+        when(comprobanteRepository.countByTenantId("sin-sus")).thenReturn(0L);
+
+        TenantResumenDTO dto = service.listarTenants().get(0);
+
+        assertThat(dto.getSuscripcionId()).isNull();
+        assertThat(dto.getPlanId()).isNull();
+        assertThat(dto.getPreapprovalId()).isNull();
+        assertThat(dto.getMetodoPago()).isNull();
+        assertThat(dto.getTotalUsuarios()).isEqualTo(2);
+        assertThat(dto.getTotalProductos()).isEqualTo(10);
+    }
+
+    // ── 12. MRR actual y MRR anual proyectado ────────────────────────────────
+
+    @Test
+    @DisplayName("obtenerFinanzas — mrrAnualProyectado es mrrActual * 12")
+    void obtenerFinanzas_mrrAnual() {
+        Suscripcion susActiva = Suscripcion.builder()
+                .id(1L).tenantId(TENANT_A).planCodigo("FERRETERIA_PRO")
+                .precioMensual(new BigDecimal("89.00")).estado("ACTIVA").build();
+        when(tenantRepository.findAll()).thenReturn(List.of(tenantA));
+        when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_A)).thenReturn(Optional.of(susActiva));
+
+        SuperAdminFinanzasDTO fin = service.obtenerFinanzas();
+
+        assertThat(fin.getMrrActual()).isEqualByComparingTo("89.00");
+        assertThat(fin.getMrrAnualProyectado()).isEqualByComparingTo("1068.00");
+    }
+
+    // ── 13. Aislamiento entre tenants ────────────────────────────────────────
+
+    @Test
+    @DisplayName("toResumen — countBy se llama con el tenantId correcto para cada tenant")
+    void toResumen_aislamientoEntreTenantsEnConteos() {
+        when(tenantRepository.findAll()).thenReturn(List.of(tenantA, tenantB));
+        when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_A)).thenReturn(Optional.of(susActivaA));
+        when(suscripcionRepository.findFirstByTenantIdOrderByIdDesc(TENANT_B)).thenReturn(Optional.of(susTrialB));
+        when(usuarioTenantRepository.countByTenantIdAndActivoTrue(TENANT_A)).thenReturn(3L);
+        when(usuarioTenantRepository.countByTenantIdAndActivoTrue(TENANT_B)).thenReturn(7L);
+        when(productoRepository.countByTenantId(TENANT_A)).thenReturn(50L);
+        when(productoRepository.countByTenantId(TENANT_B)).thenReturn(80L);
+
+        List<TenantResumenDTO> tenants = service.listarTenants();
+
+        TenantResumenDTO dtoA = tenants.stream().filter(t -> TENANT_A.equals(t.getTenantId())).findFirst().orElseThrow();
+        TenantResumenDTO dtoB = tenants.stream().filter(t -> TENANT_B.equals(t.getTenantId())).findFirst().orElseThrow();
+
+        assertThat(dtoA.getTotalUsuarios()).isEqualTo(3);
+        assertThat(dtoB.getTotalUsuarios()).isEqualTo(7);
+        assertThat(dtoA.getTotalProductos()).isEqualTo(50);
+        assertThat(dtoB.getTotalProductos()).isEqualTo(80);
+
+        // Verificar que se usaron los IDs correctos en las llamadas
+        verify(usuarioTenantRepository).countByTenantIdAndActivoTrue(TENANT_A);
+        verify(usuarioTenantRepository).countByTenantIdAndActivoTrue(TENANT_B);
+        verify(productoRepository).countByTenantId(TENANT_A);
+        verify(productoRepository).countByTenantId(TENANT_B);
     }
 }

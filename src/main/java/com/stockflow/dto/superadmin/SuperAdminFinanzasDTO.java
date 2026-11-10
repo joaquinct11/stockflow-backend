@@ -7,9 +7,10 @@ import java.math.BigDecimal;
 @Data
 @Builder
 public class SuperAdminFinanzasDTO {
-    private BigDecimal mrr;
+    private BigDecimal mrrActual;
+    private BigDecimal mrrAnualProyectado;
     private long cantBasico;
     private long cantPro;
-    private long activos;
-    private long conOse;
+    private long tenantsActivos;
+    private long tenantsConOse;
 }

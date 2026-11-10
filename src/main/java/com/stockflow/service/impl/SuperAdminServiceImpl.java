@@ -4,8 +4,12 @@ import com.stockflow.dto.superadmin.*;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Tenant;
 import com.stockflow.exception.BadRequestException;
+import com.stockflow.repository.ComprobanteRepository;
+import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.TenantRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
+import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.SuperAdminService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +26,12 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SuperAdminServiceImpl implements SuperAdminService {
 
-    private final TenantRepository      tenantRepository;
-    private final SuscripcionRepository suscripcionRepository;
+    private final TenantRepository        tenantRepository;
+    private final SuscripcionRepository  suscripcionRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
+    private final ProductoRepository     productoRepository;
+    private final VentaRepository        ventaRepository;
+    private final ComprobanteRepository  comprobanteRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -83,8 +91,10 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         }
 
         return SuperAdminFinanzasDTO.builder()
-                .mrr(mrr).cantBasico(cantBasico).cantPro(cantPro)
-                .activos(activos).conOse(conOse)
+                .mrrActual(mrr)
+                .mrrAnualProyectado(mrr.multiply(BigDecimal.valueOf(12)))
+                .cantBasico(cantBasico).cantPro(cantPro)
+                .tenantsActivos(activos).tenantsConOse(conOse)
                 .build();
     }
 
@@ -175,6 +185,23 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .fechaProximoCobro(s.map(Suscripcion::getFechaProximoCobro).orElse(null))
                 .trialEndDate(s.map(Suscripcion::getTrialEndDate).orElse(null))
                 .tieneOse(t.getOseToken() != null && !t.getOseToken().isBlank())
+                // Contacto y facturación
+                .ruc(t.getRuc())
+                .emailContacto(t.getEmailContacto())
+                .oseUrl(t.getOseUrl())
+                .oseToken(t.getOseToken())
+                // Suscripción extendida
+                .suscripcionId(s.map(Suscripcion::getId).orElse(null))
+                .preapprovalId(s.map(Suscripcion::getPreapprovalId).orElse(null))
+                .ultimos4Digitos(s.map(Suscripcion::getUltimos4Digitos).orElse(null))
+                .metodoPago(s.map(Suscripcion::getMetodoPago).orElse(null))
+                .currentPeriodEnd(s.map(Suscripcion::getCurrentPeriodEnd).orElse(null))
+                .suscripcionCreadaEn(s.map(Suscripcion::getCreatedAt).orElse(null))
+                // Métricas de uso
+                .totalUsuarios(usuarioTenantRepository.countByTenantIdAndActivoTrue(t.getTenantId()))
+                .totalProductos(productoRepository.countByTenantId(t.getTenantId()))
+                .totalVentas(ventaRepository.countByTenantId(t.getTenantId()))
+                .totalComprobantes(comprobanteRepository.countByTenantId(t.getTenantId()))
                 .build();
     }
 }
