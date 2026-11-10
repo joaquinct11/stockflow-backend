@@ -197,6 +197,29 @@
 		</dependency>
 	</dependencies>
 
+	<dependencyManagement>
+		<dependencies>
+			<!--
+			  Testcontainers 1.20.x trae docker-java 3.3.6, que hardcodea /v1.32/_ping
+			  como primera petición al daemon. Docker Engine 26+ (ubuntu-latest) ya no
+			  acepta clientes con versión < 1.40 y responde HTTP 400, impidiendo que
+			  Testcontainers encuentre el entorno Docker.
+			  docker-java 3.4.0 cambia el ping inicial a /_ping (sin prefijo de versión)
+			  y negocia la versión real del daemon en la respuesta, resolviendo el conflicto.
+			-->
+			<dependency>
+				<groupId>com.github.docker-java</groupId>
+				<artifactId>docker-java-core</artifactId>
+				<version>3.4.0</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.docker-java</groupId>
+				<artifactId>docker-java-transport-zerodep</artifactId>
+				<version>3.4.0</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
 	<build>
 		<plugins>
 			<plugin>

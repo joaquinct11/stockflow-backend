@@ -27,8 +27,6 @@ jobs:
 
       - name: Run tests
         run: ./mvnw clean test
-        env:
-          DOCKER_API_VERSION: "1.47"
 
       - name: Build application
         run: ./mvnw package -DskipTests
