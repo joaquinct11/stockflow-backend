@@ -5,7 +5,11 @@ import com.stockflow.dto.*;
 import com.stockflow.entity.*;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.exception.ConflictException;
+import com.stockflow.exception.ForbiddenException;
 import com.stockflow.exception.UnauthorizedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.stockflow.entity.PlanCatalogo;
 import com.stockflow.repository.PlanCatalogoRepository;
 import com.stockflow.repository.RolRepository;
@@ -394,6 +398,43 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public TenantInfoDTO crearNegocio(Long usuarioId, CrearNegocioRequestDTO dto) {
         log.info("🏢 Creando nuevo negocio para usuario {}: {}", usuarioId, dto.getNombreNegocio());
+
+        // ── Autorización ────────────────────────────────────────────────────────
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ForbiddenException("No hay sesión activa para crear un negocio");
+        }
+        java.util.Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+
+        if (authorities.isEmpty()) {
+            // TENANT_SELECTION token: sin tenant activo aún.
+            // Verificar explícitamente que el usuario tiene al menos una relación ADMIN activa.
+            boolean esAdmin = usuarioTenantRepository
+                    .existsByUsuario_IdAndRol_NombreAndActivoTrue(usuarioId, "ADMIN");
+            if (!esAdmin) {
+                throw new ForbiddenException("Solo los administradores pueden crear nuevos negocios");
+            }
+        } else {
+            // ACCESS token: verificar ROLE_ADMIN en el contexto del token
+            boolean tieneRolAdmin = authorities.stream()
+                    .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+            if (!tieneRolAdmin) {
+                throw new ForbiddenException("Solo los administradores pueden crear nuevos negocios");
+            }
+            // Verificar también contra usuario_tenant (fuente de verdad del rol en el tenant activo).
+            // Fail-closed: si tenantActual es null o vacío, la sesión está en estado inválido.
+            String tenantActual = TenantContext.getCurrentTenant();
+            if (tenantActual == null || tenantActual.isBlank()) {
+                throw new ForbiddenException("No se pudo determinar el tenant de la sesión activa");
+            }
+            UsuarioTenant utActual = usuarioTenantRepository
+                    .findByUsuarioIdAndTenantIdAndActivoTrue(usuarioId, tenantActual)
+                    .orElseThrow(() -> new ForbiddenException("No tienes acceso a este tenant"));
+            if (!"ADMIN".equals(utActual.getRol().getNombre())) {
+                throw new ForbiddenException("Solo los administradores pueden crear nuevos negocios");
+            }
+        }
+        // ───────────────────────────────────────────────────────────────────────
 
         String planIdFinal     = dto.getPlanId();
         String rubroFinal      = dto.getRubro();

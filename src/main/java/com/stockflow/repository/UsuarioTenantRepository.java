@@ -24,6 +24,8 @@ public interface UsuarioTenantRepository extends JpaRepository<UsuarioTenant, Lo
 
     boolean existsByUsuarioIdAndTenantIdAndActivoTrue(Long usuarioId, String tenantId);
 
+    boolean existsByUsuario_IdAndRol_NombreAndActivoTrue(Long usuarioId, String rolNombre);
+
     long countByUsuarioIdAndActivoTrue(Long usuarioId);
 
     long countByTenantIdAndActivoTrue(String tenantId);
