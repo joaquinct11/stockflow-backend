@@ -67,6 +67,8 @@ public interface GastoRepository extends JpaRepository<Gasto, Long> {
 
     long countByTenantIdAndDeletedAtIsNull(String tenantId);
 
+    java.util.Optional<Gasto> findByIdAndTenantIdAndDeletedAtIsNull(Long id, String tenantId);
+
     @Query("SELECT g FROM Gasto g WHERE g.tenantId = :tenantId " +
            "AND g.deletedAt IS NULL AND LOWER(g.concepto) LIKE LOWER(CONCAT('%', :q, '%')) " +
            "ORDER BY g.fechaGasto DESC")

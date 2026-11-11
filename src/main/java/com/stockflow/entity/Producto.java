@@ -89,6 +89,20 @@ public class Producto {
     @Column(name = "cod_digemid", length = 20)
     private String codDigemid;
 
+    /**
+     * Precio unitario mayorista (opcional). Cuando no es null y la cantidad vendida
+     * alcanza {@link #cantidadMinimaMayorista}, se aplica este precio en lugar de precioVenta.
+     */
+    @Column(name = "precio_mayorista", precision = 10, scale = 2)
+    private BigDecimal precioMayorista;
+
+    /**
+     * Cantidad mínima de unidades para activar el precio mayorista (opcional).
+     * Debe ser un entero positivo. Solo relevante cuando precioMayorista no es null.
+     */
+    @Column(name = "cantidad_minima_mayorista")
+    private Integer cantidadMinimaMayorista;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

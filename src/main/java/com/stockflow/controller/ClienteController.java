@@ -1,6 +1,7 @@
 package com.stockflow.controller;
 
 import com.stockflow.dto.ClienteDTO;
+import com.stockflow.dto.ClienteStatsDTO;
 import com.stockflow.entity.Cliente;
 import com.stockflow.mapper.ClienteMapper;
 import com.stockflow.service.ClienteService;
@@ -23,6 +24,12 @@ public class ClienteController {
 
     private final ClienteService clienteService;
     private final ClienteMapper clienteMapper;
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_CLIENTES')")
+    public ResponseEntity<ClienteStatsDTO> getStats() {
+        return ResponseEntity.ok(clienteService.getStats());
+    }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_CLIENTES')")

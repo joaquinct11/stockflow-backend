@@ -1,5 +1,6 @@
 package com.stockflow.service;
 
+import com.stockflow.dto.ClienteStatsDTO;
 import com.stockflow.entity.Cliente;
 
 import java.util.List;
@@ -26,4 +27,6 @@ public interface ClienteService {
     List<Cliente> obtenerClientesPorTenant(String tenantId);
 
     List<Cliente> obtenerClientesActivosPorTenant(String tenantId);
+
+    ClienteStatsDTO getStats();
 }

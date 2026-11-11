@@ -9,6 +9,7 @@ import com.stockflow.entity.ProductoVarianteStockSucursal;
 import com.stockflow.entity.Sucursal;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.MovimientoInventarioMapper;
+import com.stockflow.entity.UsuarioTenant;
 import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
@@ -18,8 +19,10 @@ import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.StockLoteRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.ProductoService;
+import com.stockflow.service.SucursalService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
 import com.stockflow.exception.ResourceNotFoundException;
@@ -58,6 +61,8 @@ public class MovimientoInventarioController {
     private final StockLoteRepository                       stockLoteRepository;
     private final ProveedorRepository                       proveedorRepository;
     private final ProductoRepository                        productoRepository;
+    private final UsuarioTenantRepository                    usuarioTenantRepository;
+    private final SucursalService                            sucursalService;
 
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
@@ -137,8 +142,7 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👤 Obteniendo movimientos del usuario: {} para tenant: {}", usuarioId, tenantId);
         // Verificar que el usuario pertenece al tenant antes de exponer sus movimientos
-        usuarioService.obtenerUsuarioPorId(usuarioId)
-                .filter(u -> tenantId.equals(u.getTenantId()))
+        usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(usuarioId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
         return ResponseEntity.ok(
                 movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorUsuario(usuarioId, tenantId))
@@ -166,15 +170,18 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando movimiento de inventario para tenant: {}", tenantId);
 
+        sucursalService.validarSucursalOperativa(movimientoDTO.getSucursalId(), tenantId);
+
         // Validar producto y que pertenece al tenant
         Producto producto = productoService.obtenerProductoPorId(movimientoDTO.getProductoId())
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado"));
 
         // Validar usuario y que pertenece al tenant
-        Usuario usuario = usuarioService.obtenerUsuarioPorId(movimientoDTO.getUsuarioId())
-                .filter(u -> tenantId.equals(u.getTenantId()))
+        UsuarioTenant usuarioTenant = usuarioTenantRepository
+                .findByUsuarioIdAndTenantIdAndActivoTrue(movimientoDTO.getUsuarioId(), tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        Usuario usuario = usuarioTenant.getUsuario();
 
         // Validar tipo de movimiento
         if (!movimientoDTO.getTipo().matches("ENTRADA|SALIDA|AJUSTE|AJUSTE_PRECIO|DEVOLUCION|MERMA")) {
@@ -657,6 +664,8 @@ public class MovimientoInventarioController {
         if (lote.getStockActual() < cantidad)
             throw new BadRequestException("Cantidad mayor al stock del lote (" + lote.getStockActual() + ").");
 
+        sucursalService.validarSucursalOperativa(lote.getSucursalId(), tenantId);
+
         Producto producto = productoService.obtenerProductoPorId(lote.getProductoId())
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado."));
@@ -668,8 +677,8 @@ public class MovimientoInventarioController {
         // Resolver usuario del request actual
         Long usuarioIdMerma = TenantContext.getCurrentUserId();
         Usuario usuarioMerma = usuarioIdMerma != null
-                ? usuarioService.obtenerUsuarioPorId(usuarioIdMerma)
-                        .filter(u -> tenantId.equals(u.getTenantId()))
+                ? usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(usuarioIdMerma, tenantId)
+                        .map(UsuarioTenant::getUsuario)
                         .orElse(null)
                 : null;
 

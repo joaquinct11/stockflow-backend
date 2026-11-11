@@ -15,7 +15,9 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
+import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -37,7 +39,8 @@ public class CulqiServiceImpl implements CulqiService {
 
     private final CulqiProperties culqiProperties;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    // Inicializado directamente; en tests se inyecta vía ReflectionTestUtils.setField.
+    private CulqiHttpClient httpClient = new SimpleUrlConnectionHttpClient();
 
     // ── Clientes ─────────────────────────────────────────────────────────────
 
@@ -94,7 +97,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             log.info("📥 Culqi PATCH /customers/{}: status={}", customerId, response.statusCode());
 
             if (response.statusCode() >= 400) {
@@ -116,7 +119,10 @@ public class CulqiServiceImpl implements CulqiService {
     @SuppressWarnings("unchecked")
     private String buscarClientePorEmail(String email) {
         try {
-            String url = culqiProperties.getBaseUrl() + "/customers?email=" + email;
+            // URL-encode el email para que caracteres como '+' y '@' viajen correctamente
+            // '+' sin encode → Culqi lo interpreta como espacio → "email inválido"
+            String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
+            String url = culqiProperties.getBaseUrl() + "/customers?email=" + encodedEmail;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .header("Authorization", "Bearer " + culqiProperties.getSecretKey())
@@ -124,7 +130,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .GET()
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             log.info("📥 Culqi GET /customers?email: status={}, body={}", response.statusCode(), response.body());
 
             if (response.statusCode() != 200) return null;
@@ -166,11 +172,15 @@ public class CulqiServiceImpl implements CulqiService {
     // ── Suscripciones ─────────────────────────────────────────────────────────
 
     @Override
-    public String crearSuscripcion(String cardId, String planId) {
+    public String crearSuscripcion(String cardId, String planId, Map<String, String> metadata) {
         Map<String, Object> body = new HashMap<>();
         body.put("card_id", cardId);
         body.put("plan_id", planId);
         body.put("tyc",     true);   // términos y condiciones requerido por Culqi
+
+        if (metadata != null && !metadata.isEmpty()) {
+            body.put("metadata", metadata);
+        }
 
         // Endpoint correcto según docs oficiales: POST /recurrent/subscriptions/create
         // Body: plain JSON (el cifrado AES+RSA solo aplica al PATCH /actualizar)
@@ -240,7 +250,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .GET()
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             log.info("📥 Culqi GET /charges/{}: status={}, body={}", chargeId, response.statusCode(), response.body());
 
             if (response.statusCode() != 200) return null;
@@ -248,6 +258,41 @@ public class CulqiServiceImpl implements CulqiService {
         } catch (Exception e) {
             log.warn("⚠️ No se pudo obtener cargo {} de Culqi: {}", chargeId, e.getMessage());
             return null;
+        }
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> obtenerSuscripcion(String subscriptionId) {
+        try {
+            String url = culqiProperties.getBaseUrl() + "/recurrent/subscriptions/" + subscriptionId;
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + culqiProperties.getSecretKey())
+                    .header("Content-Type",  "application/json")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request);
+            log.info("📥 Culqi GET /recurrent/subscriptions/{}: status={}, body={}",
+                    subscriptionId, response.statusCode(), response.body());
+
+            // 404 = suscripción eliminada en Culqi: null es la señal de "no encontrada"
+            if (response.statusCode() == 404) return null;
+
+            // Cualquier otro error no-200 (401, 500, 503…) significa que no pudimos verificar.
+            // Lanzamos para que el caller marque PENDIENTE_REVISION en lugar de proceder.
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("Culqi API: HTTP " + response.statusCode()
+                        + " al obtener suscripción " + subscriptionId);
+            }
+
+            return objectMapper.readValue(response.body(), new TypeReference<Map<String, Object>>() {});
+        } catch (RuntimeException re) {
+            throw re;  // re-lanzar para que el caller distinga "no verificable" de "404"
+        } catch (Exception e) {
+            log.warn("⚠️ No se pudo obtener suscripción {} de Culqi (red/timeout): {}", subscriptionId, e.getMessage());
+            throw new RuntimeException("Culqi API no disponible al verificar suscripción " + subscriptionId, e);
         }
     }
 
@@ -265,7 +310,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             String responseBody = response.body();
             log.info("📥 Culqi POST secure {}: status={}, body={}", path, response.statusCode(), responseBody);
 
@@ -300,7 +345,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             String responseBody = response.body();
             log.info("📥 Culqi POST {}: status={}, body={}", path, response.statusCode(), responseBody);
 
@@ -333,7 +378,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .DELETE()
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             log.info("📥 Culqi DELETE {}: status={}", path, response.statusCode());
 
             if (response.statusCode() >= 400) {
@@ -388,7 +433,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .POST(HttpRequest.BodyPublishers.ofString(encryptedBody))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             String responseBody = response.body();
             log.info("📥 Culqi POST (AES+RSA) {}: status={}, body={}", path, response.statusCode(), responseBody);
 
@@ -430,7 +475,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             String responseBody = response.body();
             log.info("📥 Culqi PATCH {}: status={}, body={}", path, response.statusCode(), responseBody);
 
@@ -476,7 +521,7 @@ public class CulqiServiceImpl implements CulqiService {
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(encryptedBody))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(request);
             String responseBody = response.body();
             log.info("📥 Culqi PATCH (AES+RSA) {}: status={}, body={}", path, response.statusCode(), responseBody);
 
@@ -571,5 +616,28 @@ public class CulqiServiceImpl implements CulqiService {
         if (response.containsKey("user_message"))     return (String) response.get("user_message");
         if (response.containsKey("message"))          return (String) response.get("message");
         return response.toString();
+    }
+
+    // ── Implementación de HTTP ────────────────────────────────────────────────
+
+    /**
+     * Delega en java.net.http.HttpClient (soporta GET, POST, PATCH, PUT, DELETE).
+     *
+     * HttpClient.newHttpClient() se crea en un Holder para diferir la inicialización
+     * hasta el primer send(). Esto evita que WEPollSelectorProvider (JDK 21, Windows)
+     * sea invocado al construir el bean, antes de que WindowsSelectorProvider esté activo.
+     * En tests el campo httpClient es reemplazado por un mock antes de que send() sea
+     * invocado, por lo que el Holder nunca se carga.
+     */
+    private static final class SimpleUrlConnectionHttpClient implements CulqiHttpClient {
+
+        private static final class Holder {
+            static final HttpClient INSTANCE = HttpClient.newHttpClient();
+        }
+
+        @Override
+        public HttpResponse<String> send(HttpRequest request) throws IOException, InterruptedException {
+            return Holder.INSTANCE.send(request, HttpResponse.BodyHandlers.ofString());
+        }
     }
 }

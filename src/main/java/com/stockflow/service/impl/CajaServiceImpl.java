@@ -19,6 +19,7 @@ import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.CajaService;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.NotificacionService;
+import com.stockflow.service.SucursalService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,10 +43,12 @@ public class CajaServiceImpl implements CajaService {
     private final TenantRepository tenantRepository;
     private final EmailService emailService;
     private final NotificacionService notificacionService;
+    private final SucursalService sucursalService;
 
     @Override
     public CajaDTO abrir(AbrirCajaRequestDTO request, Long usuarioId, String usuarioNombre, String tenantId) {
         Long sucursalId = request.getSucursalId();
+        sucursalService.validarSucursalOperativa(sucursalId, tenantId);
         if (sucursalId != null) {
             cajaRepository.findFirstByTenantIdAndSucursalIdAndEstadoOrderByFechaAperturaDesc(tenantId, sucursalId, "ABIERTA")
                     .ifPresent(c -> {

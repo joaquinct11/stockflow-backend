@@ -13,4 +13,5 @@ public interface TenantService {
     void reactivarTenant(String tenantId);
     void eliminarPermanentemente(String tenantId);
     DatosEliminacionDTO obtenerDatosEliminacion(String tenantId);
+    void requireRubro(String tenantId, String... rubrosPermitidos);
 }

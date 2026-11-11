@@ -29,6 +29,7 @@ import com.stockflow.repository.RecepcionRepository;
 import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.service.RecepcionService;
+import com.stockflow.service.SucursalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -58,12 +59,15 @@ public class RecepcionServiceImpl implements RecepcionService {
     private final ProductoStockSucursalRepository stockSucursalRepository;
     private final SucursalRepository sucursalRepository;
     private final com.stockflow.service.StockLoteService stockLoteService;
+    private final SucursalService sucursalService;
 
     @Override
     @Transactional
     public RecepcionResponseDTO crearRecepcion(RecepcionRequestDTO request,
                                                Long usuarioReceptorId,
                                                String tenantId) {
+        sucursalService.validarSucursalOperativa(request.getSucursalId(), tenantId);
+
         OrdenCompra oc;
         Proveedor proveedor;
 
@@ -243,6 +247,8 @@ public class RecepcionServiceImpl implements RecepcionService {
         if ("CONFIRMADA".equals(recepcion.getEstado())) {
             throw new BadRequestException("La recepción ya fue confirmada");
         }
+
+        sucursalService.validarSucursalOperativa(recepcion.getSucursalId(), tenantId);
 
         List<RecepcionDetalle> detalles = detalleRepository.findByRecepcionId(recepcionId);
         if (detalles.isEmpty()) {

@@ -52,6 +52,21 @@ public class ProductoPresentacion {
     @Column(name = "es_principal", nullable = false)
     private Boolean esPrincipal = false;
 
+    /**
+     * Precio unitario mayorista para esta presentación (opcional).
+     * Cuando no es null y la cantidad vendida alcanza {@link #cantidadMinimaMayorista},
+     * se aplica este precio en lugar de precioVenta.
+     */
+    @Column(name = "precio_mayorista", precision = 10, scale = 2)
+    private BigDecimal precioMayorista;
+
+    /**
+     * Cantidad mínima de unidades de esta presentación para activar el precio mayorista.
+     * Solo relevante cuando precioMayorista no es null.
+     */
+    @Column(name = "cantidad_minima_mayorista")
+    private Integer cantidadMinimaMayorista;
+
     @Column(name = "tenant_id")
     private String tenantId;
 }

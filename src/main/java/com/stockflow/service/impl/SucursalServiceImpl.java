@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 @Slf4j
@@ -20,7 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SucursalServiceImpl implements SucursalService {
 
-    private static final int MAX_SUCURSALES_PRO = 5;
+    // Conservado como fallback para suscripciones legado sin plan_codigo.
+    private static final int MAX_SUCURSALES_PRO_LEGADO = 5;
 
     private final SucursalRepository                        sucursalRepository;
     private final ProductoStockSucursalRepository           stockSucursalRepository;
@@ -37,8 +39,9 @@ public class SucursalServiceImpl implements SucursalService {
     private final OrdenCompraRepository   ordenCompraRepository;
     private final RecepcionRepository     recepcionRepository;
     private final ComprobanteRepository   comprobanteRepository;
-    private final UsuarioRepository       usuarioRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
     private final CertificadoRepository   certificadoRepository;
+    private final StockLoteRepository     stockLoteRepository;
 
     // ── Listado ──────────────────────────────────────────────────────────────
 
@@ -134,7 +137,11 @@ public class SucursalServiceImpl implements SucursalService {
                 .nombre("Sucursal Principal")
                 .esPrincipal(true)
                 .activo(true)
+                .bloqueadaPorPlan(false)
                 .build();
+
+        log.info("[Sucursal] antes de save: bloqueadaPorPlan={}, activo={}, esPrincipal={}",
+                principal.getBloqueadaPorPlan(), principal.getActivo(), principal.getEsPrincipal());
 
         Sucursal guardada = sucursalRepository.save(principal);
         Long sucursalId = guardada.getId();
@@ -152,7 +159,7 @@ public class SucursalServiceImpl implements SucursalService {
         recepcionRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
         comprobanteRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
         certificadoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
-        usuarioRepository.asignarSucursalAdminNulo(sucursalId, tenantId);
+        usuarioTenantRepository.asignarSucursalDondeEsNuloByTenant(sucursalId, tenantId);
 
         // Inicializar stock de todos los productos y variantes para esta sucursal principal
         stockSucursalRepository.inicializarStockParaSucursal(sucursalId, tenantId);
@@ -197,6 +204,45 @@ public class SucursalServiceImpl implements SucursalService {
     }
 
     @Override
+    @Transactional
+    public int desbloquearSucursalesConLimite(String tenantId, int maxSucursales) {
+        long activasActuales = sucursalRepository.countByTenantIdAndActivoTrue(tenantId);
+        long espaciosDisponibles = maxSucursales - activasActuales;
+        if (espaciosDisponibles <= 0) {
+            log.info("🔒 [Desbloqueo] Límite de {} sucursales ya alcanzado para tenant={} ({} activas). No se reactiva ninguna.",
+                    maxSucursales, tenantId, activasActuales);
+            return 0;
+        }
+
+        // Criterio determinista: id ASC (más antiguas primero → más datos históricos preservados)
+        List<Sucursal> bloqueadas = sucursalRepository.findByTenantIdAndBloqueadaPorPlanTrue(tenantId)
+                .stream()
+                .sorted(Comparator.comparing(Sucursal::getId))
+                .toList();
+
+        if (bloqueadas.isEmpty()) return 0;
+
+        int aDesbloquear = (int) Math.min(bloqueadas.size(), espaciosDisponibles);
+        List<Sucursal> paraReactivar = bloqueadas.subList(0, aDesbloquear);
+        for (Sucursal s : paraReactivar) {
+            s.setActivo(true);
+            s.setBloqueadaPorPlan(false);
+            s.setDeletedAt(null);
+            s.setUpdatedAt(LocalDateTime.now());
+        }
+        sucursalRepository.saveAll(paraReactivar);
+
+        int excedente = bloqueadas.size() - aDesbloquear;
+        if (excedente > 0) {
+            log.info("🔓 [Desbloqueo] {}/{} sucursal(es) reactivada(s) para tenant={}. {} excede(n) el límite de {} y permanece(n) bloqueada(s).",
+                    aDesbloquear, bloqueadas.size(), tenantId, excedente, maxSucursales);
+        } else {
+            log.info("🔓 [Desbloqueo] {} sucursal(es) reactivada(s) para tenant={}", aDesbloquear, tenantId);
+        }
+        return aDesbloquear;
+    }
+
+    @Override
     public List<SucursalDTO> listarConBloqueadas(String tenantId) {
         return sucursalRepository
                 .findByTenantIdAndActivoTrueOrTenantIdAndBloqueadaPorPlanTrueOrderByEsPrincipalDescNombreAsc(
@@ -204,6 +250,61 @@ public class SucursalServiceImpl implements SucursalService {
                 .stream()
                 .map(this::toDTO)
                 .toList();
+    }
+
+    // ── Validación operativa ─────────────────────────────────────────────────
+
+    @Override
+    public void validarSucursalOperativa(Long sucursalId, String tenantId) {
+        if (sucursalId == null) return;
+        Sucursal sucursal = sucursalRepository.findById(sucursalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sucursal no encontrada: " + sucursalId));
+        if (!tenantId.equals(sucursal.getTenantId())) {
+            throw new ResourceNotFoundException("Sucursal no encontrada: " + sucursalId);
+        }
+        if (Boolean.FALSE.equals(sucursal.getActivo())) {
+            String msg = Boolean.TRUE.equals(sucursal.getBloqueadaPorPlan())
+                    ? "La sucursal está bloqueada por tu plan actual. Actualiza tu suscripción para operar en ella."
+                    : "La sucursal está desactivada y no puede recibir operaciones.";
+            throw new BadRequestException(msg);
+        }
+    }
+
+    // ── Regularización de tenants históricos ────────────────────────────────
+
+    @Override
+    @Transactional
+    public SucursalDTO regularizarDatosSucursalPrincipal(String tenantId) {
+        Sucursal principal = sucursalRepository.findByTenantIdAndEsPrincipalTrue(tenantId)
+                .orElseThrow(() -> new BadRequestException(
+                        "No existe sucursal principal para el tenant " + tenantId +
+                        ". Creá primero la sucursal vía SQL con es_principal=true y luego ejecutá este endpoint."));
+
+        Long sucursalId = principal.getId();
+        log.info("[Regularización] Iniciando backfill para tenant={}, sucursalId={}", tenantId, sucursalId);
+
+        // Asignar sucursal a registros históricos sin sucursal (WHERE sucursal_id IS NULL → idempotente)
+        ventaRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        movimientoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        gastoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        cajaRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        devolucionRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        notaCreditoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        ordenCompraRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        recepcionRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        comprobanteRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        certificadoRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+        // Excluye ADMINs: mantiene sucursal_id=NULL para usuarios con rol ADMIN
+        usuarioTenantRepository.asignarSucursalDondeEsNuloByTenant(sucursalId, tenantId);
+        // Lotes históricos: solo actualiza sucursal_id IS NULL, no toca cantidades ni fechas
+        stockLoteRepository.asignarSucursalDondeEsNulo(sucursalId, tenantId);
+
+        // Inicializar stock (copia productos.stock_actual; ON CONFLICT DO NOTHING → idempotente)
+        stockSucursalRepository.inicializarStockParaSucursal(sucursalId, tenantId);
+        varianteStockSucursalRepository.inicializarStockPrincipalParaSucursal(sucursalId, tenantId);
+
+        log.info("[Regularización] Backfill completado para tenant={}, sucursalId={}", tenantId, sucursalId);
+        return toDTO(principal);
     }
 
     // ── Resync ───────────────────────────────────────────────────────────────
@@ -233,11 +334,11 @@ public class SucursalServiceImpl implements SucursalService {
     }
 
     private void validarLimiteSucursales(String tenantId) {
+        int limite = planLimitService.getMaxSucursales(tenantId);
         long total = sucursalRepository.countByTenantIdAndActivoTrue(tenantId);
-        if (total >= MAX_SUCURSALES_PRO) {
+        if (total >= limite) {
             throw new BadRequestException(
-                    "El plan Pro permite máximo " + MAX_SUCURSALES_PRO + " sucursales activas."
-            );
+                    "Tu plan permite máximo " + limite + " sucursales activas.");
         }
     }
 

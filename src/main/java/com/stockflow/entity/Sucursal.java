@@ -30,16 +30,28 @@ public class Sucursal {
     private String email;
 
     @Column(name = "es_principal", nullable = false)
+    @Builder.Default
     private Boolean esPrincipal = false;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean activo = true;
 
     @Column(name = "bloqueada_por_plan", nullable = false)
+    @Builder.Default
     private Boolean bloqueadaPorPlan = false;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @PrePersist
+    public void aplicarDefaults() {
+        if (bloqueadaPorPlan == null) bloqueadaPorPlan = false;
+        if (activo == null) activo = true;
+        if (esPrincipal == null) esPrincipal = false;
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        if (updatedAt == null) updatedAt = LocalDateTime.now();
+    }
 
     @Column(name = "created_at", nullable = false)
     @Builder.Default

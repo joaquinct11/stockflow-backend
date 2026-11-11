@@ -26,8 +26,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     @Override
     @Transactional
-    public RefreshToken crearRefreshToken(Usuario usuario) {
-        String token = jwtUtil.generateRefreshToken(usuario.getId(), usuario.getEmail());
+    public RefreshToken crearRefreshToken(Usuario usuario, String tenantId) {
+        String token = jwtUtil.generateRefreshToken(usuario.getId(), usuario.getEmail(), tenantId);
 
         LocalDateTime expiracion = LocalDateTime.now()
                 .plusSeconds(jwtProperties.getRefresh().getExpiration() / 1000);
@@ -39,8 +39,15 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .revocado(false)
                 .build();
 
-        log.debug("Creando refresh token para usuario: {}", usuario.getEmail());
+        log.debug("Creando refresh token para usuario: {} tenant: {}", usuario.getEmail(), tenantId);
         return refreshTokenRepository.save(refreshToken);
+    }
+
+    @Override
+    @Transactional
+    @Deprecated
+    public RefreshToken crearRefreshToken(Usuario usuario) {
+        return crearRefreshToken(usuario, null);
     }
 
     @Override

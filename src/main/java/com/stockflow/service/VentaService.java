@@ -28,4 +28,13 @@ public interface VentaService {
 
     /** Anula la venta, repone stock y registra movimientos. Lanza excepción si ya estaba anulada. */
     Venta anularVenta(Long id, String tenantId);
+
+    /** Carga la venta por ID validando tenant. No repone stock. */
+    Venta getVentaById(Long id, String tenantId);
+
+    /**
+     * Anula la venta SIN reponer inventario.
+     * Solo para ventas generadas por OT (cuyos consumos ya se manejaron via CONSUMO_OT).
+     */
+    void anularVentaSinReponerStock(Long ventaId, String tenantId);
 }

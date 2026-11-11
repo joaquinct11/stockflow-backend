@@ -55,8 +55,8 @@ public class GastoServiceImpl implements GastoService {
 
     @Override
     public Optional<Gasto> obtenerPorId(Long id) {
-        return gastoRepository.findById(id)
-                .filter(g -> g.getDeletedAt() == null);
+        String tenantId = com.stockflow.util.TenantContext.getCurrentTenant();
+        return gastoRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId);
     }
 
     @Override
@@ -71,8 +71,8 @@ public class GastoServiceImpl implements GastoService {
     @Override
     @Transactional
     public Gasto actualizar(Long id, Gasto gastoActualizado) {
-        Gasto gasto = gastoRepository.findById(id)
-                .filter(g -> g.getDeletedAt() == null)
+        String tenantId = com.stockflow.util.TenantContext.getCurrentTenant();
+        Gasto gasto = gastoRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Gasto no encontrado con ID: " + id));
 
         gasto.setConcepto(gastoActualizado.getConcepto());
@@ -90,8 +90,8 @@ public class GastoServiceImpl implements GastoService {
     @Override
     @Transactional
     public void eliminar(Long id) {
-        Gasto gasto = gastoRepository.findById(id)
-                .filter(g -> g.getDeletedAt() == null)
+        String tenantId = com.stockflow.util.TenantContext.getCurrentTenant();
+        Gasto gasto = gastoRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Gasto no encontrado con ID: " + id));
         gasto.setDeletedAt(LocalDateTime.now());
         gasto.setActivo(false);

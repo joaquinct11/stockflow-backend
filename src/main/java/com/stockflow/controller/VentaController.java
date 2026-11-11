@@ -17,7 +17,9 @@ import com.stockflow.service.VentaService;
 import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.entity.ProductoVarianteStockSucursal;
+import com.stockflow.entity.ProductoPresentacion;
 import com.stockflow.repository.DetalleVentaRepository;
+import com.stockflow.repository.ProductoPresentacionRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
@@ -64,6 +66,7 @@ public class VentaController {
     private final VentaRepository                           ventaRepository;
     private final DetalleVentaRepository                    detalleVentaRepository;
     private final com.stockflow.service.StockLoteService   stockLoteService;
+    private final ProductoPresentacionRepository            presentacionRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
@@ -171,7 +174,7 @@ public class VentaController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'VENDEDOR') or hasAuthority('PERM_CREAR_VENTA')")
     @Transactional
-    public ResponseEntity<VentaDTO> crear(@Valid @RequestBody VentaDTO ventaDTO) {
+    public ResponseEntity<VentaDTO> crear(@Valid @RequestBody VentaDTO ventaDTO, Authentication authentication) {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("➕ Creando venta para tenant: {}", tenantId);
 
@@ -235,13 +238,42 @@ public class VentaController {
                         }
                     }
 
+                    // Resolución y validación de precio por política del servidor.
+                    // Autorizados a editar precio libremente (descuentos, cortesías, etc.):
+                    //   - ROLE_ADMIN: acceso total
+                    //   - ROLE_GERENTE: administración operativa
+                    //   - PERM_DESCUENTO_MANUAL: permiso individual para vendedores en rubros
+                    //     con precio negociable (ej. TIENDA_ROPA). Está en ALL_PERMISSIONS y
+                    //     debe asignarse explícitamente al usuario vía AdminController.
+                    boolean puedeEditarPrecio = authentication != null && authentication.getAuthorities().stream()
+                            .map(GrantedAuthority::getAuthority)
+                            .anyMatch(a -> a.equals("ROLE_ADMIN")
+                                       || a.equals("ROLE_GERENTE")
+                                       || a.equals("PERM_DESCUENTO_MANUAL"));
+
+                    BigDecimal precioAutorizado = resolverPrecioAutorizado(producto, detalleDTO);
+
+                    if (!puedeEditarPrecio) {
+                        BigDecimal enviado  = detalleDTO.getPrecioUnitario().setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal esperado = precioAutorizado.setScale(2, RoundingMode.HALF_UP);
+                        if (enviado.compareTo(esperado) != 0) {
+                            throw new BadRequestException(
+                                "Precio inválido para '" + producto.getNombre() + "': " +
+                                "se esperaba " + esperado + " pero se recibió " + enviado + ".");
+                        }
+                    }
+
+                    BigDecimal precioFinal = puedeEditarPrecio
+                            ? detalleDTO.getPrecioUnitario()
+                            : precioAutorizado;
+
                     int factorDet = (detalleDTO.getFactor() != null && detalleDTO.getFactor() > 1)
                             ? detalleDTO.getFactor() : 1;
                     return DetalleVenta.builder()
                             .producto(producto)
                             .cantidad(detalleDTO.getCantidad())
-                            .precioUnitario(detalleDTO.getPrecioUnitario())
-                            .subtotal(detalleDTO.getPrecioUnitario().multiply(BigDecimal.valueOf(detalleDTO.getCantidad())))
+                            .precioUnitario(precioFinal)
+                            .subtotal(precioFinal.multiply(BigDecimal.valueOf(detalleDTO.getCantidad())).setScale(2, RoundingMode.HALF_UP))
                             .varianteId(detalleDTO.getVarianteId())
                             .varianteDescripcion(detalleDTO.getVarianteDescripcion())
                             .stockLoteId(detalleDTO.getStockLoteId())
@@ -451,5 +483,66 @@ public class VentaController {
         return comprobanteService.obtenerPorVenta(ventaId, tenantId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Precio único autorizado por el servidor para el detalle dado. Nunca null.
+     *
+     * Prioridad:
+     *  1. presentacionId presente → precio de la presentación con su propia lógica mayorista.
+     *  2. Producto con configuración mayorista completa → mayorista o minorista según cantidad.
+     *  3. Precio de venta minorista del producto.
+     */
+    private BigDecimal resolverPrecioAutorizado(Producto producto, DetalleVentaDTO detalleDTO) {
+        if (detalleDTO.getPresentacionId() != null) {
+            ProductoPresentacion presentacion = presentacionRepository.findById(detalleDTO.getPresentacionId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "Presentación no encontrada: " + detalleDTO.getPresentacionId()));
+            return resolverPrecioMayoristaPresentacion(presentacion, producto, detalleDTO.getCantidad());
+        }
+        BigDecimal mayorista = resolverPrecioMayorista(producto, detalleDTO.getCantidad());
+        return mayorista != null ? mayorista : producto.getPrecioVenta();
+    }
+
+    /**
+     * Precio autorizado para una presentación dada la cantidad vendida.
+     *
+     * Prioridad:
+     *  1. Si la presentación tiene config mayorista propia completa → usarla.
+     *  2. Si no tiene config propia → recurrir al mayorista del producto base,
+     *     comparando unidades equivalentes: cantidad × factor.
+     *  3. Fallback: precioVenta de la presentación.
+     */
+    private BigDecimal resolverPrecioMayoristaPresentacion(
+            ProductoPresentacion presentacion, Producto producto, int cantidad) {
+        // Config mayorista propia completa: usarla directamente
+        if (presentacion.getPrecioMayorista() != null && presentacion.getCantidadMinimaMayorista() != null) {
+            return cantidad >= presentacion.getCantidadMinimaMayorista()
+                    ? presentacion.getPrecioMayorista()
+                    : presentacion.getPrecioVenta();
+        }
+        // Sin config propia: verificar config base del producto con unidades equivalentes
+        int factor = (presentacion.getFactor() != null && presentacion.getFactor() > 0)
+                ? presentacion.getFactor() : 1;
+        int cantidadBase = cantidad * factor;
+        if (producto.getPrecioMayorista() != null && producto.getCantidadMinimaMayorista() != null
+                && cantidadBase >= producto.getCantidadMinimaMayorista()) {
+            return producto.getPrecioMayorista();
+        }
+        return presentacion.getPrecioVenta() != null ? presentacion.getPrecioVenta() : producto.getPrecioVenta();
+    }
+
+    /**
+     * Helper: precio según política mayorista del producto para la cantidad dada.
+     * Devuelve null cuando el producto no tiene configuración mayorista completa.
+     */
+    private BigDecimal resolverPrecioMayorista(Producto producto, int cantidad) {
+        if (producto.getPrecioMayorista() == null || producto.getCantidadMinimaMayorista() == null) {
+            return null;
+        }
+        if (cantidad >= producto.getCantidadMinimaMayorista()) {
+            return producto.getPrecioMayorista();
+        }
+        return producto.getPrecioVenta();
     }
 }

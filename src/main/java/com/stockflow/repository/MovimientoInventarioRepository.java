@@ -243,4 +243,6 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     Optional<String> findLatestRegistroSanitarioByProductoId(
             @Param("productoId") Long   productoId,
             @Param("tenantId")   String tenantId);
+
+    Optional<MovimientoInventario> findByIdAndTenantId(Long id, String tenantId);
 }
