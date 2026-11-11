@@ -13,6 +13,8 @@ import com.stockflow.repository.UsuarioRepository;
 import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.impl.AuthServiceImpl;
 import com.stockflow.util.JwtUtil;
+import com.stockflow.util.TenantContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,9 +25,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -55,12 +61,20 @@ class CrearNegocioServiceTest {
     @InjectMocks
     private AuthServiceImpl authService;
 
-    private static final Long USUARIO_ID = 10L;
+    private static final Long   USUARIO_ID  = 10L;
     private static final String TENANT_NUEVO = "mi-negocio-a1b2";
+    private static final String TENANT_ACTUAL = "tenant-origen-abc";
 
     private Rol rolAdmin;
     private Usuario usuario;
     private Tenant tenantNuevo;
+    private UsuarioTenant utAdmin;
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+        TenantContext.clear();
+    }
 
     @BeforeEach
     void setUp() {
@@ -81,6 +95,22 @@ class CrearNegocioServiceTest {
                 .activo(true)
                 .build();
 
+        utAdmin = UsuarioTenant.builder()
+                .usuario(usuario)
+                .tenantId(TENANT_ACTUAL)
+                .rol(rolAdmin)
+                .activo(true)
+                .build();
+
+        // Contexto de seguridad: ACCESS token con ROLE_ADMIN (caso feliz de todos los tests existentes)
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        "user@test.com", null,
+                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+                )
+        );
+        TenantContext.setCurrentTenant(TENANT_ACTUAL);
+
         // Comunes
         when(usuarioRepository.findById(USUARIO_ID)).thenReturn(Optional.of(usuario));
         when(rolRepository.findByNombre("ADMIN")).thenReturn(Optional.of(rolAdmin));
@@ -90,6 +120,8 @@ class CrearNegocioServiceTest {
         when(culqiProperties.getPrecioPro()).thenReturn(new BigDecimal("59.90"));
         when(suscripcionService.crearSuscripcion(any())).thenAnswer(inv -> inv.getArgument(0));
         when(usuarioTenantRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_ACTUAL))
+                .thenReturn(Optional.of(utAdmin));
     }
 
     // ── 1. Caso feliz con plan BASICO ─────────────────────────────────────────
