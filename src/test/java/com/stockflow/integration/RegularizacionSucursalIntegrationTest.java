@@ -88,9 +88,12 @@ class RegularizacionSucursalIntegrationTest {
                     "VALUES (?, 'Empresa Test Reg', true, 'FERRETERIA') ON CONFLICT DO NOTHING", t);
         }
 
-        jdbc.update("INSERT INTO usuarios (id, email, contraseña, nombre, rol_id, activo, tenant_id) " +
-                "VALUES (?, 'reguser@test.com', 'x', 'Reg User', ?, true, ?) ON CONFLICT DO NOTHING",
-                USER_ID, rolId, TENANT_STOCK);
+        jdbc.update("INSERT INTO usuarios (id, email, contraseña, nombre, activo) " +
+                "VALUES (?, 'reguser@test.com', 'x', 'Reg User', true) ON CONFLICT (id) DO NOTHING",
+                USER_ID);
+        jdbc.update("INSERT INTO usuario_tenant (usuario_id, tenant_id, rol_id) " +
+                "VALUES (?, ?, ?) ON CONFLICT (usuario_id, tenant_id) DO NOTHING",
+                USER_ID, TENANT_STOCK, rolId);
 
         sucursalStockId     = crearSucursalPrincipal(TENANT_STOCK, umId);
         sucursalVariantesId = crearSucursalPrincipal(TENANT_VARIANTES, umId);
@@ -234,9 +237,11 @@ class RegularizacionSucursalIntegrationTest {
 
         Long rolId = jdbc.queryForObject("SELECT id FROM roles WHERE nombre = 'ADMIN' LIMIT 1", Long.class);
         Long userLocalId = jdbc.queryForObject(
-                "INSERT INTO usuarios (email, contraseña, nombre, rol_id, activo, tenant_id) " +
-                "VALUES ('lotes@test.com', 'x', 'Lotes User', ?, true, ?) RETURNING id",
-                Long.class, rolId, TENANT_LOTES);
+                "INSERT INTO usuarios (email, contraseña, nombre, activo) " +
+                "VALUES ('lotes@test.com', 'x', 'Lotes User', true) RETURNING id",
+                Long.class);
+        jdbc.update("INSERT INTO usuario_tenant (usuario_id, tenant_id, rol_id) VALUES (?, ?, ?)",
+                userLocalId, TENANT_LOTES, rolId);
 
         Long movId = jdbc.queryForObject(
                 "INSERT INTO movimientos_inventario (producto_id, cantidad, tipo, usuario_id, tenant_id) " +
@@ -329,9 +334,11 @@ class RegularizacionSucursalIntegrationTest {
 
         Long rolId = jdbc.queryForObject("SELECT id FROM roles WHERE nombre = 'ADMIN' LIMIT 1", Long.class);
         Long userLocalId = jdbc.queryForObject(
-                "INSERT INTO usuarios (email, contraseña, nombre, rol_id, activo, tenant_id) " +
-                "VALUES ('idem@test.com', 'x', 'Idem User', ?, true, ?) RETURNING id",
-                Long.class, rolId, TENANT_IDEM);
+                "INSERT INTO usuarios (email, contraseña, nombre, activo) " +
+                "VALUES ('idem@test.com', 'x', 'Idem User', true) RETURNING id",
+                Long.class);
+        jdbc.update("INSERT INTO usuario_tenant (usuario_id, tenant_id, rol_id) VALUES (?, ?, ?)",
+                userLocalId, TENANT_IDEM, rolId);
 
         Long movId = jdbc.queryForObject(
                 "INSERT INTO movimientos_inventario (producto_id, cantidad, tipo, usuario_id, tenant_id) " +
@@ -339,7 +346,7 @@ class RegularizacionSucursalIntegrationTest {
                 Long.class, prodId, userLocalId, TENANT_IDEM);
 
         jdbc.update("INSERT INTO stock_lotes (tenant_id, movimiento_id, producto_id, " +
-                "stock_inicial, stock_actual) VALUES (?, ?, ?, 50, 50)",
+                "fecha_vencimiento, stock_inicial, stock_actual) VALUES (?, ?, ?, '2035-12-31', 50, 50)",
                 TENANT_IDEM, movId, prodId);
 
         TenantContext.setCurrentTenant(TENANT_IDEM);

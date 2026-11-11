@@ -77,6 +77,7 @@ class OtConsumoIntegrationTest {
     private Long loteId;
     private Long otId;
     private Long otId2;
+    private Long sucursalId;
 
     // ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -89,9 +90,17 @@ class OtConsumoIntegrationTest {
         Long rolId = jdbc.queryForObject(
                 "SELECT id FROM roles WHERE nombre = 'ADMIN' LIMIT 1", Long.class);
 
-        jdbc.execute("INSERT INTO usuarios (id, email, contraseña, nombre, rol_id, activo, tenant_id) " +
-                "VALUES (" + USER_ID + ", 'ituser@test.com', 'irrelevante', 'IT User', " +
-                rolId + ", true, '" + TENANT_ID + "') ON CONFLICT (id) DO NOTHING");
+        jdbc.execute("INSERT INTO usuarios (id, email, contraseña, nombre, activo) " +
+                "VALUES (" + USER_ID + ", 'ituser@test.com', 'irrelevante', 'IT User', true) " +
+                "ON CONFLICT (id) DO NOTHING");
+        jdbc.execute("INSERT INTO usuario_tenant (usuario_id, tenant_id, rol_id) " +
+                "VALUES (" + USER_ID + ", '" + TENANT_ID + "', " + rolId + ") " +
+                "ON CONFLICT (usuario_id, tenant_id) DO NOTHING");
+
+        sucursalId = jdbc.queryForObject(
+                "INSERT INTO sucursales (nombre, tenant_id, es_principal, activo) " +
+                "VALUES ('Sucursal IT', '" + TENANT_ID + "', true, true) RETURNING id",
+                Long.class);
 
         Long umId = jdbc.queryForObject(
                 "SELECT id FROM unidad_medida WHERE tenant_id IS NULL LIMIT 1", Long.class);
@@ -102,15 +111,14 @@ class OtConsumoIntegrationTest {
                 Long.class);
 
         Long movId = jdbc.queryForObject(
-                "INSERT INTO movimientos_inventario (producto_id, cantidad, tipo, usuario_id, tenant_id) " +
-                "VALUES (" + productoId + ", 50, 'COMPRA', " + USER_ID + ", '" + TENANT_ID + "') RETURNING id",
+                "INSERT INTO movimientos_inventario (producto_id, cantidad, tipo, usuario_id, tenant_id, sucursal_id) " +
+                "VALUES (" + productoId + ", 50, 'COMPRA', " + USER_ID + ", '" + TENANT_ID + "', " + sucursalId + ") RETURNING id",
                 Long.class);
 
-        // sucursal_id ficticio (99901) — ordenes_trabajo no tiene FK a sucursales
         loteId = jdbc.queryForObject(
                 "INSERT INTO stock_lotes (tenant_id, movimiento_id, producto_id, sucursal_id, " +
                 "fecha_vencimiento, stock_inicial, stock_actual) " +
-                "VALUES ('" + TENANT_ID + "', " + movId + ", " + productoId + ", 99901, " +
+                "VALUES ('" + TENANT_ID + "', " + movId + ", " + productoId + ", " + sucursalId + ", " +
                 "'2035-12-31', 50, " + STOCK_INICIAL_LOTE + ") RETURNING id",
                 Long.class);
 
@@ -126,16 +134,16 @@ class OtConsumoIntegrationTest {
 
         otId = jdbc.queryForObject(
                 "INSERT INTO ordenes_trabajo (tenant_id, numero_ot, anio, equipo_cliente_id, " +
-                "sucursal_id, cliente_id, estado, prioridad, descripcion_problema) " +
+                "sucursal_id, cliente_id, estado, prioridad, descripcion_problema, tecnico_id) " +
                 "VALUES ('" + TENANT_ID + "', 'OT-IT-001', 2026, " + equipoId + ", " +
-                "99901, " + clienteId + ", 'EN_PROCESO', 'NORMAL', 'Test concurrencia') RETURNING id",
+                sucursalId + ", " + clienteId + ", 'EN_PROCESO', 'NORMAL', 'Test concurrencia', " + USER_ID + ") RETURNING id",
                 Long.class);
 
         otId2 = jdbc.queryForObject(
                 "INSERT INTO ordenes_trabajo (tenant_id, numero_ot, anio, equipo_cliente_id, " +
-                "sucursal_id, cliente_id, estado, prioridad, descripcion_problema) " +
+                "sucursal_id, cliente_id, estado, prioridad, descripcion_problema, tecnico_id) " +
                 "VALUES ('" + TENANT_ID + "', 'OT-IT-002', 2026, " + equipoId + ", " +
-                "99901, " + clienteId + ", 'EN_PROCESO', 'NORMAL', 'Test rollback') RETURNING id",
+                sucursalId + ", " + clienteId + ", 'EN_PROCESO', 'NORMAL', 'Test rollback', " + USER_ID + ") RETURNING id",
                 Long.class);
     }
 
