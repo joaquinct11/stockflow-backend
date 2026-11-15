@@ -275,9 +275,9 @@ public class MovimientoInventarioController {
             movimientoRepository.save(movimientoCreado);
         }
 
-        // Registrar en stock_lotes para control FEFO solo cuando viene fecha_vencimiento.
-        // Para productos farmacia el frontend obliga la fecha; para otros rubros no se crea lote.
-        if ((esEntrada || esDevolucion) && fechaVencimiento != null) {
+        // Registrar en stock_lotes cuando hay número de lote (con o sin fecha de vencimiento).
+        // Farmacia obliga fecha; otros rubros (ej. ferretería) pueden omitirla — el FEFO los coloca al final.
+        if ((esEntrada || esDevolucion) && lote != null) {
             stockLoteService.registrarLote(
                     tenantId, movimientoCreado.getId(), producto.getId(),
                     movimientoDTO.getSucursalId(), lote,
@@ -484,7 +484,7 @@ public class MovimientoInventarioController {
         LocalDate hoy = LocalDate.now();
 
         List<MovimientoInventario> movimientos = movimientoRepository
-                .findEntradasConVencimientoPorTenant(tenantId);
+                .findEntradasConLotePorTenant(tenantId);
 
         // Obtener stock real, proveedor y precio por lote desde stock_lotes (batch)
         List<Long> movIds = movimientos.stream().map(MovimientoInventario::getId).collect(Collectors.toList());
@@ -503,7 +503,9 @@ public class MovimientoInventarioController {
                         .fechaVencimiento(m.getFechaVencimiento())
                         .cantidad(m.getCantidad())
                         .stockActual(stockPorMovimiento.getOrDefault(m.getId(), 0))
-                        .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
+                        .diasRestantes(m.getFechaVencimiento() != null
+                                ? ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento())
+                                : null)
                         .registroSanitario(m.getRegistroSanitario())
                         .proveedorId(proveedorIdPorMovimiento.get(m.getId()))
                         .proveedorNombre(proveedorPorMovimiento.get(m.getId()))
@@ -524,7 +526,7 @@ public class MovimientoInventarioController {
         LocalDate hoy = LocalDate.now();
 
         List<MovimientoInventario> movimientos = movimientoRepository
-                .findEntradasConVencimientoPorTenant(tenantId)
+                .findEntradasConLotePorTenant(tenantId)
                 .stream()
                 .filter(m -> m.getProducto().getId().equals(productoId))
                 .collect(Collectors.toList());
@@ -543,7 +545,9 @@ public class MovimientoInventarioController {
                         .fechaVencimiento(m.getFechaVencimiento())
                         .cantidad(m.getCantidad())
                         .stockActual(stockPorMovimiento.getOrDefault(m.getId(), 0))
-                        .diasRestantes(ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento()))
+                        .diasRestantes(m.getFechaVencimiento() != null
+                                ? ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento())
+                                : null)
                         .registroSanitario(m.getRegistroSanitario())
                         .proveedorNombre(proveedorPorMovimiento.get(m.getId()))
                         .precioVenta(precioPorMovimiento.get(m.getId()))
