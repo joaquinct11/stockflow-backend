@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
+
 @Entity
 @Table(name = "usuarios")
 @Data
@@ -31,10 +32,6 @@ public class Usuario {
     @Column(length = 150)
     private String apellido;
 
-    @ManyToOne
-    @JoinColumn(name = "rol_id", nullable = false)
-    private Rol rol;
-
     @Column(nullable = false)
     private Boolean activo = true;
 
@@ -44,14 +41,12 @@ public class Usuario {
     @Column(name = "ultimo_login")
     private LocalDateTime ultimoLogin;
 
-    @Column(name = "tenant_id", nullable = false)
-    private String tenantId;
-
     @Column(name = "token_recuperacion", unique = true)
     private String tokenRecuperacion;
 
     @Column(name = "token_recuperacion_expira")
     private LocalDateTime tokenRecuperacionExpira;
+
 
     /** Token de activación de cuenta (enviado por email al crear usuario desde el admin) */
     @Column(name = "token_activacion", unique = true)
@@ -73,7 +68,4 @@ public class Usuario {
     @Column(name = "numero_celular", length = 20)
     private String numeroCelular;
 
-    /** Local asignado. NULL = ADMIN (ve todos los locales) o plan Básico. */
-    @Column(name = "sucursal_id")
-    private Long sucursalId;
 }

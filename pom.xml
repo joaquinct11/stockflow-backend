@@ -16,6 +16,7 @@
 
 	<properties>
 		<java.version>21</java.version>
+		<testcontainers.version>1.21.4</testcontainers.version>
 	</properties>
 
 	<dependencies>
@@ -120,6 +121,21 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
 
 		<dependency>
 			<groupId>me.paulschwarz</groupId>
@@ -217,6 +233,10 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+					<!-- JDK 21 on Windows defaults to WEPollSelectorProvider which uses
+					     Unix Domain Sockets for Pipe.open(); that fails on some Windows
+					     environments. Force the pre-JDK-21 TCP-loopback selector. -->
+					<jvmArguments>-Djava.nio.channels.spi.SelectorProvider=sun.nio.ch.WindowsSelectorProvider</jvmArguments>
 				</configuration>
 			</plugin>
 		</plugins>

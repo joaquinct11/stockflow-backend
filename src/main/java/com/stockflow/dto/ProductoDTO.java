@@ -82,6 +82,21 @@ public class ProductoDTO {
     private LocalDate proximaFechaVencimiento;
 
     /**
+     * Precio unitario mayorista. Opcional. Cuando está presente junto a
+     * {@link #cantidadMinimaMayorista}, el sistema aplica este precio automáticamente
+     * al alcanzar la cantidad mínima configurada.
+     */
+    @DecimalMin(value = "0.01", message = "El precio mayorista debe ser mayor a 0")
+    private BigDecimal precioMayorista;
+
+    /**
+     * Cantidad mínima de unidades para activar el precio mayorista.
+     * Debe ser un entero positivo cuando se configura junto a precioMayorista.
+     */
+    @Min(value = 1, message = "La cantidad mínima mayorista debe ser al menos 1")
+    private Integer cantidadMinimaMayorista;
+
+    /**
      * Stock disponible no vencido (FEFO). Solo presente si el producto tiene lotes
      * con fechaVencimiento registrada. El POS debe usar este valor cuando no es null.
      */

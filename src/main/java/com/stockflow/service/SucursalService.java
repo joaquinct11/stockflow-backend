@@ -44,7 +44,34 @@ public interface SucursalService {
     int desbloquearSucursalesAdicionales(String tenantId);
 
     /**
+     * Desbloquea sucursales bloqueadas por plan respetando el límite vigente.
+     * Cuenta las sucursales ya activas (incluida la principal) y calcula los espacios disponibles.
+     * Si hay más bloqueadas que espacios, deja el excedente con bloqueadaPorPlan=true;
+     * criterio determinista: se reactivan primero las de id menor (las más antiguas).
+     * No toca sucursales desactivadas manualmente (bloqueadaPorPlan=false).
+     */
+    int desbloquearSucursalesConLimite(String tenantId, int maxSucursales);
+
+    /**
      * Lista las sucursales del tenant incluyendo las bloqueadas por plan (para mostrar en UI).
      */
     List<SucursalDTO> listarConBloqueadas(String tenantId);
+
+    /**
+     * Lanza BadRequestException si la sucursal no está operativa (activo=false).
+     * No hace nada si sucursalId es null (operaciones sin sucursal explícita siguen permitidas).
+     * Lanza ResourceNotFoundException si la sucursal no existe o no pertenece al tenant.
+     */
+    void validarSucursalOperativa(Long sucursalId, String tenantId);
+
+    /**
+     * Regulariza los datos de un tenant histórico cuya sucursal principal ya existe en BD
+     * (creada manualmente vía SQL) pero nunca pasó por el backfill de inicializarPrincipal().
+     *
+     * A diferencia de inicializarPrincipal(), este método NO crea la sucursal:
+     * la busca, lanza BadRequestException si no existe, y ejecuta todos los pasos
+     * de backfill directamente sobre la sucursal existente.
+     * Todos los queries usan WHERE sucursal_id IS NULL y ON CONFLICT DO NOTHING → idempotente.
+     */
+    SucursalDTO regularizarDatosSucursalPrincipal(String tenantId);
 }

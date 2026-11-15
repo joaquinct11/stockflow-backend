@@ -146,6 +146,25 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("hasta")    java.time.LocalDate hasta
     );
 
+    /**
+     * Devuelve todos los movimientos de ENTRADA que tienen número de lote (con o sin fecha de vencimiento).
+     * Usado en la pestaña Lotes del inventario para rubros como Ferretería que no registran fechaVencimiento.
+     * Lotes sin fecha aparecen al final (NULLS LAST equivalente via CASE).
+     */
+    @Query("""
+            SELECT m FROM MovimientoInventario m
+            JOIN FETCH m.producto p
+            WHERE m.tenantId = :tenantId
+              AND m.tipo IN ('ENTRADA', 'SALDO_INICIAL')
+              AND m.lote IS NOT NULL
+              AND p.activo = true
+            ORDER BY CASE WHEN m.fechaVencimiento IS NULL THEN 1 ELSE 0 END ASC,
+                     m.fechaVencimiento ASC
+            """)
+    List<MovimientoInventario> findEntradasConLotePorTenant(
+            @Param("tenantId") String tenantId
+    );
+
     // ── Próxima fecha de vencimiento por producto (para POS y catálogo) ──────
 
     /**
@@ -243,4 +262,6 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     Optional<String> findLatestRegistroSanitarioByProductoId(
             @Param("productoId") Long   productoId,
             @Param("tenantId")   String tenantId);
+
+    Optional<MovimientoInventario> findByIdAndTenantId(Long id, String tenantId);
 }

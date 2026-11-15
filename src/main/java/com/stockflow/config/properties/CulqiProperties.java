@@ -41,4 +41,5 @@ public class CulqiProperties {
      * Se envía en el header x-culqi-rsa-id en las peticiones cifradas.
      */
     private String rsaId;
+
 }

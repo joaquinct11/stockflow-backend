@@ -4,7 +4,12 @@ import com.stockflow.dto.superadmin.*;
 import com.stockflow.entity.Suscripcion;
 import com.stockflow.entity.Tenant;
 import com.stockflow.exception.BadRequestException;
-import com.stockflow.repository.*;
+import com.stockflow.repository.ComprobanteRepository;
+import com.stockflow.repository.ProductoRepository;
+import com.stockflow.repository.SuscripcionRepository;
+import com.stockflow.repository.TenantRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
+import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.SuperAdminService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,14 +26,12 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SuperAdminServiceImpl implements SuperAdminService {
 
-    private final TenantRepository       tenantRepository;
+    private final TenantRepository        tenantRepository;
     private final SuscripcionRepository  suscripcionRepository;
-    private final UsuarioRepository      usuarioRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
     private final ProductoRepository     productoRepository;
     private final VentaRepository        ventaRepository;
     private final ComprobanteRepository  comprobanteRepository;
-
-    // ── Listar tenants ───────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
@@ -37,8 +40,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .map(this::toResumen)
                 .toList();
     }
-
-    // ── Stats ────────────────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
@@ -57,6 +58,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 case "VENCIDA"   -> vencidos++;
                 case "CANCELADA" -> cancelados++;
                 case "PAST_DUE"  -> pastDue++;
+                default          -> { /* estado desconocido, ignorar */ }
             }
         }
 
@@ -67,8 +69,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .pastDue(pastDue).mrrEstimado(mrr)
                 .build();
     }
-
-    // ── Finanzas ─────────────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
@@ -84,139 +84,124 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             if ("ACTIVA".equals(s.get().getEstado())) {
                 activos++;
                 if (s.get().getPrecioMensual() != null) mrr = mrr.add(s.get().getPrecioMensual());
-                if ("BASICO".equalsIgnoreCase(s.get().getPlanId())) cantBasico++;
-                else if ("PRO".equalsIgnoreCase(s.get().getPlanId())) cantPro++;
+                String codigo = s.get().getPlanCodigo() != null ? s.get().getPlanCodigo().toUpperCase() : "";
+                if (codigo.contains("BASICO")) cantBasico++;
+                else if (codigo.contains("PRO")) cantPro++;
             }
         }
 
         return SuperAdminFinanzasDTO.builder()
                 .mrrActual(mrr)
                 .mrrAnualProyectado(mrr.multiply(BigDecimal.valueOf(12)))
-                .cantBasico(cantBasico)
-                .cantPro(cantPro)
-                .tenantsActivos(activos)
-                .tenantsConOse(conOse)
+                .cantBasico(cantBasico).cantPro(cantPro)
+                .tenantsActivos(activos).tenantsConOse(conOse)
                 .build();
     }
-
-    // ── Historial cobros ─────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
     public List<SuscripcionHistorialDTO> obtenerCobros(String tenantId) {
         return suscripcionRepository.findByTenantId(tenantId).stream()
-                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
                 .map(s -> SuscripcionHistorialDTO.builder()
                         .id(s.getId())
                         .planId(s.getPlanId())
-                        .estado(s.getEstado())
+                        .planCodigo(s.getPlanCodigo())
                         .precioMensual(s.getPrecioMensual())
-                        .metodoPago(s.getMetodoPago())
-                        .ultimos4Digitos(s.getUltimos4Digitos())
-                        .preapprovalId(s.getPreapprovalId())
+                        .estado(s.getEstado())
                         .fechaInicio(s.getFechaInicio())
                         .fechaProximoCobro(s.getFechaProximoCobro())
-                        .trialEndDate(s.getTrialEndDate())
-                        .currentPeriodEnd(s.getCurrentPeriodEnd())
-                        .createdAt(s.getCreatedAt())
+                        .fechaCancelacion(s.getFechaCancelacion())
+                        .metodoPago(s.getMetodoPago())
+                        .ultimos4Digitos(s.getUltimos4Digitos())
                         .build())
                 .toList();
     }
 
-    // ── Actualizar suscripción ───────────────────────────────────────────────
-
     @Override
     @Transactional
     public TenantResumenDTO actualizarSuscripcion(String tenantId, SuscripcionManualUpdateDTO dto) {
+        Tenant tenant = tenantRepository.findByTenantId(tenantId)
+                .orElseThrow(() -> new BadRequestException("Tenant no encontrado: " + tenantId));
         Suscripcion s = suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId)
-                .orElseThrow(() -> new BadRequestException("No existe suscripción para el tenant: " + tenantId));
+                .orElseThrow(() -> new BadRequestException("Sin suscripción activa para: " + tenantId));
         if (dto.getPlanId()            != null) s.setPlanId(dto.getPlanId());
-        if (dto.getEstado()            != null) s.setEstado(dto.getEstado());
+        if (dto.getPlanCodigo()        != null) s.setPlanCodigo(dto.getPlanCodigo());
         if (dto.getPrecioMensual()     != null) s.setPrecioMensual(dto.getPrecioMensual());
+        if (dto.getEstado()            != null) s.setEstado(dto.getEstado());
         if (dto.getFechaProximoCobro() != null) s.setFechaProximoCobro(dto.getFechaProximoCobro());
-        if (dto.getTrialEndDate()      != null) s.setTrialEndDate(dto.getTrialEndDate());
-        if (dto.getCurrentPeriodEnd()  != null) s.setCurrentPeriodEnd(dto.getCurrentPeriodEnd());
         suscripcionRepository.save(s);
-        log.info("✅ SA actualizó suscripción tenant={} plan={} estado={}", tenantId, s.getPlanId(), s.getEstado());
-        return toResumen(tenantRepository.findByTenantId(tenantId)
-                .orElseThrow(() -> new BadRequestException("Tenant no encontrado: " + tenantId)));
+        log.info("SA actualizó suscripción de tenant={}", tenantId);
+        return toResumen(tenant);
     }
-
-    // ── Extender trial ───────────────────────────────────────────────────────
 
     @Override
     @Transactional
     public TenantResumenDTO extenderTrial(String tenantId, int dias) {
+        Tenant tenant = tenantRepository.findByTenantId(tenantId)
+                .orElseThrow(() -> new BadRequestException("Tenant no encontrado: " + tenantId));
         Suscripcion s = suscripcionRepository.findFirstByTenantIdOrderByIdDesc(tenantId)
-                .orElseThrow(() -> new BadRequestException("No existe suscripción para el tenant: " + tenantId));
-        LocalDateTime base = s.getTrialEndDate() != null && s.getTrialEndDate().isAfter(LocalDateTime.now())
-                ? s.getTrialEndDate()
-                : LocalDateTime.now();
-        s.setTrialEndDate(base.plusDays(dias));
+                .orElseThrow(() -> new BadRequestException("Sin suscripción para: " + tenantId));
+        LocalDateTime nuevoFin = (s.getTrialEndDate() != null ? s.getTrialEndDate() : LocalDateTime.now())
+                .plusDays(dias);
+        s.setTrialEndDate(nuevoFin);
         s.setEstado("TRIAL");
         suscripcionRepository.save(s);
-        log.info("✅ SA extendió trial de tenant={} en {} días → hasta {}", tenantId, dias, s.getTrialEndDate());
-        return toResumen(tenantRepository.findByTenantId(tenantId)
-                .orElseThrow(() -> new BadRequestException("Tenant no encontrado: " + tenantId)));
+        log.info("SA extendió trial de tenant={} en {} días hasta {}", tenantId, dias, nuevoFin);
+        return toResumen(tenant);
     }
-
-    // ── Toggle activo ────────────────────────────────────────────────────────
 
     @Override
     @Transactional
     public void toggleActivo(String tenantId, boolean activo) {
-        Tenant t = tenantRepository.findByTenantId(tenantId)
+        Tenant tenant = tenantRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new BadRequestException("Tenant no encontrado: " + tenantId));
-        t.setActivo(activo);
-        tenantRepository.save(t);
-        log.info("✅ SA {} tenant={}", activo ? "activó" : "desactivó", tenantId);
+        tenant.setActivo(activo);
+        tenantRepository.save(tenant);
+        log.info("SA {} tenant={}", activo ? "activó" : "desactivó", tenantId);
     }
-
-    // ── OSE ──────────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
     public void actualizarOse(String tenantId, OseUpdateDTO dto) {
-        Tenant t = tenantRepository.findByTenantId(tenantId)
+        Tenant tenant = tenantRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new BadRequestException("Tenant no encontrado: " + tenantId));
-        if (dto.getOseUrl()   != null) t.setOseUrl(dto.getOseUrl());
-        if (dto.getOseToken() != null) t.setOseToken(dto.getOseToken());
-        tenantRepository.save(t);
-        log.info("✅ SA actualizó OSE de tenant={}", tenantId);
+        tenant.setOseUrl(dto.getOseUrl());
+        tenant.setOseToken(dto.getOseToken());
+        tenantRepository.save(tenant);
+        log.info("SA actualizó OSE para tenant={}", tenantId);
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private TenantResumenDTO toResumen(Tenant t) {
-        Optional<Suscripcion> sus = suscripcionRepository.findFirstByTenantIdOrderByIdDesc(t.getTenantId());
-
-        TenantResumenDTO.TenantResumenDTOBuilder b = TenantResumenDTO.builder()
+        Optional<Suscripcion> s = suscripcionRepository.findFirstByTenantIdOrderByIdDesc(t.getTenantId());
+        return TenantResumenDTO.builder()
                 .tenantId(t.getTenantId())
                 .nombre(t.getNombre())
+                .activo(t.getActivo())
+                .rubro(t.getRubro())
+                .planId(s.map(Suscripcion::getPlanId).orElse(null))
+                .planCodigo(s.map(Suscripcion::getPlanCodigo).orElse(null))
+                .precioMensual(s.map(Suscripcion::getPrecioMensual).orElse(null))
+                .estadoSuscripcion(s.map(Suscripcion::getEstado).orElse(null))
+                .fechaProximoCobro(s.map(Suscripcion::getFechaProximoCobro).orElse(null))
+                .trialEndDate(s.map(Suscripcion::getTrialEndDate).orElse(null))
+                .tieneOse(t.getOseToken() != null && !t.getOseToken().isBlank())
+                // Contacto y facturación
                 .ruc(t.getRuc())
                 .emailContacto(t.getEmailContacto())
-                .rubro(t.getRubro())
-                .activo(t.getActivo())
                 .oseUrl(t.getOseUrl())
                 .oseToken(t.getOseToken())
-                .totalUsuarios(usuarioRepository.countByTenantId(t.getTenantId()))
+                // Suscripción extendida
+                .suscripcionId(s.map(Suscripcion::getId).orElse(null))
+                .preapprovalId(s.map(Suscripcion::getPreapprovalId).orElse(null))
+                .ultimos4Digitos(s.map(Suscripcion::getUltimos4Digitos).orElse(null))
+                .metodoPago(s.map(Suscripcion::getMetodoPago).orElse(null))
+                .currentPeriodEnd(s.map(Suscripcion::getCurrentPeriodEnd).orElse(null))
+                .suscripcionCreadaEn(s.map(Suscripcion::getCreatedAt).orElse(null))
+                // Métricas de uso
+                .totalUsuarios(usuarioTenantRepository.countByTenantIdAndActivoTrue(t.getTenantId()))
                 .totalProductos(productoRepository.countByTenantId(t.getTenantId()))
                 .totalVentas(ventaRepository.countByTenantId(t.getTenantId()))
-                .totalComprobantes(comprobanteRepository.countByTenantId(t.getTenantId()));
-
-        sus.ifPresent(s -> b
-                .suscripcionId(s.getId())
-                .planId(s.getPlanId())
-                .estadoSuscripcion(s.getEstado())
-                .precioMensual(s.getPrecioMensual())
-                .preapprovalId(s.getPreapprovalId())
-                .ultimos4Digitos(s.getUltimos4Digitos())
-                .metodoPago(s.getMetodoPago())
-                .fechaProximoCobro(s.getFechaProximoCobro())
-                .trialEndDate(s.getTrialEndDate())
-                .currentPeriodEnd(s.getCurrentPeriodEnd())
-                .suscripcionCreadaEn(s.getCreatedAt()));
-
-        return b.build();
+                .totalComprobantes(comprobanteRepository.countByTenantId(t.getTenantId()))
+                .build();
     }
 }

@@ -1,13 +1,22 @@
 package com.stockflow.service;
 
+import com.stockflow.dto.CrearUsuarioResult;
 import com.stockflow.dto.DeleteAccountValidationDTO;
+import com.stockflow.dto.UsuarioUpdateDTO;
+import com.stockflow.entity.Rol;
 import com.stockflow.entity.Usuario;
 import java.util.List;
 import java.util.Optional;
 
 public interface UsuarioService {
 
-    Usuario crearUsuario(Usuario usuario);
+    /**
+     * Crea un usuario nuevo (Case A) o incorpora uno existente al tenant actual (Case B).
+     * El tenantId se lee de TenantContext; rol se pasa explícitamente.
+     * sucursalId se pasa explícitamente (no se almacena en usuarios, va a usuario_tenant).
+     * Nunca sobrescribe la contraseña de un usuario existente.
+     */
+    CrearUsuarioResult crearUsuario(Usuario usuario, Long sucursalId, Rol rol);
 
     Optional<Usuario> obtenerUsuarioPorId(Long id);
 
@@ -15,17 +24,23 @@ public interface UsuarioService {
 
     List<Usuario> obtenerUsuariosPorTenant(String tenantId);
 
-    Usuario actualizarUsuario(Long id, Usuario usuarioActualizado);
+    /**
+     * Actualiza campos globales de la identidad del usuario y campos tenant-scoped en usuario_tenant.
+     * Campos globales (usuarios): nombre, apellido, activo, tipoDocumento, numeroDocumento, numeroCelular.
+     * Campos tenant-scoped (usuario_tenant): rol (explicit param) y sucursalId (from dto.getSucursalId()).
+     * El tenantId se lee de TenantContext.
+     */
+    Usuario actualizarUsuario(Long id, UsuarioUpdateDTO updateDTO, Rol rol);
 
     void desactivarUsuario(Long id);
 
     void activarUsuario(Long id);
 
-    DeleteAccountValidationDTO validarEliminacion(Long id);  // ✅ NUEVO
+    DeleteAccountValidationDTO validarEliminacion(Long id);
 
     void eliminarUsuario(Long id);
 
-    void eliminarCuentaCompleta(Long id);  // ✅ NUEVO (elimina tenant)
+    void eliminarCuentaCompleta(Long id);
 
     /**
      * Guarda directamente el objeto Usuario (usado para actualizar campos como

@@ -1,9 +1,14 @@
 package com.stockflow.service.impl;
 
+import com.stockflow.dto.ClienteStatsDTO;
 import com.stockflow.entity.Cliente;
+import com.stockflow.exception.ConflictException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.ClienteRepository;
+import com.stockflow.repository.EquipoClienteRepository;
+import com.stockflow.repository.MascotaRepository;
 import com.stockflow.service.ClienteService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,6 +23,8 @@ import java.util.Optional;
 public class ClienteServiceImpl implements ClienteService {
 
     private final ClienteRepository clienteRepository;
+    private final MascotaRepository mascotaRepository;
+    private final EquipoClienteRepository equipoClienteRepository;
 
     @Override
     public Cliente crearCliente(Cliente cliente) {
@@ -27,7 +34,8 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     public Optional<Cliente> obtenerClientePorId(Long id) {
-        return clienteRepository.findById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId);
     }
 
     @Override
@@ -43,7 +51,8 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public Cliente actualizarCliente(Long id, Cliente cliente) {
         log.info("✏️ Actualizando cliente ID: {}", id);
-        return clienteRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId)
                 .map(existing -> {
                     existing.setNombre(cliente.getNombre());
                     existing.setTipoDocumento(cliente.getTipoDocumento());
@@ -59,7 +68,8 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public Cliente activarCliente(Long id) {
         log.info("✅ Activando cliente ID: {}", id);
-        return clienteRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId)
                 .map(cliente -> {
                     cliente.setActivo(true);
                     cliente.setDeletedAt(null);
@@ -71,7 +81,8 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public Cliente desactivarCliente(Long id) {
         log.info("🔒 Desactivando cliente ID: {}", id);
-        return clienteRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return clienteRepository.findByIdAndTenantId(id, tenantId)
                 .map(cliente -> {
                     cliente.setActivo(false);
                     cliente.setDeletedAt(LocalDateTime.now());
@@ -83,7 +94,25 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public void eliminarCliente(Long id) {
         log.warn("🗑️ Eliminando cliente ID: {}", id);
-        clienteRepository.deleteById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        Cliente cliente = clienteRepository.findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+
+        long mascotas = mascotaRepository.countByCliente_IdAndTenantId(id, tenantId);
+        if (mascotas > 0) {
+            throw new ConflictException(
+                    "No se puede eliminar el cliente porque tiene " + mascotas +
+                    " mascota(s) registrada(s). Desactívelo en su lugar.");
+        }
+
+        long equipos = equipoClienteRepository.countByCliente_IdAndTenantId(id, tenantId);
+        if (equipos > 0) {
+            throw new ConflictException(
+                    "No se puede eliminar el cliente porque tiene " + equipos +
+                    " equipo(s) registrado(s). Desactívelo en su lugar.");
+        }
+
+        clienteRepository.delete(cliente);
     }
 
     @Override
@@ -96,5 +125,13 @@ public class ClienteServiceImpl implements ClienteService {
     public List<Cliente> obtenerClientesActivosPorTenant(String tenantId) {
         log.info("✅ Obteniendo clientes activos para tenant: {}", tenantId);
         return clienteRepository.findByTenantIdAndActivoTrue(tenantId);
+    }
+
+    @Override
+    public ClienteStatsDTO getStats() {
+        String tenantId = TenantContext.getCurrentTenant();
+        long total   = clienteRepository.countByTenantId(tenantId);
+        long activos = clienteRepository.countByTenantIdAndActivoTrue(tenantId);
+        return new ClienteStatsDTO(total, activos);
     }
 }

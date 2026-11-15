@@ -88,6 +88,20 @@ public class SucursalController {
     }
 
     /**
+     * POST /sucursales/regularizar-datos-principal
+     * Backfill para tenants históricos cuya sucursal principal ya existe en BD
+     * (creada vía SQL) pero nunca pasó por inicializarPrincipal().
+     * Idempotente: puede ejecutarse múltiples veces sin efectos secundarios.
+     */
+    @PostMapping("/regularizar-datos-principal")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<SucursalDTO> regularizarDatosPrincipal() {
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("Regularizando datos de sucursal principal para tenant: {}", tenantId);
+        return ResponseEntity.ok(sucursalService.regularizarDatosSucursalPrincipal(tenantId));
+    }
+
+    /**
      * POST /sucursales/resync-stock-principal
      * Resincroniza el stock de la sucursal principal con productos.stock_actual.
      * Útil para corregir desincronizaciones históricas.

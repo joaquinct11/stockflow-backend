@@ -1,0 +1,46 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+jwt:
+  secret: test-secret-key-for-integration-tests-must-be-at-least-256-bits-long
+  expiration: 900000
+  refresh:
+    expiration: 604800000
+
+resend:
+  api-key:    test-resend-key
+  from-email: test@test.com
+  from-name:  Test
+
+culqi:
+  secret-key:  test-culqi-secret
+  public-key:  test-culqi-public
+  base-url:    http://localhost
+  plan-id-basico: ""
+  precio-basico:  ""
+  plan-id-pro:    ""
+  precio-pro:     ""
+  rsa-public-key: ""
+  rsa-id:         ""
+
+app:
+  frontend-url: http://localhost:3000
+
+fluxus:
+  internal-api-key: test-internal-key
+
+apisunat:
+  base-url: http://localhost
+
+cors:
+  allowed-origins:
+    - http://localhost:5173

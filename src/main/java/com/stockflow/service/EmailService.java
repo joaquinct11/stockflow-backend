@@ -2,6 +2,7 @@ package com.stockflow.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,6 +30,12 @@ public interface EmailService {
      * El link expira en 48 horas.
      */
     void enviarBienvenidaUsuarioNuevo(String email, String nombre, String tenantId, String token);
+
+    /**
+     * Notificación para un usuario que ya tenía cuenta y fue incorporado a un negocio adicional.
+     * No incluye link de activación porque el usuario ya tiene contraseña activa.
+     */
+    void enviarIncorporacionNuevoNegocio(String email, String nombre, String tenantId);
 
     /**
      * Resumen de cierre de caja enviado a ADMIN y GERENTE del tenant.
@@ -77,6 +84,24 @@ public interface EmailService {
      * Envía la reclamación al correo de contacto de Fluxus y
      * un acuse de recibo al consumidor.
      */
+    /**
+     * Confirmación de activación de suscripción Culqi.
+     * Incluye nombre del negocio, plan, precio, fechas y últimos 4 dígitos de tarjeta.
+     * Si el envío falla, la suscripción NO se revierte.
+     * Destinatario = email real del usuario (NUNCA el tenant-scoped de Culqi).
+     */
+    void enviarConfirmacionSuscripcionCulqi(
+            String emailReal,
+            String nombreUsuario,
+            String tenantId,
+            String planId,
+            BigDecimal precioMensual,
+            LocalDateTime fechaActivacion,
+            LocalDateTime fechaProximoCobro,
+            String ultimos4Digitos,
+            String metodoPago,
+            String culqiSubscriptionId);
+
     void enviarReclamacion(String tipo, String nombre, String apellido,
                            String dni, String correoConsumidor, String telefono,
                            String pedido, String monto, String descripcion,

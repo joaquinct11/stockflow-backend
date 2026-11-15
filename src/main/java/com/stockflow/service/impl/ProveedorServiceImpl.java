@@ -4,6 +4,7 @@ import com.stockflow.entity.Proveedor;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.service.ProveedorService;
+import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,8 @@ public class ProveedorServiceImpl implements ProveedorService {
 
     @Override
     public Optional<Proveedor> obtenerProveedorPorId(Long id) {
-        return proveedorRepository.findById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        return proveedorRepository.findByIdAndTenantId(id, tenantId);
     }
 
     @Override
@@ -42,8 +44,8 @@ public class ProveedorServiceImpl implements ProveedorService {
     @Override
     public Proveedor actualizarProveedor(Long id, Proveedor proveedor) {
         log.info("✏️ Actualizando proveedor ID: {}", id);
-
-        return proveedorRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return proveedorRepository.findByIdAndTenantId(id, tenantId)
                 .map(proveedorExistente -> {
                     proveedorExistente.setNombre(proveedor.getNombre());
                     proveedorExistente.setRuc(proveedor.getRuc());
@@ -59,8 +61,8 @@ public class ProveedorServiceImpl implements ProveedorService {
     @Override
     public Proveedor activarProveedor(Long id) {
         log.info("✅ Activando proveedor ID: {}", id);
-
-        return proveedorRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return proveedorRepository.findByIdAndTenantId(id, tenantId)
                 .map(proveedor -> {
                     proveedor.setActivo(true);
                     proveedor.setDeletedAt(null);
@@ -72,8 +74,8 @@ public class ProveedorServiceImpl implements ProveedorService {
     @Override
     public Proveedor desactivarProveedor(Long id) {
         log.info("🔒 Desactivando proveedor ID: {}", id);
-
-        return proveedorRepository.findById(id)
+        String tenantId = TenantContext.getCurrentTenant();
+        return proveedorRepository.findByIdAndTenantId(id, tenantId)
                 .map(proveedor -> {
                     proveedor.setActivo(false);
                     proveedor.setDeletedAt(LocalDateTime.now());
@@ -85,7 +87,10 @@ public class ProveedorServiceImpl implements ProveedorService {
     @Override
     public void eliminarProveedor(Long id) {
         log.warn("🗑️ Eliminando proveedor ID: {}", id);
-        proveedorRepository.deleteById(id);
+        String tenantId = TenantContext.getCurrentTenant();
+        Proveedor proveedor = proveedorRepository.findByIdAndTenantId(id, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Proveedor no encontrado"));
+        proveedorRepository.delete(proveedor);
     }
 
     @Override

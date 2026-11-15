@@ -17,6 +17,7 @@ import com.stockflow.repository.VentaRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.NotaCreditoService;
 import com.stockflow.service.StockLoteService;
+import com.stockflow.service.SucursalService;
 import com.stockflow.service.VentaService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -42,10 +43,12 @@ public class VentaServiceImpl implements VentaService {
     private final ProductoStockSucursalRepository   stockSucursalRepository;
     private final SucursalRepository                sucursalRepository;
     private final StockLoteService                  stockLoteService;
+    private final SucursalService                   sucursalService;
 
     @Override
     @Transactional
     public Venta crearVenta(Venta venta) {
+        sucursalService.validarSucursalOperativa(venta.getSucursalId(), venta.getTenantId());
         for (DetalleVenta detalle : venta.getDetalles()) {
             detalle.setVenta(venta);
             detalle.calcularSubtotal();
@@ -110,15 +113,27 @@ public class VentaServiceImpl implements VentaService {
         if ("DEVUELTA".equals(venta.getEstado()) || "DEVUELTA_PARCIAL".equals(venta.getEstado())) {
             throw new BadRequestException("No se puede anular una venta que ya tiene devoluciones registradas");
         }
+        if (venta.getOrdenTrabajoId() != null) {
+            throw new BadRequestException(
+                    "Esta venta pertenece a la OT #" + venta.getOrdenTrabajoId() +
+                    ". Use el endpoint POST /ordenes-trabajo/" + venta.getOrdenTrabajoId() + "/anular-factura");
+        }
 
         Long usuarioId = TenantContext.getCurrentUserId();
         Usuario usuario = usuarioId != null
                 ? usuarioRepository.findById(usuarioId).orElse(null)
                 : null;
 
-        // Reponer stock y registrar movimiento por cada producto
+        // Reponer stock y registrar movimiento por cada producto físico
         for (DetalleVenta detalle : venta.getDetalles()) {
             Producto producto = detalle.getProducto();
+            boolean esServicio = "SERVICIO".equals(producto.getTipo());
+
+            // Servicios no tienen stock ni movimientos de inventario
+            if (esServicio) {
+                continue;
+            }
+
             // Reponer en unidades base (cantidad × factor de presentación)
             int cantidadBase = detalle.getCantidad() * (detalle.getFactor() != null ? detalle.getFactor() : 1);
             producto.setStockActual(producto.getStockActual() + cantidadBase);
@@ -176,5 +191,27 @@ public class VentaServiceImpl implements VentaService {
 
         venta.setEstado("ANULADA");
         return ventaRepository.save(venta);
+    }
+
+    @Override
+    public Venta getVentaById(Long id, String tenantId) {
+        return ventaRepository.findById(id)
+                .filter(v -> tenantId.equals(v.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada: " + id));
+    }
+
+    @Override
+    @Transactional
+    public void anularVentaSinReponerStock(Long ventaId, String tenantId) {
+        Venta venta = ventaRepository.findById(ventaId)
+                .filter(v -> tenantId.equals(v.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Venta #" + ventaId + " no encontrada"));
+
+        if ("ANULADA".equals(venta.getEstado())) {
+            throw new BadRequestException("La venta ya está anulada");
+        }
+
+        venta.setEstado("ANULADA");
+        ventaRepository.save(venta);
     }
 }

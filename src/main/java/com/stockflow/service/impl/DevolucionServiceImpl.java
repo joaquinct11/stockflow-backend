@@ -140,11 +140,13 @@ public class DevolucionServiceImpl implements DevolucionService {
         NotaCredito nc = notaCreditoService.generarParaDevolucion(devolucion, tenantId);
         log.info("Nota de credito {} generada para devolucion {}", nc.getCodigo(), devolucion.getId());
 
-        // 7. Reponer stock if requested
+        // 7. Reponer stock if requested (solo productos físicos)
         if (dto.isReponerStock()) {
             Long sucursalId = venta.getSucursalId();
             for (DevolucionDetalle det : detalles) {
                 Producto producto = det.getProducto();
+                // Servicios no tienen stock ni movimientos de inventario
+                if ("SERVICIO".equals(producto.getTipo())) continue;
                 // Reponer en unidades base: cantidad devuelta × factor de presentación
                 int cantidadBase = det.getCantidadDevuelta() * (det.getFactor() != null ? det.getFactor() : 1);
                 producto.setStockActual(producto.getStockActual() + cantidadBase);

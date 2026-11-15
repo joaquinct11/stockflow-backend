@@ -11,6 +11,7 @@ import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.SucursalRepository;
 import com.stockflow.repository.SuscripcionRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.CulqiService;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.SuscripcionService;
@@ -44,6 +45,7 @@ public class SuscripcionController {
     private final SucursalRepository sucursalRepository;
     private final ProductoRepository productoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
     private final CulqiService culqiService;
     private final EmailService emailService;
     private final CulqiProperties culqiProperties;
@@ -74,8 +76,9 @@ public class SuscripcionController {
     @GetMapping("/usuario/{usuarioId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_SUSCRIPCIONES')")
     public ResponseEntity<SuscripcionDTO> obtenerPorUsuario(@PathVariable Long usuarioId) {
-        log.info("Obteniendo suscripción del usuario: {}", usuarioId);
-        return suscripcionService.obtenerSuscripcionPorUsuario(usuarioId)
+        String tenantId = TenantContext.getCurrentTenant();
+        log.info("Obteniendo suscripción del usuario: {} para tenant: {}", usuarioId, tenantId);
+        return suscripcionService.obtenerSuscripcionPorUsuarioYTenant(usuarioId, tenantId)
                 .map(suscripcionMapper::toDTO)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -105,8 +108,8 @@ public class SuscripcionController {
         Usuario usuario = usuarioService.obtenerUsuarioPorId(suscripcionDTO.getUsuarioPrincipalId())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
-        // Validar que no exista otra suscripción activa
-        suscripcionService.obtenerSuscripcionPorUsuario(suscripcionDTO.getUsuarioPrincipalId())
+        // Validar que no exista otra suscripción activa en este tenant
+        suscripcionService.obtenerSuscripcionPorUsuarioYTenant(suscripcionDTO.getUsuarioPrincipalId(), tenantId)
                 .ifPresent(suscripcion -> {
                     if ("ACTIVA".equals(suscripcion.getEstado())) {
                         throw new BadRequestException("El usuario ya tiene una suscripción activa");
@@ -208,6 +211,14 @@ public class SuscripcionController {
 
         Suscripcion s = optSuscripcion.get();
 
+        // Lazy-flip: trial expirado → PENDIENTE (mismo patrón que login/refresh)
+        if ("TRIAL".equals(s.getEstado()) &&
+                s.getTrialEndDate() != null &&
+                s.getTrialEndDate().isBefore(LocalDateTime.now())) {
+            s = suscripcionService.expirarTrial(s.getId());
+            log.info("Trial expirado — suscripción marcada como PENDIENTE para tenant={}", s.getTenantId());
+        }
+
         // Lazy-flip: si la cancelación pendiente ya expiró, marcar como CANCELADA
         if ("CANCELACION_PENDIENTE".equals(s.getEstado()) &&
                 s.getCurrentPeriodEnd() != null &&
@@ -218,15 +229,18 @@ public class SuscripcionController {
         }
 
         BigDecimal precioDisplay = s.getPrecioMensual();
-        if (s.getPlanId() != null) {
+        // Suscripciones legado (sin planCodigo): usar env vars como fallback histórico.
+        // Suscripciones de catálogo: el precio de BD ya es el correcto para el segmento.
+        if (s.getPlanCodigo() == null && s.getPlanId() != null) {
             String pid = s.getPlanId().toUpperCase();
-            if (pid.contains("PRO"))    precioDisplay = culqiProperties.getPrecioPro();
+            if (pid.contains("PRO"))         precioDisplay = culqiProperties.getPrecioPro();
             else if (pid.contains("BASICO")) precioDisplay = culqiProperties.getPrecioBasico();
         }
 
         return ResponseEntity.ok(SuscripcionEstadoResponseDTO.builder()
                 .estado(s.getEstado())
                 .planId(s.getPlanId())
+                .planCodigo(s.getPlanCodigo())
                 .preapprovalId(s.getPreapprovalId())
                 .fechaProximoCobro(s.getFechaProximoCobro())
                 .precioMensual(precioDisplay)
@@ -243,7 +257,7 @@ public class SuscripcionController {
     public ResponseEntity<Map<String, Long>> obtenerUso() {
         String tenantId = TenantContext.getCurrentTenant();
         long sucursales = sucursalRepository.countByTenantIdAndActivoTrue(tenantId);
-        long usuarios   = usuarioRepository.countByTenantIdAndActivoTrue(tenantId);
+        long usuarios   = usuarioTenantRepository.countByTenantIdAndActivoTrue(tenantId);
         long productos  = productoRepository.countByTenantIdAndActivoTrue(tenantId);
         return ResponseEntity.ok(Map.of(
                 "sucursales", sucursales,

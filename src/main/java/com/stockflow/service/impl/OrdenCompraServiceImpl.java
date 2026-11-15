@@ -19,6 +19,7 @@ import com.stockflow.entity.Tenant;
 import com.stockflow.repository.TenantRepository;
 import com.stockflow.service.EmailService;
 import com.stockflow.service.OrdenCompraService;
+import com.stockflow.service.SucursalService;
 import com.stockflow.util.OcPdfGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,12 +43,15 @@ public class OrdenCompraServiceImpl implements OrdenCompraService {
     private final EmailService emailService;
     private final TenantRepository tenantRepository;
     private final OcPdfGenerator ocPdfGenerator;
+    private final SucursalService sucursalService;
 
     @Override
     @Transactional
     public OrdenCompraResponseDTO crearOrdenCompra(OrdenCompraRequestDTO request,
                                                     Long usuarioCreadorId,
                                                     String tenantId) {
+        sucursalService.validarSucursalOperativa(request.getSucursalId(), tenantId);
+
         Proveedor proveedor = proveedorRepository.findById(request.getProveedorId())
                 .orElseThrow(() -> new ResourceNotFoundException("Proveedor no encontrado"));
 

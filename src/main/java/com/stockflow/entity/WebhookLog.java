@@ -32,4 +32,13 @@ public class WebhookLog {
 
     @Column(columnDefinition = "TEXT")
     private String detalles; // Para guardar el payload completo si es necesario
+
+    /** Número de veces que el scheduler de reconciliación intentó correlacionar este evento. */
+    @Column(nullable = false)
+    @Builder.Default
+    private int intentos = 0;
+
+    /** Timestamp del último reintento de reconciliación. */
+    @Column(name = "ultimo_reintento")
+    private LocalDateTime ultimoReintento;
 }

@@ -69,6 +69,12 @@ public class Suscripcion {
     @Column(name = "trial_end_date")
     private LocalDateTime trialEndDate;
 
+    @Column(name = "plan_codigo", length = 50)
+    private String planCodigo;
+
+    @Column(name = "culqi_customer_id", length = 100)
+    private String culqiCustomerId;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();

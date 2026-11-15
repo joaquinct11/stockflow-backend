@@ -19,6 +19,8 @@ public class SuscripcionEstadoResponseDTO {
     private LocalDateTime fechaProximoCobro;
     /** Precio mensual real del plan (viene de BD, no hardcodeado en frontend). */
     private BigDecimal precioMensual;
+    /** Código de plan del catálogo, p.ej. VETERINARIA_BASICO. Null para suscripciones legado. */
+    private String planCodigo;
     /** Fin del período pagado actual. Usado para mostrar fecha de corte en CANCELACION_PENDIENTE. */
     private LocalDateTime currentPeriodEnd;
 }

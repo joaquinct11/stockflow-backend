@@ -23,11 +23,11 @@ public class SuperAdminAuthController {
     public ResponseEntity<SuperAdminTokenDTO> login(@RequestBody SuperAdminLoginRequestDTO req) {
         if (!superAdminProperties.getUsername().equals(req.getUsername()) ||
             !superAdminProperties.getPassword().equals(req.getPassword())) {
-            log.warn("🚫 Intento de login SuperAdmin fallido para: {}", req.getUsername());
+            log.warn("Login SA fallido para: {}", req.getUsername());
             throw new BadRequestException("Credenciales incorrectas");
         }
         String token = jwtUtil.generateSuperAdminToken(req.getUsername());
-        log.info("✅ SuperAdmin autenticado: {}", req.getUsername());
+        log.info("SuperAdmin autenticado: {}", req.getUsername());
         return ResponseEntity.ok(new SuperAdminTokenDTO(token, req.getUsername()));
     }
 }

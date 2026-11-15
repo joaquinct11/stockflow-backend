@@ -2,7 +2,6 @@ package com.stockflow.dto.superadmin;
 
 import lombok.Builder;
 import lombok.Data;
-
 import java.math.BigDecimal;
 
 @Data
@@ -10,8 +9,8 @@ import java.math.BigDecimal;
 public class SuperAdminFinanzasDTO {
     private BigDecimal mrrActual;
     private BigDecimal mrrAnualProyectado;
-    private long       cantBasico;
-    private long       cantPro;
-    private long       tenantsActivos;
-    private long       tenantsConOse;
+    private long cantBasico;
+    private long cantPro;
+    private long tenantsActivos;
+    private long tenantsConOse;
 }

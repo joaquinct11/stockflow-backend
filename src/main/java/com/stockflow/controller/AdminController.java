@@ -4,11 +4,10 @@ import com.stockflow.config.RolePermissionDefaults;
 import com.stockflow.dto.PermisoDTO;
 import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.entity.Permiso;
-import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.UsuarioMapper;
+import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.PermisoService;
 import com.stockflow.service.UsuarioPermisoService;
-import com.stockflow.service.UsuarioService;
 import com.stockflow.util.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,9 +29,9 @@ import java.util.stream.Collectors;
 public class AdminController {
 
     private final PermisoService permisoService;
-    private final UsuarioService usuarioService;
     private final UsuarioPermisoService usuarioPermisoService;
     private final UsuarioMapper usuarioMapper;
+    private final UsuarioTenantRepository usuarioTenantRepository;
     private final RolePermissionDefaults rolePermissionDefaults;
 
     @GetMapping("/permisos")
@@ -49,8 +48,17 @@ public class AdminController {
     public ResponseEntity<List<UsuarioDTO>> listarUsuarios() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👥 [Admin] Listando usuarios del tenant: {}", tenantId);
-        List<Usuario> usuarios = usuarioService.obtenerUsuariosPorTenant(tenantId);
-        return ResponseEntity.ok(usuarioMapper.toDTOList(usuarios));
+        List<UsuarioDTO> dtos = usuarioTenantRepository.findByTenantIdAndActivoTrue(tenantId)
+                .stream()
+                .map(ut -> {
+                    UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
+                    dto.setRolNombre(ut.getRol().getNombre());
+                    dto.setSucursalId(ut.getSucursalId());
+                    dto.setTenantId(tenantId);
+                    return dto;
+                })
+                .toList();
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/usuarios/{id}/permisos")
