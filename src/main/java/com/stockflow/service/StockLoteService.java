@@ -202,7 +202,9 @@ public class StockLoteService {
                 proveedorNombre = proveedorRepository.findById(l.getProveedorId())
                         .map(Proveedor::getNombre).orElse(null);
             }
-            long dias = ChronoUnit.DAYS.between(hoy, l.getFechaVencimiento());
+            Integer diasParaVencer = l.getFechaVencimiento() != null
+                    ? (int) ChronoUnit.DAYS.between(hoy, l.getFechaVencimiento())
+                    : null;
             return StockLoteDisponibleDTO.builder()
                     .id(l.getId())
                     .lote(l.getLote())
@@ -210,7 +212,7 @@ public class StockLoteService {
                     .stockActual(l.getStockActual())
                     .proveedorId(l.getProveedorId())
                     .proveedorNombre(proveedorNombre)
-                    .diasParaVencer((int) dias)
+                    .diasParaVencer(diasParaVencer)
                     .precioVenta(l.getPrecioVenta())
                     .costoUnitario(l.getCostoUnitario())
                     .build();

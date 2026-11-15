@@ -39,7 +39,7 @@ public class StockLote {
     @Column(length = 100)
     private String lote;
 
-    @Column(name = "fecha_vencimiento", nullable = false)
+    @Column(name = "fecha_vencimiento")
     private LocalDate fechaVencimiento;
 
     @Column(name = "stock_inicial", nullable = false)
