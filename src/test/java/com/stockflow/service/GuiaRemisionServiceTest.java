@@ -185,7 +185,9 @@ class GuiaRemisionServiceTest {
 
         assertThatThrownBy(() -> service.emitirGRE(1L))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("RUC inválido");
+                .hasMessageContaining("No se pudo emitir la guía")
+                .hasMessageNotContaining("Lucode")
+                .hasMessageNotContaining("RUC inválido");
 
         assertThat(guia.getEstadoTributario()).isEqualTo(EstadoTributarioGRE.ERROR);
         // CRÍTICO: el stock NO debe haberse descontado cuando Lucode rechaza

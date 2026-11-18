@@ -214,7 +214,9 @@ class GuiaRemisionIntegrationTest {
         when(lucodeService.emitirGRE(any(), anyString())).thenReturn(resp);
 
         assertThatThrownBy(() -> guiaService.emitirGRE(nuevaId))
-                .hasMessageContaining("Serie inválida");
+                .hasMessageContaining("No se pudo emitir la guía")
+                .hasMessageNotContaining("Lucode")
+                .hasMessageNotContaining("Serie inválida");
 
         var guia = guiaRepo.findByIdAndTenantId(nuevaId, TENANT_ID);
         assertThat(guia.get().getEstadoTributario()).isEqualTo(EstadoTributarioGRE.ERROR);
