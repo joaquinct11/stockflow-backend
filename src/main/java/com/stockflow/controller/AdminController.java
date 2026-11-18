@@ -4,6 +4,7 @@ import com.stockflow.config.RolePermissionDefaults;
 import com.stockflow.dto.PermisoDTO;
 import com.stockflow.dto.UsuarioDTO;
 import com.stockflow.entity.Permiso;
+import com.stockflow.exception.ForbiddenException;
 import com.stockflow.mapper.UsuarioMapper;
 import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.PermisoService;
@@ -76,6 +77,10 @@ public class AdminController {
     public ResponseEntity<List<String>> asignarPermisosAUsuario(
             @PathVariable Long id,
             @RequestBody List<String> permisoCodigos) {
+        Long adminId = TenantContext.getCurrentUserId();
+        if (adminId.equals(id)) {
+            throw new ForbiddenException("No puedes modificar tus propios permisos");
+        }
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔑 [Admin] Asignando {} permisos al usuario {} en tenant {}", permisoCodigos.size(), id, tenantId);
         usuarioPermisoService.asignarPermisos(id, permisoCodigos, tenantId);

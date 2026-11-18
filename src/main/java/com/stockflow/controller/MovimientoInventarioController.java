@@ -30,6 +30,7 @@ import com.stockflow.exception.BadRequestException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import com.stockflow.util.SecurityUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -64,6 +65,16 @@ public class MovimientoInventarioController {
     private final UsuarioTenantRepository                    usuarioTenantRepository;
     private final SucursalService                            sucursalService;
 
+    @GetMapping("/hoy/count")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_INVENTARIO')")
+    public ResponseEntity<Long> contarMovimientosHoy() {
+        String tenantId = TenantContext.getCurrentTenant();
+        java.time.LocalDateTime inicio = LocalDate.now().atStartOfDay();
+        java.time.LocalDateTime fin    = inicio.plusDays(1);
+        long count = movimientoRepository.countByTenantIdAndCreatedAtBetween(tenantId, inicio, fin);
+        return ResponseEntity.ok(count);
+    }
+
     /**
      * ✅ ACTUALIZADO: Obtiene movimientos del tenant actual
      */
@@ -76,7 +87,11 @@ public class MovimientoInventarioController {
         java.time.LocalDate hasta = hoy.plusDays(ventanaDias);
         List<com.stockflow.entity.MovimientoInventario> movimientos =
                 movimientoRepository.findEntradasConVencimientoEnRango(tenantId, hoy, hasta);
-        return ResponseEntity.ok(movimientoMapper.toDTOList(movimientos));
+        List<MovimientoInventarioDTO> dtos = movimientoMapper.toDTOList(movimientos);
+        if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) {
+            dtos.forEach(d -> d.setCostoUnitario(null));
+        }
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping
@@ -87,17 +102,22 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("📦 Obteniendo movimientos de inventario para tenant: {} dias={}", tenantId, dias);
 
+        boolean ocultarCosto = SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO");
+
         if (dias != null) {
             java.time.LocalDateTime desde = java.time.LocalDateTime.now().minusDays(dias);
             List<com.stockflow.entity.MovimientoInventario> recientes = sucursalId != null
                     ? movimientoRepository.findRecentByTenantIdAndSucursalId(tenantId, sucursalId, desde)
                     : movimientoRepository.findRecentByTenantId(tenantId, desde);
-            return ResponseEntity.ok(movimientoMapper.toDTOList(recientes));
+            List<MovimientoInventarioDTO> dtosRecientes = movimientoMapper.toDTOList(recientes);
+            if (ocultarCosto) dtosRecientes.forEach(d -> d.setCostoUnitario(null));
+            return ResponseEntity.ok(dtosRecientes);
         }
 
-        return ResponseEntity.ok(
-                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorTenant(tenantId, sucursalId))
-        );
+        List<MovimientoInventarioDTO> dtosAll =
+                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorTenant(tenantId, sucursalId));
+        if (ocultarCosto) dtosAll.forEach(d -> d.setCostoUnitario(null));
+        return ResponseEntity.ok(dtosAll);
     }
 
     @GetMapping("/{id}")
@@ -106,7 +126,11 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         return movimientoService.obtenerMovimientoPorId(id)
                 .filter(m -> tenantId.equals(m.getTenantId()))
-                .map(movimientoMapper::toDTO)
+                .map(m -> {
+                    MovimientoInventarioDTO dto = movimientoMapper.toDTO(m);
+                    if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) dto.setCostoUnitario(null);
+                    return dto;
+                })
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -133,7 +157,9 @@ public class MovimientoInventarioController {
                     ? movimientoRepository.findByProductoIdAndSucursalIdAndTenantId(productoId, sucursalId, tenantId)
                     : movimientoRepository.findByProductoIdAndTenantId(productoId, tenantId);
         }
-        return ResponseEntity.ok(movimientoMapper.toDTOList(movimientos));
+        List<MovimientoInventarioDTO> dtos = movimientoMapper.toDTOList(movimientos);
+        if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) dtos.forEach(d -> d.setCostoUnitario(null));
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/usuario/{usuarioId}")
@@ -144,9 +170,10 @@ public class MovimientoInventarioController {
         // Verificar que el usuario pertenece al tenant antes de exponer sus movimientos
         usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(usuarioId, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        return ResponseEntity.ok(
-                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorUsuario(usuarioId, tenantId))
-        );
+        List<MovimientoInventarioDTO> dtos = movimientoMapper.toDTOList(
+                movimientoService.obtenerMovimientosPorUsuario(usuarioId, tenantId));
+        if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) dtos.forEach(d -> d.setCostoUnitario(null));
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/tipo/{tipo}")
@@ -155,9 +182,10 @@ public class MovimientoInventarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("🔍 Obteniendo movimientos tipo: {} para tenant: {}", tipo, tenantId);
 
-        return ResponseEntity.ok(
-                movimientoMapper.toDTOList(movimientoService.obtenerMovimientosPorTipoYTenant(tipo, tenantId))
-        );
+        List<MovimientoInventarioDTO> dtos = movimientoMapper.toDTOList(
+                movimientoService.obtenerMovimientosPorTipoYTenant(tipo, tenantId));
+        if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) dtos.forEach(d -> d.setCostoUnitario(null));
+        return ResponseEntity.ok(dtos);
     }
 
     /**

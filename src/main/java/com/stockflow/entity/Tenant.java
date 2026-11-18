@@ -67,6 +67,19 @@ public class Tenant {
     @Builder.Default
     private String serieBoleta = "BBB1";
 
+    /** Serie para Guías de Remisión Electrónicas, ej: T001. */
+    @Column(name = "serie_guia", length = 10)
+    @Builder.Default
+    private String serieGuia = "T001";
+
+    /** Ubigeo SUNAT del punto de despacho predeterminado (6 dígitos). Solo para GRE sin sucursal de origen. */
+    @Column(name = "ubigeo_despacho", length = 10)
+    private String ubigeoDespacho;
+
+    /** Dirección física del punto de despacho para documentos GRE. No es la dirección fiscal. */
+    @Column(name = "direccion_despacho", length = 500)
+    private String direccionDespacho;
+
     @Column(name = "serie_factura", length = 10)
     @Builder.Default
     private String serieFactura = "FFF1";

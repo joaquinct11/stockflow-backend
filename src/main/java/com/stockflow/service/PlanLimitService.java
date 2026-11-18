@@ -63,6 +63,13 @@ public class PlanLimitService {
         return "BASICO".equals(getPlanId(tenantId));
     }
 
+    /**
+     * GRE disponible para todos los planes y rubros.
+     */
+    public boolean puedeEmitirGRE(String tenantId) {
+        return true;
+    }
+
     // ── Resolución de límites desde catálogo con fallback legado ─────────────
 
     public int getMaxUsuarios(String tenantId) {
