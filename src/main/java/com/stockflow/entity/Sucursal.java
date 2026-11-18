@@ -41,6 +41,14 @@ public class Sucursal {
     @Builder.Default
     private Boolean bloqueadaPorPlan = false;
 
+    /** Código UBIGEO SUNAT (6 dígitos). Requerido para GRE como punto de partida/llegada. */
+    @Column(name = "ubigeo", length = 10)
+    private String ubigeo;
+
+    /** Dirección formateada para documentos tributarios. */
+    @Column(name = "direccion_completa", length = 500)
+    private String direccionCompleta;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 

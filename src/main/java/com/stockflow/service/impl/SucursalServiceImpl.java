@@ -73,6 +73,8 @@ public class SucursalServiceImpl implements SucursalService {
                 .direccion(dto.getDireccion())
                 .telefono(dto.getTelefono())
                 .email(dto.getEmail())
+                .ubigeo(dto.getUbigeo())
+                .direccionCompleta(dto.getDireccionCompleta())
                 .esPrincipal(false)
                 .activo(true)
                 .build();
@@ -98,6 +100,8 @@ public class SucursalServiceImpl implements SucursalService {
         sucursal.setDireccion(dto.getDireccion());
         sucursal.setTelefono(dto.getTelefono());
         sucursal.setEmail(dto.getEmail());
+        sucursal.setUbigeo(dto.getUbigeo());
+        sucursal.setDireccionCompleta(dto.getDireccionCompleta());
         sucursal.setUpdatedAt(LocalDateTime.now());
 
         return toDTO(sucursalRepository.save(sucursal));
@@ -354,6 +358,8 @@ public class SucursalServiceImpl implements SucursalService {
                 .bloqueadaPorPlan(s.getBloqueadaPorPlan())
                 .tenantId(s.getTenantId())
                 .createdAt(s.getCreatedAt())
+                .ubigeo(s.getUbigeo())
+                .direccionCompleta(s.getDireccionCompleta())
                 .build();
     }
 }

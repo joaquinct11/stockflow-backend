@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import com.stockflow.util.SecurityUtils;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -163,9 +164,11 @@ public class VentaController {
                 .map(v -> tenantId.equals(v.getTenantId()))
                 .orElse(false);
         if (!pertenece) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(
-                detalleVentaMapper.toDTOList(ventaService.obtenerDetallesVenta(ventaId))
-        );
+        List<DetalleVentaDTO> detalles = detalleVentaMapper.toDTOList(ventaService.obtenerDetallesVenta(ventaId));
+        if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) {
+            detalles.forEach(d -> d.setCostoUnitario(null));
+        }
+        return ResponseEntity.ok(detalles);
     }
 
     /**

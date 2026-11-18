@@ -5,6 +5,7 @@ import com.stockflow.entity.Proveedor;
 import com.stockflow.entity.StockLote;
 import com.stockflow.repository.ProveedorRepository;
 import com.stockflow.repository.StockLoteRepository;
+import com.stockflow.util.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -214,7 +215,7 @@ public class StockLoteService {
                     .proveedorNombre(proveedorNombre)
                     .diasParaVencer(diasParaVencer)
                     .precioVenta(l.getPrecioVenta())
-                    .costoUnitario(l.getCostoUnitario())
+                    .costoUnitario(SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO") ? null : l.getCostoUnitario())
                     .build();
         }).collect(Collectors.toList());
     }

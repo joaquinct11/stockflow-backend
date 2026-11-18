@@ -5,6 +5,7 @@ import com.stockflow.util.TenantContext;
 import com.stockflow.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +18,7 @@ public class DashboardController {
     private final DashboardService dashboardService;
 
     @GetMapping("/actividad-reciente")
+    @PreAuthorize("hasAuthority('PERM_VER_DASHBOARD')")
     public ResponseEntity<List<ActividadRecienteDTO>> actividadReciente(
             @RequestParam(defaultValue = "15") int limit,
             @RequestParam(required = false) Long sucursalId) {

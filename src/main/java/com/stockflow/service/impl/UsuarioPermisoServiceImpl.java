@@ -3,10 +3,12 @@ package com.stockflow.service.impl;
 import com.stockflow.entity.Permiso;
 import com.stockflow.entity.Usuario;
 import com.stockflow.entity.UsuarioPermiso;
+import com.stockflow.exception.ForbiddenException;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.PermisoRepository;
 import com.stockflow.repository.UsuarioPermisoRepository;
 import com.stockflow.repository.UsuarioRepository;
+import com.stockflow.repository.UsuarioTenantRepository;
 import com.stockflow.service.UsuarioPermisoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ public class UsuarioPermisoServiceImpl implements UsuarioPermisoService {
     private final UsuarioPermisoRepository usuarioPermisoRepository;
     private final UsuarioRepository usuarioRepository;
     private final PermisoRepository permisoRepository;
+    private final UsuarioTenantRepository usuarioTenantRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -36,6 +39,10 @@ public class UsuarioPermisoServiceImpl implements UsuarioPermisoService {
     @Transactional
     public void asignarPermisos(Long usuarioId, List<String> permisoCodigos, String tenantId) {
         log.info("🔑 Asignando {} permisos al usuario {} en tenant {}", permisoCodigos.size(), usuarioId, tenantId);
+
+        if (!usuarioTenantRepository.existsByUsuarioIdAndTenantIdAndActivoTrue(usuarioId, tenantId)) {
+            throw new ForbiddenException("El usuario no pertenece al tenant especificado o no está activo");
+        }
 
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado: " + usuarioId));
