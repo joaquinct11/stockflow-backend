@@ -1,6 +1,7 @@
 package com.stockflow.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -208,6 +209,38 @@ public class GlobalExceptionHandler {
                 .build();
 
         return new ResponseEntity<>(errorResponse, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(
+            DataIntegrityViolationException ex,
+            WebRequest request) {
+
+        String msg = ex.getMostSpecificCause().getMessage();
+        String userMessage = resolveConstraintMessage(msg);
+
+        log.warn("CONFLICT [{}] : constraint violation — {}", path(request), msg);
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error("Conflict")
+                .mensaje(userMessage)
+                .path(path(request))
+                .build();
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
+    }
+
+    private static String resolveConstraintMessage(String dbMessage) {
+        if (dbMessage == null) return "El valor ya existe. Verifica los datos e intenta de nuevo.";
+        if (dbMessage.contains("productos_codigo_barras_activo_uq"))
+            return "El código de barras ya está en uso por otro producto activo.";
+        if (dbMessage.contains("usuarios_email"))
+            return "El correo electrónico ya está registrado.";
+        if (dbMessage.contains("tenants_ruc"))
+            return "El RUC ya está registrado en el sistema.";
+        return "El valor ya existe. Verifica los datos e intenta de nuevo.";
     }
 
     @ExceptionHandler(Exception.class)

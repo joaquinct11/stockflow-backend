@@ -264,4 +264,10 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("tenantId")   String tenantId);
 
     Optional<MovimientoInventario> findByIdAndTenantId(Long id, String tenantId);
+
+    @Query("SELECT COUNT(m) FROM MovimientoInventario m WHERE m.tenantId = :tenantId AND m.createdAt >= :inicio AND m.createdAt < :fin")
+    long countByTenantIdAndCreatedAtBetween(
+            @Param("tenantId") String tenantId,
+            @Param("inicio") java.time.LocalDateTime inicio,
+            @Param("fin") java.time.LocalDateTime fin);
 }

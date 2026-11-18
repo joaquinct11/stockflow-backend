@@ -78,7 +78,12 @@ public class RolePermissionDefaults {
             // Facturación y entrega de OT (EMPRESA_SERVICIOS) — no se asignan a roles base.
             "FACTURAR_OT",
             "REGISTRAR_ENTREGA_OT",
-            "ANULAR_FACTURA_OT"
+            "ANULAR_FACTURA_OT",
+            // Guías de Remisión Electrónicas (GRE) — solo plan PRO
+            "VER_GRE", "EMITIR_GRE", "CONFIRMAR_RECEPCION_GRE", "CANCELAR_GRE_BORRADOR",
+            "EDITAR_GRE_BORRADOR", "ELIMINAR_GRE_BORRADOR",
+            // Visibilidad financiera — no se asignan a VENDEDOR por defecto
+            "VER_COSTO_PRODUCTO", "VER_MARGEN_GANANCIA", "VER_VALOR_INVENTARIO"
     );
 
     /**
@@ -145,7 +150,12 @@ public class RolePermissionDefaults {
                     // Equipos de clientes (solo lectura)
                     "VER_EQUIPOS",
                     // Sucursales — necesario para que AppLayout cargue las sedes
-                    "VER_SUCURSALES"
+                    "VER_SUCURSALES",
+                    // GRE
+                    "VER_GRE", "EMITIR_GRE", "CONFIRMAR_RECEPCION_GRE", "CANCELAR_GRE_BORRADOR",
+                    "EDITAR_GRE_BORRADOR", "ELIMINAR_GRE_BORRADOR",
+                    // Visibilidad financiera completa para gerente
+                    "VER_COSTO_PRODUCTO", "VER_MARGEN_GANANCIA", "VER_VALOR_INVENTARIO"
             );
 
             // Foco en inventario: compras, recepciones, productos y proveedores.
@@ -165,7 +175,12 @@ public class RolePermissionDefaults {
                     // Reportes (Kardex y movimientos de stock)
                     "VER_REPORTES",
                     // Sucursales — necesario para que AppLayout cargue las sedes
-                    "VER_SUCURSALES"
+                    "VER_SUCURSALES",
+                    // GRE
+                    "VER_GRE", "EMITIR_GRE", "CONFIRMAR_RECEPCION_GRE", "CANCELAR_GRE_BORRADOR",
+                    "EDITAR_GRE_BORRADOR", "ELIMINAR_GRE_BORRADOR",
+                    // Visibilidad financiera para gestor (costo y valor, no margen)
+                    "VER_COSTO_PRODUCTO", "VER_VALOR_INVENTARIO"
             );
 
             // Foco en ventas: ver productos, crear ventas propias y emitir comprobantes.

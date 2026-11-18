@@ -1,5 +1,6 @@
 package com.stockflow.dto;
 
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -46,4 +47,11 @@ public class TenantConfigDTO {
 
     /** Rubro del negocio. Posibles valores: BOTICA, FARMACIA, MINIMARKET, FERRETERIA, RESTAURANTE, TIENDA, OTRO */
     private String rubro;
+
+    /** Ubigeo SUNAT del punto de despacho predeterminado (6 dígitos). Solo aplica a GRE. */
+    @Pattern(regexp = "^(\\d{6})?$", message = "El ubigeo de despacho debe tener exactamente 6 dígitos o estar vacío")
+    private String ubigeoDespacho;
+
+    /** Dirección física de despacho para GRE. No reemplaza la dirección fiscal. */
+    private String direccionDespacho;
 }

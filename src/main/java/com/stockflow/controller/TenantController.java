@@ -2,6 +2,7 @@ package com.stockflow.controller;
 
 import com.stockflow.util.TenantContext;
 import com.stockflow.dto.TenantConfigDTO;
+import jakarta.validation.Valid;
 import com.stockflow.entity.Tenant;
 import com.stockflow.exception.ResourceNotFoundException;
 import com.stockflow.repository.TenantRepository;
@@ -31,7 +32,7 @@ public class TenantController {
     /** PUT /api/tenant/config — solo ADMIN */
     @PutMapping("/config")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<TenantConfigDTO> updateConfig(@RequestBody TenantConfigDTO dto) {
+    public ResponseEntity<TenantConfigDTO> updateConfig(@Valid @RequestBody TenantConfigDTO dto) {
         String tenantId = TenantContext.getCurrentTenant();
         Tenant tenant = tenantRepository.findByTenantId(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado"));
@@ -75,6 +76,13 @@ public class TenantController {
         if (dto.getRubro() != null && !dto.getRubro().isBlank()) {
             tenant.setRubro(dto.getRubro().trim().toUpperCase());
         }
+        // GRE — punto de despacho (null = mantener; "" = borrar; valor = actualizar)
+        if (dto.getUbigeoDespacho() != null) {
+            tenant.setUbigeoDespacho(dto.getUbigeoDespacho().isBlank() ? null : dto.getUbigeoDespacho().trim());
+        }
+        if (dto.getDireccionDespacho() != null) {
+            tenant.setDireccionDespacho(dto.getDireccionDespacho().isBlank() ? null : dto.getDireccionDespacho().trim());
+        }
 
         Tenant saved = tenantRepository.save(tenant);
         log.info("✅ Config del negocio actualizada para tenant={}", tenantId);
@@ -113,6 +121,8 @@ public class TenantController {
                 // que la UI sepa que ya está configurado sin exponer el valor completo.
                 .oseToken(maskToken(t.getOseToken()))
                 .rubro(t.getRubro() != null ? t.getRubro() : "OTRO")
+                .ubigeoDespacho(t.getUbigeoDespacho())
+                .direccionDespacho(t.getDireccionDespacho())
                 .build();
     }
 }

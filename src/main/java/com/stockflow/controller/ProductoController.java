@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+import com.stockflow.util.SecurityUtils;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -122,6 +123,10 @@ public class ProductoController {
             log.warn("⚠️ No se pudo enriquecer stockVigente: {}", e.getMessage());
         }
 
+        if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) {
+            dtos.forEach(d -> d.setCostoUnitario(null));
+        }
+
         return ResponseEntity.ok(dtos);
     }
 
@@ -132,7 +137,10 @@ public class ProductoController {
         return productoService.obtenerProductoPorId(id)
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoMapper::toDTO)
-                .map(ResponseEntity::ok)
+                .map(dto -> {
+                    if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) dto.setCostoUnitario(null);
+                    return ResponseEntity.ok(dto);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -141,7 +149,10 @@ public class ProductoController {
     public ResponseEntity<ProductoDTO> obtenerPorCodigoBarras(@PathVariable String codigoBarras) {
         return productoService.obtenerProductoPorCodigoBarras(codigoBarras)
                 .map(productoMapper::toDTO)
-                .map(ResponseEntity::ok)
+                .map(dto -> {
+                    if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) dto.setCostoUnitario(null);
+                    return ResponseEntity.ok(dto);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -176,6 +187,9 @@ public class ProductoController {
                 ? "SÍ (" + productoDTO.getImagenUrl().length() + " chars)" : "NO");
 
         productoDTO.setTenantId(tenantId);
+        if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) {
+            productoDTO.setCostoUnitario(null);
+        }
 
         Producto producto = productoMapper.toEntity(productoDTO);
         producto.setImagenUrl(productoDTO.getImagenUrl());
@@ -200,7 +214,11 @@ public class ProductoController {
         return productoService.obtenerProductoPorId(id)
                 .filter(p -> tenantId.equals(p.getTenantId()))
                 .map(productoExistente -> {
+                    java.math.BigDecimal costoOriginal = productoExistente.getCostoUnitario();
                     productoMapper.updateEntityFromDTO(productoDTO, productoExistente);
+                    if (SecurityUtils.lacksPermission("VER_COSTO_PRODUCTO")) {
+                        productoExistente.setCostoUnitario(costoOriginal);
+                    }
                     // Setters explícitos por si el mapper fue compilado antes de agregar estos campos
                     productoExistente.setImagenUrl(productoDTO.getImagenUrl());
                     productoExistente.setEsGenerico(productoDTO.getEsGenerico() != null ? productoDTO.getEsGenerico() : false);
