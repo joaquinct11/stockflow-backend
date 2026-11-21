@@ -2,6 +2,8 @@ package com.stockflow.service;
 
 import com.stockflow.entity.Venta;
 import com.stockflow.entity.DetalleVenta;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +18,11 @@ public interface VentaService {
 
     List<Venta> obtenerVentasPorTenant(String tenantId);
 
+    Page<Venta> obtenerVentasPorTenantPaged(String tenantId, Pageable pageable);
+
     List<Venta> obtenerVentasPorTenantYSucursal(String tenantId, Long sucursalId);
+
+    Page<Venta> obtenerVentasPorTenantYSucursalPaged(String tenantId, Long sucursalId, Pageable pageable);
 
     List<Venta> obtenerVentasPorPeriodo(String tenantId, LocalDateTime inicio, LocalDateTime fin, Long sucursalId);
 

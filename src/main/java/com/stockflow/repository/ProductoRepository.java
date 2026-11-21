@@ -1,5 +1,6 @@
 package com.stockflow.repository;
 
+import com.stockflow.dto.ProductoStockInfo;
 import com.stockflow.entity.Producto;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
@@ -97,6 +98,15 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
               AND p.tenantId = :tenantId
             """)
     List<Producto> findProductosBajoStock(@Param("tenantId") String tenantId);
+
+    /** Versión liviana para scheduler: sin JOIN FETCH — solo id, nombre, stockActual, stockMinimo. */
+    @Query("""
+            SELECT p.id AS id, p.nombre AS nombre, p.stockActual AS stockActual, p.stockMinimo AS stockMinimo
+            FROM Producto p
+            WHERE p.stockActual < p.stockMinimo
+              AND p.tenantId = :tenantId
+            """)
+    List<ProductoStockInfo> findProductosBajoStockParaScheduler(@Param("tenantId") String tenantId);
 
     @Query("SELECT COALESCE(SUM(p.stockActual * p.costoUnitario), null) FROM Producto p " +
            "WHERE p.tenantId = :tenantId AND p.activo = true")

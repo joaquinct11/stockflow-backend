@@ -25,11 +25,11 @@ public class OrdenCompra {
     @Column(name = "tenant_id", nullable = false)
     private String tenantId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "proveedor_id", nullable = false)
     private Proveedor proveedor;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_creador_id", nullable = true)
     private Usuario usuarioCreador;
 

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 
 @Repository
 public interface WebhookLogRepository extends JpaRepository<WebhookLog, Long> {
@@ -32,7 +33,8 @@ public interface WebhookLogRepository extends JpaRepository<WebhookLog, Long> {
             """)
     List<WebhookLog> findSinCorrelacionPendientes(
             @Param("maxIntentos") int maxIntentos,
-            @Param("desde") LocalDateTime desde
+            @Param("desde") LocalDateTime desde,
+            Pageable pageable
     );
 
     /**
@@ -48,6 +50,7 @@ public interface WebhookLogRepository extends JpaRepository<WebhookLog, Long> {
             """)
     List<WebhookLog> findProcesadoParcialPendientes(
             @Param("maxIntentos") int maxIntentos,
-            @Param("desde") LocalDateTime desde
+            @Param("desde") LocalDateTime desde,
+            Pageable pageable
     );
 }

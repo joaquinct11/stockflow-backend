@@ -960,7 +960,7 @@ class CulqiWebhookControllerTest {
                     .estado("SIN_CORRELACION").fechaProcesamiento(LocalDateTime.now())
                     .intentos(0).detalles("{\"id\":\"" + CHARGE_ID_REC + "\"}").build();
 
-            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any()))
+            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(logEntry));
 
             Map<String, Object> cargoConSubId = Map.of(
@@ -995,7 +995,7 @@ class CulqiWebhookControllerTest {
                     .estado("SIN_CORRELACION").fechaProcesamiento(LocalDateTime.now())
                     .intentos(1).detalles("{\"id\":\"" + CHARGE_ID_REC + "\"}").build();
 
-            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any()))
+            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(logEntry));
             when(culqiService.obtenerCargo(CHARGE_ID_REC)).thenReturn(null);
             when(suscripcionRepository.findByPreapprovalId(any())).thenReturn(Optional.empty());
@@ -1021,7 +1021,7 @@ class CulqiWebhookControllerTest {
                     .estado("SIN_CORRELACION").fechaProcesamiento(LocalDateTime.now())
                     .intentos(2).detalles("{\"id\":\"" + CHARGE_ID_REC + "\"}").build();
 
-            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any()))
+            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(logEntry));
             when(culqiService.obtenerCargo(CHARGE_ID_REC)).thenReturn(null);
             when(suscripcionRepository.findByPreapprovalId(any())).thenReturn(Optional.empty());
@@ -1039,7 +1039,7 @@ class CulqiWebhookControllerTest {
         @Test
         @DisplayName("reconciliarEventosPendientes — no hay eventos SIN_CORRELACION → no procesa nada")
         void reconciliacion_sinEventosPendientes_noProcesaNada() {
-            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any()))
+            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of());
 
             controller.reconciliarEventosPendientes();
@@ -1124,7 +1124,7 @@ class CulqiWebhookControllerTest {
                     .detalles("{\"id\":\"chr_upgrade_001\",\"customer_id\":\"" + customerIdUpgrade + "\"}")
                     .build();
 
-            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any()))
+            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(logEntry));
             // Culqi devuelve el subscription_id en el cargo completo
             when(culqiService.obtenerCargo("chr_upgrade_001"))
@@ -1363,7 +1363,7 @@ class CulqiWebhookControllerTest {
 
             Suscripcion sus = buildSuscripcion(90L, "tenant-cancel-rec", subIdReconciliar, "ACTIVA");
 
-            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any()))
+            when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(logEntry));
             when(suscripcionRepository.findByPreapprovalId(subIdReconciliar))
                     .thenReturn(Optional.of(sus));

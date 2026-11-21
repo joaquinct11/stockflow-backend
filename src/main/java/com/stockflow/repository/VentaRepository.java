@@ -1,6 +1,8 @@
 package com.stockflow.repository;
 
 import com.stockflow.entity.Venta;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -12,11 +14,26 @@ import java.util.List;
 
 @Repository
 public interface VentaRepository extends JpaRepository<Venta, Long> {
-    List<Venta> findByVendedorId(Long vendedorId);
-    List<Venta> findByTenantIdAndVendedorId(String tenantId, Long vendedorId);
-    List<Venta> findByTenantId(String tenantId);
-    @Query(value = "SELECT * FROM ventas WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId", nativeQuery = true)
+    @Query("SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.vendedor.id = :vendedorId")
+    List<Venta> findByVendedorId(@Param("vendedorId") Long vendedorId);
+
+    @Query("SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId ORDER BY v.createdAt DESC")
+    List<Venta> findByTenantIdAndVendedorId(@Param("tenantId") String tenantId, @Param("vendedorId") Long vendedorId);
+
+    @Query("SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.tenantId = :tenantId ORDER BY v.createdAt DESC")
+    List<Venta> findByTenantId(@Param("tenantId") String tenantId);
+
+    @Query(value = "SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.tenantId = :tenantId ORDER BY v.createdAt DESC",
+           countQuery = "SELECT COUNT(v) FROM Venta v WHERE v.tenantId = :tenantId")
+    Page<Venta> findPageByTenantId(@Param("tenantId") String tenantId, Pageable pageable);
+
+    @Query("SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.tenantId = :tenantId AND v.sucursalId = :sucursalId ORDER BY v.createdAt DESC")
     List<Venta> findByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId);
+
+    @Query(value = "SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.tenantId = :tenantId AND v.sucursalId = :sucursalId ORDER BY v.createdAt DESC",
+           countQuery = "SELECT COUNT(v) FROM Venta v WHERE v.tenantId = :tenantId AND v.sucursalId = :sucursalId")
+    Page<Venta> findPageByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId, Pageable pageable);
+
     List<Venta> findByCreatedAtBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
     long countByTenantId(String tenantId);
     @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
@@ -226,7 +243,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("sucursalId") Long sucursalId
     );
 
-    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId AND v.createdAt BETWEEN :inicio AND :fin AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
+    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.vendedor LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.vendedor.id = :vendedorId AND v.createdAt BETWEEN :inicio AND :fin AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
     List<Venta> findByTenantIdAndVendedorIdAndPeriodo(
             @Param("tenantId")    String tenantId,
             @Param("vendedorId")  Long vendedorId,
@@ -234,7 +251,8 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
             @Param("fin")         LocalDateTime fin,
             @Param("sucursalId")  Long sucursalId);
 
-    List<Venta> findByCajaIdAndTenantId(Long cajaId, String tenantId);
+    @Query("SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.cajaId = :cajaId AND v.tenantId = :tenantId ORDER BY v.createdAt DESC")
+    List<Venta> findByCajaIdAndTenantId(@Param("cajaId") Long cajaId, @Param("tenantId") String tenantId);
 
     // ── Dashboard: top N ventas recientes (evita full-table-scan) ──
     @Query(value = "SELECT * FROM ventas WHERE tenant_id = :tenantId ORDER BY created_at DESC LIMIT :limit", nativeQuery = true)

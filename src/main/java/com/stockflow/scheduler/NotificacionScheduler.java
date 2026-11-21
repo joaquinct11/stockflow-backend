@@ -1,10 +1,10 @@
 package com.stockflow.scheduler;
 
+import com.stockflow.dto.ProductoStockInfo;
 import com.stockflow.entity.CertificadoEstablecimiento;
 import com.stockflow.entity.OrdenCompra;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.Suscripcion;
-import com.stockflow.entity.Tenant;
 import com.stockflow.repository.CertificadoRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.NotificacionRepository;
@@ -50,29 +50,28 @@ public class NotificacionScheduler {
     @Scheduled(cron = "0 0 8 * * *", zone = "America/Lima")
     public void verificarStockBajo() {
         log.info("⏰ [Scheduler] Verificando stock bajo...");
-        List<Tenant> tenants = tenantRepository.findAll();
+        List<String> tenantIds = tenantRepository.findAllActiveTenantIds();
 
-        for (Tenant tenant : tenants) {
-            if (!Boolean.TRUE.equals(tenant.getActivo())) continue;
-            String tenantId = tenant.getTenantId();
+        for (String tenantId : tenantIds) {
+            try {
+                List<ProductoStockInfo> bajosDeStock =
+                        productoRepository.findProductosBajoStockParaScheduler(tenantId);
 
-            List<Producto> bajosDeStock = productoRepository.findProductosBajoStock(tenantId);
-
-            for (Producto p : bajosDeStock) {
-                for (String rol : ROLES_INVENTARIO) {
-                    if (notificacionService.yaExisteNoLeida(tenantId, rol, "STOCK_BAJO", p.getId())) continue;
-
-                    notificacionService.notificarRoles(
-                            tenantId,
-                            List.of(rol),
-                            "STOCK_BAJO",
-                            "Stock bajo: " + p.getNombre(),
-                            String.format("Quedan %d unidades de '%s' (mínimo: %d). Considera hacer un pedido.",
-                                    p.getStockActual(), p.getNombre(), p.getStockMinimo()),
-                            p.getId(),
-                            "PRODUCTO"
-                    );
+                for (ProductoStockInfo p : bajosDeStock) {
+                    for (String rol : ROLES_INVENTARIO) {
+                        if (notificacionService.yaExisteNoLeida(tenantId, rol, "STOCK_BAJO", p.getId())) continue;
+                        notificacionService.notificarRoles(
+                                tenantId, List.of(rol),
+                                "STOCK_BAJO",
+                                "Stock bajo: " + p.getNombre(),
+                                String.format("Quedan %d unidades de '%s' (mínimo: %d). Considera hacer un pedido.",
+                                        p.getStockActual(), p.getNombre(), p.getStockMinimo()),
+                                p.getId(), "PRODUCTO"
+                        );
+                    }
                 }
+            } catch (Exception e) {
+                log.warn("⚠️ [Scheduler] Error verificarStockBajo tenant {}: {}", tenantId, e.getMessage());
             }
         }
         log.info("⏰ [Scheduler] Stock bajo verificado.");
@@ -83,44 +82,45 @@ public class NotificacionScheduler {
     @Scheduled(cron = "0 5 8 * * *", zone = "America/Lima")
     public void verificarVencimientos() {
         log.info("⏰ [Scheduler] Verificando vencimientos de productos...");
-        List<Tenant> tenants = tenantRepository.findAll();
-        LocalDate hoy        = LocalDate.now();
-        LocalDate en30dias   = hoy.plusDays(90);
+        List<String> tenantIds = tenantRepository.findAllActiveTenantIds();
+        LocalDate hoy          = LocalDate.now();
+        LocalDate en30dias     = hoy.plusDays(90);
 
-        for (Tenant tenant : tenants) {
-            if (!Boolean.TRUE.equals(tenant.getActivo())) continue;
-            String tenantId = tenant.getTenantId();
-
-            // Lotes ya vencidos con stock > 0 (fechaVencimiento en MovimientoInventario)
-            List<Producto> vencidos = movimientoRepository.findProductosConLoteVencido(tenantId, hoy);
-            for (Producto p : vencidos) {
-                for (String rol : ROLES_VENCIDO) {
-                    if (notificacionService.yaExisteNoLeida(tenantId, rol, "PRODUCTO_VENCIDO", p.getId())) continue;
-                    notificacionService.notificarRoles(
-                            tenantId, List.of(rol),
-                            "PRODUCTO_VENCIDO",
-                            "🚨 Producto vencido: " + p.getNombre(),
-                            String.format("'%s' tiene un lote VENCIDO en stock. Retíralo para evitar venderlo.",
-                                    p.getNombre()),
-                            p.getId(), "PRODUCTO"
-                    );
+        for (String tenantId : tenantIds) {
+            try {
+                // Lotes ya vencidos con stock > 0
+                List<Producto> vencidos = movimientoRepository.findProductosConLoteVencido(tenantId, hoy);
+                for (Producto p : vencidos) {
+                    for (String rol : ROLES_VENCIDO) {
+                        if (notificacionService.yaExisteNoLeida(tenantId, rol, "PRODUCTO_VENCIDO", p.getId())) continue;
+                        notificacionService.notificarRoles(
+                                tenantId, List.of(rol),
+                                "PRODUCTO_VENCIDO",
+                                "🚨 Producto vencido: " + p.getNombre(),
+                                String.format("'%s' tiene un lote VENCIDO en stock. Retíralo para evitar venderlo.",
+                                        p.getNombre()),
+                                p.getId(), "PRODUCTO"
+                        );
+                    }
                 }
-            }
 
-            // Lotes que vencen en los próximos 90 días
-            List<Producto> porVencer = movimientoRepository.findProductosConLotePorVencer(tenantId, hoy, en30dias);
-            for (Producto p : porVencer) {
-                for (String rol : ROLES_INVENTARIO) {
-                    if (notificacionService.yaExisteNoLeida(tenantId, rol, "PRODUCTO_POR_VENCER", p.getId())) continue;
-                    notificacionService.notificarRoles(
-                            tenantId, List.of(rol),
-                            "PRODUCTO_POR_VENCER",
-                            "⚠️ Lote por vencer: " + p.getNombre(),
-                            String.format("'%s' tiene un lote que vence en los próximos 90 días. Stock: %d unidades.",
-                                    p.getNombre(), p.getStockActual()),
-                            p.getId(), "PRODUCTO"
-                    );
+                // Lotes que vencen en los próximos 90 días
+                List<Producto> porVencer = movimientoRepository.findProductosConLotePorVencer(tenantId, hoy, en30dias);
+                for (Producto p : porVencer) {
+                    for (String rol : ROLES_INVENTARIO) {
+                        if (notificacionService.yaExisteNoLeida(tenantId, rol, "PRODUCTO_POR_VENCER", p.getId())) continue;
+                        notificacionService.notificarRoles(
+                                tenantId, List.of(rol),
+                                "PRODUCTO_POR_VENCER",
+                                "⚠️ Lote por vencer: " + p.getNombre(),
+                                String.format("'%s' tiene un lote que vence en los próximos 90 días. Stock: %d unidades.",
+                                        p.getNombre(), p.getStockActual()),
+                                p.getId(), "PRODUCTO"
+                        );
+                    }
                 }
+            } catch (Exception e) {
+                log.warn("⚠️ [Scheduler] Error verificarVencimientos tenant {}: {}", tenantId, e.getMessage());
             }
         }
         log.info("⏰ [Scheduler] Vencimientos verificados.");
@@ -132,25 +132,26 @@ public class NotificacionScheduler {
     public void verificarProductosSinMovimiento() {
         log.info("⏰ [Scheduler] Verificando productos sin rotación...");
         LocalDateTime hace30dias = LocalDateTime.now().minusDays(30);
-        List<Tenant> tenants = tenantRepository.findAll();
+        List<String> tenantIds   = tenantRepository.findAllActiveTenantIds();
 
-        for (Tenant tenant : tenants) {
-            if (!Boolean.TRUE.equals(tenant.getActivo())) continue;
-            String tenantId = tenant.getTenantId();
-
-            List<Producto> slowMovers = productoRepository.findSlowMovers(tenantId, hace30dias);
-            for (Producto p : slowMovers) {
-                for (String rol : List.of("ADMIN")) {
-                    if (notificacionService.yaExisteNoLeida(tenantId, rol, "PRODUCTO_SIN_MOVIMIENTO", p.getId())) continue;
-                    notificacionService.notificarRoles(
-                            tenantId, List.of(rol),
-                            "PRODUCTO_SIN_MOVIMIENTO",
-                            "📦 Sin rotación: " + p.getNombre(),
-                            String.format("'%s' tiene %d unidades en stock sin salidas en los últimos 30 días. Considera una promoción o devolución al proveedor.",
-                                    p.getNombre(), p.getStockActual()),
-                            p.getId(), "PRODUCTO"
-                    );
+        for (String tenantId : tenantIds) {
+            try {
+                List<Producto> slowMovers = productoRepository.findSlowMovers(tenantId, hace30dias);
+                for (Producto p : slowMovers) {
+                    for (String rol : List.of("ADMIN")) {
+                        if (notificacionService.yaExisteNoLeida(tenantId, rol, "PRODUCTO_SIN_MOVIMIENTO", p.getId())) continue;
+                        notificacionService.notificarRoles(
+                                tenantId, List.of(rol),
+                                "PRODUCTO_SIN_MOVIMIENTO",
+                                "📦 Sin rotación: " + p.getNombre(),
+                                String.format("'%s' tiene %d unidades en stock sin salidas en los últimos 30 días. Considera una promoción o devolución al proveedor.",
+                                        p.getNombre(), p.getStockActual()),
+                                p.getId(), "PRODUCTO"
+                        );
+                    }
                 }
+            } catch (Exception e) {
+                log.warn("⚠️ [Scheduler] Error verificarProductosSinMovimiento tenant {}: {}", tenantId, e.getMessage());
             }
         }
         log.info("⏰ [Scheduler] Productos sin rotación verificados.");
@@ -162,25 +163,26 @@ public class NotificacionScheduler {
     public void verificarOCsSinRecepcionar() {
         log.info("⏰ [Scheduler] Verificando OCs enviadas sin recepcionar...");
         LocalDateTime hace15dias = LocalDateTime.now().minusDays(15);
-        List<Tenant> tenants = tenantRepository.findAll();
+        List<String> tenantIds   = tenantRepository.findAllActiveTenantIds();
 
-        for (Tenant tenant : tenants) {
-            if (!Boolean.TRUE.equals(tenant.getActivo())) continue;
-            String tenantId = tenant.getTenantId();
-
-            List<OrdenCompra> pendientes = ordenCompraRepository.findEnviadasSinRecepcionar(tenantId, hace15dias);
-            for (OrdenCompra oc : pendientes) {
-                for (String rol : List.of("ADMIN", "GESTOR_INVENTARIO")) {
-                    if (notificacionService.yaExisteNoLeida(tenantId, rol, "OC_SIN_RECEPCIONAR", oc.getId())) continue;
-                    notificacionService.notificarRoles(
-                            tenantId, List.of(rol),
-                            "OC_SIN_RECEPCIONAR",
-                            "⏳ OC pendiente de recepción #" + oc.getId(),
-                            String.format("La OC al proveedor '%s' lleva más de 15 días enviada sin recepcionarse. Haz seguimiento.",
-                                    oc.getProveedor().getNombre()),
-                            oc.getId(), "ORDEN_COMPRA"
-                    );
+        for (String tenantId : tenantIds) {
+            try {
+                List<OrdenCompra> pendientes = ordenCompraRepository.findEnviadasSinRecepcionar(tenantId, hace15dias);
+                for (OrdenCompra oc : pendientes) {
+                    for (String rol : List.of("ADMIN", "GESTOR_INVENTARIO")) {
+                        if (notificacionService.yaExisteNoLeida(tenantId, rol, "OC_SIN_RECEPCIONAR", oc.getId())) continue;
+                        notificacionService.notificarRoles(
+                                tenantId, List.of(rol),
+                                "OC_SIN_RECEPCIONAR",
+                                "⏳ OC pendiente de recepción #" + oc.getId(),
+                                String.format("La OC al proveedor '%s' lleva más de 15 días enviada sin recepcionarse. Haz seguimiento.",
+                                        oc.getProveedor().getNombre()),
+                                oc.getId(), "ORDEN_COMPRA"
+                        );
+                    }
                 }
+            } catch (Exception e) {
+                log.warn("⚠️ [Scheduler] Error verificarOCsSinRecepcionar tenant {}: {}", tenantId, e.getMessage());
             }
         }
         log.info("⏰ [Scheduler] OCs sin recepcionar verificadas.");

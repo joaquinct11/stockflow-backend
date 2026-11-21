@@ -14,6 +14,7 @@ import com.stockflow.entity.ProductoPresentacion;
 import com.stockflow.entity.Venta;
 import com.stockflow.repository.*;
 import com.stockflow.service.GuiaRemisionService;
+import com.stockflow.repository.UbigeoRepository;
 import com.stockflow.service.MovimientoInventarioService;
 import com.stockflow.service.StockLoteService;
 import com.stockflow.util.TenantContext;
@@ -43,10 +44,12 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
     private final VentaRepository                  ventaRepo;
     private final ProductoPresentacionRepository   presentacionRepo;
     private final MovimientoInventarioService      movimientoService;
+    private final MovimientoInventarioRepository   movimientoRepo;
     private final LucodeGREService                 lucodeGREService;
     private final GuiaRemisionPdfService           pdfService;
     private final ObjectMapper                     objectMapper;
     private final StockLoteService                 stockLoteService;
+    private final UbigeoRepository                 ubigeoRepository;
 
     // ── CREAR BORRADOR ────────────────────────────────────────────────────────
 
@@ -158,6 +161,10 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
         // Transporte
         if (req.getTransporte() != null) {
             TransporteDTO td = req.getTransporte();
+            if (td.getUbigeoPartida() != null)
+                validarUbigeo(td.getUbigeoPartida(), "ubigeo de partida");
+            if (td.getUbigeoLlegada() != null)
+                validarUbigeo(td.getUbigeoLlegada(), "ubigeo de llegada");
             GuiaRemisionTransporte transporte = GuiaRemisionTransporte.builder()
                     .guiaRemision(guia)
                     .tenantId(tenantId)
@@ -258,6 +265,10 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
         // Crear instancia nueva + null previo causa INSERT antes de DELETE en el mismo flush.
         if (req.getTransporte() != null) {
             TransporteDTO td = req.getTransporte();
+            if (td.getUbigeoPartida() != null)
+                validarUbigeo(td.getUbigeoPartida(), "ubigeo de partida");
+            if (td.getUbigeoLlegada() != null)
+                validarUbigeo(td.getUbigeoLlegada(), "ubigeo de llegada");
             GuiaRemisionTransporte transporte = guia.getTransporte();
             if (transporte == null) {
                 transporte = new GuiaRemisionTransporte();
@@ -290,6 +301,19 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
         registrarEvento(guia, TipoEventoGRE.CREADA, "Borrador editado", userId);
         log.info("✏️ GRE borrador editado: {} tenant={}", guia.getNumeroCompleto(), tenantId);
         return toResponse(guia);
+    }
+
+    // ── VALIDACIÓN UBIGEO ─────────────────────────────────────────────────────
+
+    private void validarUbigeo(String codigo, String label) {
+        if (codigo == null || codigo.length() != 6) {
+            throw new BadRequestException(
+                    "El " + label + " debe tener exactamente 6 dígitos.");
+        }
+        if (!ubigeoRepository.existsById(codigo)) {
+            throw new BadRequestException(
+                    "El " + label + " '" + codigo + "' no existe en el catálogo oficial SUNAT/INEI.");
+        }
     }
 
     // ── ELIMINAR BORRADOR ─────────────────────────────────────────────────────
@@ -507,6 +531,124 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
     @Override
     public byte[] generarPDF(Long id) {
         return pdfService.generar(id);
+    }
+
+    // ── RECUPERAR EMITIENDO ───────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public GuiaRemisionResponse recuperarEmitiendo(Long id) {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long   userId   = TenantContext.getCurrentUserId();
+
+        GuiaRemision guia = loadGuia(id, tenantId);
+
+        if (guia.getEstadoTributario() != EstadoTributarioGRE.EMITIENDO) {
+            throw new BadRequestException(
+                    "Solo se puede recuperar una guía atascada en estado EMITIENDO. " +
+                    "Estado actual: " + guia.getEstadoTributario());
+        }
+
+        // Verificar que Lucode nunca confirmó la emisión (triple garantía)
+        if (guia.getLucodeHash() != null || guia.getXmlUrl() != null || guia.getLucodeId() != null) {
+            throw new BadRequestException(
+                    "La guía tiene datos de emisión registrados (hash/xml/id). " +
+                    "No se puede recuperar automáticamente — contacta soporte.");
+        }
+
+        guia.setEstadoTributario(EstadoTributarioGRE.ERROR);
+        guia.setLucodeErrorRaw("Recuperación manual: proceso interrumpido antes de respuesta de servicio tributario.");
+        guiaRepo.save(guia);
+
+        registrarEvento(guia, TipoEventoGRE.RECUPERACION_INTERRUPCION,
+                "Guía recuperada de estado EMITIENDO: proceso interrumpido sin confirmación del servicio tributario.",
+                userId);
+
+        log.info("🔁 GRE recuperada de EMITIENDO a ERROR: {} tenant={}", guia.getNumeroCompleto(), tenantId);
+        return toResponse(guia);
+    }
+
+    // ── RECONCILIACIÓN F-08 ───────────────────────────────────────────────────
+
+    /**
+     * Reconcilia una GRE que quedó en estado ERROR local pero fue aceptada por SUNAT/Lucode.
+     * Escenario: bug F-08 (UnrecognizedPropertyException en LucodeGREPayload.pdf).
+     *
+     * Precondiciones verificadas en orden:
+     *  1. La guía existe y pertenece al tenant del token.
+     *  2. estadoTributario == ERROR (no volver a aplicar si ya es EMITIDA).
+     *  3. No existen movimientos de SALIDA previos con referencia="GRE-{id}" (anti-duplicado).
+     *
+     * Efectos (en una sola transacción):
+     *  - Registra los MovimientoInventario de SALIDA (igual que registrarSalidaInventario).
+     *  - Actualiza estadoTributario=EMITIDA, estadoLogistico=EN_TRANSITO.
+     *  - Escribe los datos tributarios (hash, xmlUrl, cdrUrl, pdfUrl) y limpia lucodeErrorRaw.
+     *  - Registra evento RECONCILIACION_F08 con trazabilidad completa.
+     *
+     * No llama a Lucode — el caller es responsable de verificar la aceptación previamente.
+     */
+    @Override
+    @Transactional
+    public GuiaRemisionResponse reconciliarGREAceptada(Long id, ReconciliarGRERequest req) {
+        String tenantId = TenantContext.getCurrentTenant();
+        Long   userId   = TenantContext.getCurrentUserId();
+
+        // Bloqueo pesimista para evitar doble-reconciliación concurrente
+        GuiaRemision guia = guiaRepo.findByIdAndTenantIdForUpdate(id, tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Guía de remisión no encontrada id=" + id));
+
+        // Guard: solo reconciliar si está en ERROR
+        if (guia.getEstadoTributario() == EstadoTributarioGRE.EMITIDA) {
+            log.info("Reconciliación F-08 omitida: GRE {} ya está EMITIDA", guia.getNumeroCompleto());
+            return toResponse(guia);
+        }
+        if (guia.getEstadoTributario() != EstadoTributarioGRE.ERROR) {
+            throw new BadRequestException(
+                    "Solo se puede reconciliar una guía en estado ERROR. " +
+                    "Estado actual: " + guia.getEstadoTributario());
+        }
+
+        // Guard: anti-duplicado — verificar que no existan SALIDA previas para esta GRE
+        String refGRE = "GRE-" + guia.getId();
+        if (movimientoRepo.existsByReferenciaAndTipoAndTenantId(refGRE, "SALIDA", tenantId)) {
+            throw new BadRequestException(
+                    "Ya existen movimientos de SALIDA para la guía " + guia.getNumeroCompleto() +
+                    ". La reconciliación no puede ejecutarse dos veces.");
+        }
+
+        // Registrar SALIDA de inventario (misma lógica que registrarSalidaInventario)
+        // Si tiene venta_id, el POS ya descontó stock — omitir igual que en el flujo normal
+        if (guia.getSucursalOrigen() != null && guia.getVenta() == null) {
+            registrarSalidaInventario(guia, tenantId, userId);
+        }
+
+        // Actualizar datos tributarios y estado
+        guia.setEstadoTributario(EstadoTributarioGRE.EMITIDA);
+        guia.setEstadoLogistico(EstadoLogisticoGRE.EN_TRANSITO);
+        guia.setLucodeHash(req.getLucodeHash());
+        guia.setXmlUrl(req.getXmlUrl());
+        guia.setCdrUrl(req.getCdrUrl());
+        if (req.getPdfA4Url() != null) {
+            guia.setPdfUrl(req.getPdfA4Url());
+        }
+        guia.setLucodeErrorRaw(null);
+
+        try {
+            guia.setLucodeRespuestaRaw(objectMapper.writeValueAsString(req));
+        } catch (JsonProcessingException ignored) {}
+
+        guia = guiaRepo.save(guia);
+
+        String nota = String.format(
+                "Reconciliación F-08: GRE aceptada por Lucode (hash=%s). " +
+                "Movimientos de inventario registrados correctamente. " +
+                "Causa original: deserialización del campo pdf.a4 en LucodeGREPayload (bug corregido).",
+                req.getLucodeHash());
+        registrarEvento(guia, TipoEventoGRE.RECONCILIACION_F08, nota, userId);
+
+        log.info("✅ GRE {} reconciliada F-08: {} → EMITIDA", guia.getNumeroCompleto(), tenantId);
+        return toResponse(guia);
     }
 
     // ── HELPERS ───────────────────────────────────────────────────────────────

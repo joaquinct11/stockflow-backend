@@ -14,9 +14,10 @@ import java.util.Optional;
 @Repository
 public interface MovimientoInventarioRepository extends JpaRepository<MovimientoInventario, Long> {
 
-    List<MovimientoInventario> findByProductoIdAndTenantId(Long productoId, String tenantId);
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.producto.id = :productoId AND m.tenantId = :tenantId ORDER BY m.createdAt ASC")
+    List<MovimientoInventario> findByProductoIdAndTenantId(@Param("productoId") Long productoId, @Param("tenantId") String tenantId);
 
-    @Query(value = "SELECT * FROM movimientos_inventario WHERE producto_id = :productoId AND sucursal_id = :sucursalId AND tenant_id = :tenantId ORDER BY created_at ASC", nativeQuery = true)
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.producto.id = :productoId AND m.sucursalId = :sucursalId AND m.tenantId = :tenantId ORDER BY m.createdAt ASC")
     List<MovimientoInventario> findByProductoIdAndSucursalIdAndTenantId(@Param("productoId") Long productoId, @Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
 
     @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId AND m.producto.id = :productoId AND m.createdAt BETWEEN :desde AND :hasta ORDER BY m.createdAt ASC")
@@ -25,11 +26,13 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId AND m.producto.id = :productoId AND m.sucursalId = :sucursalId AND m.createdAt BETWEEN :desde AND :hasta ORDER BY m.createdAt ASC")
     List<MovimientoInventario> findByProductoIdAndSucursalIdAndTenantIdBetween(@Param("productoId") Long productoId, @Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId, @Param("desde") java.time.LocalDateTime desde, @Param("hasta") java.time.LocalDateTime hasta);
 
-    List<MovimientoInventario> findByUsuarioIdAndTenantId(Long usuarioId, String tenantId);
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.usuario.id = :usuarioId AND m.tenantId = :tenantId ORDER BY m.createdAt DESC")
+    List<MovimientoInventario> findByUsuarioIdAndTenantId(@Param("usuarioId") Long usuarioId, @Param("tenantId") String tenantId);
 
-    List<MovimientoInventario> findByTenantId(String tenantId);
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId ORDER BY m.createdAt DESC")
+    List<MovimientoInventario> findByTenantId(@Param("tenantId") String tenantId);
 
-    @Query(value = "SELECT * FROM movimientos_inventario WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId ORDER BY created_at DESC", nativeQuery = true)
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tenantId = :tenantId AND m.sucursalId = :sucursalId ORDER BY m.createdAt DESC")
     List<MovimientoInventario> findByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId);
 
     List<MovimientoInventario> findByTipo(String tipo);
@@ -41,7 +44,8 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("fin") LocalDateTime fin
     );
 
-    List<MovimientoInventario> findByTipoAndTenantId(String tipo, String tenantId);
+    @Query("SELECT m FROM MovimientoInventario m JOIN FETCH m.producto LEFT JOIN FETCH m.usuario WHERE m.tipo = :tipo AND m.tenantId = :tenantId ORDER BY m.createdAt DESC")
+    List<MovimientoInventario> findByTipoAndTenantId(@Param("tipo") String tipo, @Param("tenantId") String tenantId);
 
     @Query("SELECT COALESCE(SUM(m.cantidad), 0) FROM MovimientoInventario m " +
            "WHERE m.tenantId = :tenantId AND m.tipo = :tipo " +
@@ -264,6 +268,9 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("tenantId")   String tenantId);
 
     Optional<MovimientoInventario> findByIdAndTenantId(Long id, String tenantId);
+
+    /** Verifica si ya existe algún movimiento con la referencia y tipo dados (anti-duplicado). */
+    boolean existsByReferenciaAndTipoAndTenantId(String referencia, String tipo, String tenantId);
 
     @Query("SELECT COUNT(m) FROM MovimientoInventario m WHERE m.tenantId = :tenantId AND m.createdAt >= :inicio AND m.createdAt < :fin")
     long countByTenantIdAndCreatedAtBetween(

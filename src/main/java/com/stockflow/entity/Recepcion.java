@@ -25,15 +25,15 @@ public class Recepcion {
     @Column(name = "tenant_id", nullable = false)
     private String tenantId;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "oc_id")
     private OrdenCompra ordenCompra;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "proveedor_id", nullable = false)
     private Proveedor proveedor;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_receptor_id", nullable = true)
     private Usuario usuarioReceptor;
 
