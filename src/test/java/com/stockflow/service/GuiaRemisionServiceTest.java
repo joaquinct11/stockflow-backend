@@ -8,6 +8,7 @@ import com.stockflow.entity.Tenant;
 import com.stockflow.entity.gre.*;
 import com.stockflow.exception.BadRequestException;
 import com.stockflow.repository.*;
+import com.stockflow.repository.UbigeoRepository;
 import com.stockflow.service.impl.GuiaRemisionServiceImpl;
 import com.stockflow.service.impl.LucodeGREService;
 import com.stockflow.service.impl.GuiaRemisionPdfService;
@@ -44,6 +45,7 @@ class GuiaRemisionServiceTest {
     @Mock private LucodeGREService             lucodeGREService;
     @Mock private GuiaRemisionPdfService       pdfService;
     @Mock private StockLoteService             stockLoteService;
+    @Mock private UbigeoRepository             ubigeoRepository;
     @Spy  private ObjectMapper                 objectMapper = new ObjectMapper();
 
     @InjectMocks private GuiaRemisionServiceImpl service;
@@ -79,6 +81,9 @@ class GuiaRemisionServiceTest {
 
         // Stock siempre suficiente por defecto — tests específicos de stock están en GuiaRemisionStockValidationTest
         when(stockLoteService.getStockVigente(anyString(), anyLong(), anyLong())).thenReturn(100);
+
+        // Por defecto todos los ubigeos son válidos; tests específicos de ubigeo sobreescriben esto
+        when(ubigeoRepository.existsById(anyString())).thenReturn(true);
 
         when(guiaRepo.findMaxCorrelativo(TENANT_ID, "T001")).thenReturn(0);
         when(guiaRepo.existsByIdempotencyKey(anyString())).thenReturn(false);
@@ -573,6 +578,190 @@ class GuiaRemisionServiceTest {
         req.setTransporte(td);
 
         return req;
+    }
+
+    // ── GRE-RECUP-1: Recuperación exitosa ────────────────────────────────────────
+
+    @Test
+    @DisplayName("GRE-RECUP-1: recuperarEmitiendo transiciona EMITIENDO → ERROR y registra evento")
+    void recuperarEmitiendo_estadoEmitiendo_transicionaAError() {
+        GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIENDO);
+        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+
+        service.recuperarEmitiendo(1L);
+
+        assertThat(guia.getEstadoTributario()).isEqualTo(EstadoTributarioGRE.ERROR);
+        assertThat(guia.getLucodeErrorRaw()).contains("Recuperación manual");
+        verify(guiaRepo).save(guia);
+        verify(eventoRepo).save(argThat(e ->
+                e.getTipoEvento() == TipoEventoGRE.RECUPERACION_INTERRUPCION));
+    }
+
+    // ── GRE-RECUP-2: Rechaza estado no-EMITIENDO ─────────────────────────────────
+
+    @Test
+    @DisplayName("GRE-RECUP-2: recuperarEmitiendo lanza BadRequest si el estado no es EMITIENDO")
+    void recuperarEmitiendo_estadoBorrador_lanzaError() {
+        GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
+        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+
+        assertThatThrownBy(() -> service.recuperarEmitiendo(1L))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("EMITIENDO");
+        verify(guiaRepo, never()).save(any());
+    }
+
+    // ── GRE-RECUP-3: Rechaza si lucodeHash presente ──────────────────────────────
+
+    @Test
+    @DisplayName("GRE-RECUP-3: recuperarEmitiendo lanza BadRequest si lucodeHash no es null")
+    void recuperarEmitiendo_conLucodeHash_lanzaError() {
+        GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIENDO);
+        guia.setLucodeHash("abc123hash");
+        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+
+        assertThatThrownBy(() -> service.recuperarEmitiendo(1L))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("datos de emisión");
+        verify(guiaRepo, never()).save(any());
+    }
+
+    // ── GRE-RECUP-4: Rechaza si xmlUrl presente ──────────────────────────────────
+
+    @Test
+    @DisplayName("GRE-RECUP-4: recuperarEmitiendo lanza BadRequest si xmlUrl no es null")
+    void recuperarEmitiendo_conXmlUrl_lanzaError() {
+        GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIENDO);
+        guia.setXmlUrl("https://cdn.example.com/gre.xml");
+        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+
+        assertThatThrownBy(() -> service.recuperarEmitiendo(1L))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("datos de emisión");
+        verify(guiaRepo, never()).save(any());
+    }
+
+    // ── GRE-RECUP-5: Tenant isolation ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GRE-RECUP-5: recuperarEmitiendo lanza ResourceNotFoundException si id no pertenece al tenant")
+    void recuperarEmitiendo_idOtroTenant_lanzaNotFound() {
+        when(guiaRepo.findByIdAndTenantId(99L, TENANT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.recuperarEmitiendo(99L))
+                .isInstanceOf(com.stockflow.exception.ResourceNotFoundException.class);
+    }
+
+    // ── GRE-UBIGEO-1: Código Huacho (150801) válido ──────────────────────────────
+
+    @Test
+    @DisplayName("GRE-UBIGEO-1: Código 150801 (Huacho, Lima) es aceptado y persiste")
+    void crearBorrador_ubigeoHuacho_aceptado() {
+        when(ubigeoRepository.existsById("150801")).thenReturn(true);
+
+        CrearGuiaRemisionRequest req = buildRequest();
+        req.getTransporte().setUbigeoPartida("150801");
+        req.getTransporte().setUbigeoLlegada("150801");
+
+        GuiaRemisionResponse resp = service.crearBorrador(req);
+        assertThat(resp.getEstadoTributario()).isEqualTo(EstadoTributarioGRE.BORRADOR);
+    }
+
+    // ── GRE-UBIGEO-2: Código inexistente en catálogo rechazado ───────────────────
+
+    @Test
+    @DisplayName("GRE-UBIGEO-2: Código 999999 no existe en catálogo → BadRequestException, sin Lucode")
+    void crearBorrador_ubigeoInexistente_rechazado() {
+        when(ubigeoRepository.existsById("999999")).thenReturn(false);
+
+        CrearGuiaRemisionRequest req = buildRequest();
+        req.getTransporte().setUbigeoPartida("999999");
+
+        assertThatThrownBy(() -> service.crearBorrador(req))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("999999")
+                .hasMessageContaining("catálogo");
+        verifyNoInteractions(lucodeGREService);
+        verifyNoInteractions(movimientoService);
+    }
+
+    // ── GRE-UBIGEO-3: Código con longitud incorrecta rechazado ───────────────────
+
+    @Test
+    @DisplayName("GRE-UBIGEO-3: Código de 5 dígitos (15080) rechazado antes de consultar catálogo")
+    void crearBorrador_ubigeoLongitudCorta_rechazado() {
+        CrearGuiaRemisionRequest req = buildRequest();
+        req.getTransporte().setUbigeoPartida("15080");
+
+        assertThatThrownBy(() -> service.crearBorrador(req))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("6 dígitos");
+        verify(ubigeoRepository, never()).existsById(any());
+        verifyNoInteractions(lucodeGREService);
+    }
+
+    @Test
+    @DisplayName("GRE-UBIGEO-3b: Código de 7 dígitos (1508011) rechazado antes de consultar catálogo")
+    void crearBorrador_ubigeoLongitudLarga_rechazado() {
+        CrearGuiaRemisionRequest req = buildRequest();
+        req.getTransporte().setUbigeoPartida("1508011");
+
+        assertThatThrownBy(() -> service.crearBorrador(req))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("6 dígitos");
+        verify(ubigeoRepository, never()).existsById(any());
+    }
+
+    // ── GRE-UBIGEO-4: Ambos ubigeos válidos aceptados ────────────────────────────
+
+    @Test
+    @DisplayName("GRE-UBIGEO-4: Partida Lima (150101) y llegada La Libertad (130101) ambos válidos")
+    void crearBorrador_ambosUbigeosValidos_aceptado() {
+        when(ubigeoRepository.existsById("150101")).thenReturn(true);
+        when(ubigeoRepository.existsById("130101")).thenReturn(true);
+
+        CrearGuiaRemisionRequest req = buildRequest();
+        req.getTransporte().setUbigeoPartida("150101");
+        req.getTransporte().setUbigeoLlegada("130101");
+
+        GuiaRemisionResponse resp = service.crearBorrador(req);
+        assertThat(resp.getEstadoTributario()).isEqualTo(EstadoTributarioGRE.BORRADOR);
+        verify(ubigeoRepository).existsById("150101");
+        verify(ubigeoRepository).existsById("130101");
+    }
+
+    // ── GRE-UBIGEO-5: Rechazo antes de llamar a Lucode ───────────────────────────
+
+    @Test
+    @DisplayName("GRE-UBIGEO-5: Ubigeo inválido en crearBorrador rechazado antes de llamar a Lucode")
+    void crearBorrador_ubigeoInvalido_rechazadoAntesDeEmision() {
+        when(ubigeoRepository.existsById("000000")).thenReturn(false);
+
+        CrearGuiaRemisionRequest req = buildRequest();
+        req.getTransporte().setUbigeoPartida("000000");
+
+        assertThatThrownBy(() -> service.crearBorrador(req))
+                .isInstanceOf(BadRequestException.class);
+        verifyNoInteractions(lucodeGREService);
+        verifyNoInteractions(movimientoService);
+    }
+
+    // ── GRE-UBIGEO-6: Ubigeo inválido en editarBorrador rechazado ────────────────
+
+    @Test
+    @DisplayName("GRE-UBIGEO-6: Ubigeo inexistente en editarBorrador rechaza sin modificar inventario")
+    void editarBorrador_ubigeoInexistente_rechazado() {
+        GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
+        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(ubigeoRepository.existsById("888888")).thenReturn(false);
+
+        EditarBorradorRequest req = buildEditRequest();
+        req.getTransporte().setUbigeoPartida("888888");
+
+        assertThatThrownBy(() -> service.editarBorrador(1L, req))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("888888");
+        verifyNoInteractions(movimientoService);
     }
 
     /** Helper: guía con sucursal origen — para tests de inventario. */

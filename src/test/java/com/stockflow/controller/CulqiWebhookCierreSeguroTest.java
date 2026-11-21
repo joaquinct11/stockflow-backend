@@ -73,9 +73,9 @@ class CulqiWebhookCierreSeguroTest {
         // CAS por defecto: preapprovalId vigente. Tests de race sobreescriben con 0.
         when(suscripcionRepository.updateEstadoIfPreapprovalIdMatches(any(), any(), any())).thenReturn(1);
         // findSinCorrelacionPendientes: vacío por defecto (solo los tests de reconciliación lo sobreescriben)
-        when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any())).thenReturn(List.of());
+        when(webhookLogRepository.findSinCorrelacionPendientes(anyInt(), any(), any())).thenReturn(List.of());
         // findProcesadoParcialPendientes: vacío por defecto
-        when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any())).thenReturn(List.of());
+        when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any())).thenReturn(List.of());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ class CulqiWebhookCierreSeguroTest {
         void parcialFallido_suspenida_bloqueaYmarcaProcesado() {
             WebhookLog log = logParcial(EVT_FAILED, 0);
             Suscripcion s = suscripcionPro("SUSPENDIDA");
-            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any()))
+            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(log));
             when(suscripcionRepository.findByPreapprovalId(SUB_ID)).thenReturn(Optional.of(s));
             when(sucursalService.bloquearSucursalesAdicionales(TENANT)).thenReturn(2);
@@ -213,7 +213,7 @@ class CulqiWebhookCierreSeguroTest {
         void parcialExitoso_activa_desbloqueoYmarcaProcesado() {
             WebhookLog log = logParcial(EVT_SUCCESS, 0);
             Suscripcion s = suscripcionPro("ACTIVA");
-            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any()))
+            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(log));
             when(suscripcionRepository.findByPreapprovalId(SUB_ID)).thenReturn(Optional.of(s));
             when(planLimitService.getMaxSucursales(TENANT)).thenReturn(5);
@@ -233,7 +233,7 @@ class CulqiWebhookCierreSeguroTest {
         void parcialFallido_susNoSuspendida_marcaProcesadoSinBloquear() {
             WebhookLog log = logParcial(EVT_FAILED, 0);
             Suscripcion s = suscripcionPro("ACTIVA"); // ya recuperada por otro medio
-            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any()))
+            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(log));
             when(suscripcionRepository.findByPreapprovalId(SUB_ID)).thenReturn(Optional.of(s));
 
@@ -251,7 +251,7 @@ class CulqiWebhookCierreSeguroTest {
         void parcialExitoso_susNoActiva_marcaProcesadoSinDesbloquear() {
             WebhookLog log = logParcial(EVT_SUCCESS, 0);
             Suscripcion s = suscripcionPro("CANCELADA");
-            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any()))
+            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(log));
             when(suscripcionRepository.findByPreapprovalId(SUB_ID)).thenReturn(Optional.of(s));
 
@@ -270,7 +270,7 @@ class CulqiWebhookCierreSeguroTest {
             // intentos = MAX_INTENTOS_RECONCILIACION - 1, tras incremento llega al límite
             int intentosActuales = CulqiWebhookController.MAX_INTENTOS_RECONCILIACION - 1;
             WebhookLog log = logParcial(EVT_FAILED, intentosActuales);
-            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any()))
+            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(log));
 
             controller.reconciliarEventosPendientes();
@@ -291,7 +291,7 @@ class CulqiWebhookCierreSeguroTest {
             // para que el scheduler lo reintente en el siguiente ciclo.
             WebhookLog log = logParcial(EVT_FAILED, 0);
             Suscripcion s = suscripcionPro("SUSPENDIDA");
-            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any()))
+            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(log));
             when(suscripcionRepository.findByPreapprovalId(SUB_ID)).thenReturn(Optional.of(s));
             when(sucursalService.bloquearSucursalesAdicionales(TENANT))
@@ -319,7 +319,7 @@ class CulqiWebhookCierreSeguroTest {
                     .preapprovalId(SUB_ID).estado("SUSPENDIDA")
                     .precioMensual(new BigDecimal("89.00"))
                     .build();
-            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any()))
+            when(webhookLogRepository.findProcesadoParcialPendientes(anyInt(), any(), any()))
                     .thenReturn(List.of(log));
             when(suscripcionRepository.findByPreapprovalId(SUB_ID)).thenReturn(Optional.of(s));
 

@@ -11,6 +11,7 @@ import com.stockflow.service.ClienteService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,6 +22,11 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class ClienteServiceImpl implements ClienteService {
+
+    public static final int MAX_LISTA_CLIENTES   = 1000;
+    public static final int MAX_ACTIVOS_CLIENTES = 500;
+    public static final int MAX_BUSQUEDA_NOMBRE  = 20;
+    public static final int MAX_BUSQUEDA_DOC     = 10;
 
     private final ClienteRepository clienteRepository;
     private final MascotaRepository mascotaRepository;
@@ -40,12 +46,14 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     public List<Cliente> buscarClientesPorNombre(String nombre, String tenantId) {
-        return clienteRepository.findByNombreContainingIgnoreCaseAndTenantId(nombre, tenantId);
+        return clienteRepository.findByNombreContainingIgnoreCaseAndTenantId(nombre, tenantId,
+                PageRequest.of(0, MAX_BUSQUEDA_NOMBRE));
     }
 
     @Override
     public List<Cliente> buscarClientesPorDocumento(String numeroDocumento, String tenantId) {
-        return clienteRepository.findByNumeroDocumentoAndTenantId(numeroDocumento, tenantId);
+        return clienteRepository.findByNumeroDocumentoAndTenantId(numeroDocumento, tenantId,
+                PageRequest.of(0, MAX_BUSQUEDA_DOC));
     }
 
     @Override
@@ -118,13 +126,15 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     public List<Cliente> obtenerClientesPorTenant(String tenantId) {
         log.info("🔍 Obteniendo clientes para tenant: {}", tenantId);
-        return clienteRepository.findByTenantId(tenantId);
+        return clienteRepository.findByTenantId(tenantId,
+                PageRequest.of(0, MAX_LISTA_CLIENTES));
     }
 
     @Override
     public List<Cliente> obtenerClientesActivosPorTenant(String tenantId) {
         log.info("✅ Obteniendo clientes activos para tenant: {}", tenantId);
-        return clienteRepository.findByTenantIdAndActivoTrue(tenantId);
+        return clienteRepository.findByTenantIdAndActivoTrue(tenantId,
+                PageRequest.of(0, MAX_ACTIVOS_CLIENTES));
     }
 
     @Override

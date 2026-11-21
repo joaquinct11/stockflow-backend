@@ -22,6 +22,8 @@ import com.stockflow.service.VentaService;
 import com.stockflow.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,8 +74,18 @@ public class VentaServiceImpl implements VentaService {
     }
 
     @Override
+    public Page<Venta> obtenerVentasPorTenantPaged(String tenantId, Pageable pageable) {
+        return ventaRepository.findPageByTenantId(tenantId, pageable);
+    }
+
+    @Override
     public List<Venta> obtenerVentasPorTenantYSucursal(String tenantId, Long sucursalId) {
         return ventaRepository.findByTenantIdAndSucursalId(tenantId, sucursalId);
+    }
+
+    @Override
+    public Page<Venta> obtenerVentasPorTenantYSucursalPaged(String tenantId, Long sucursalId, Pageable pageable) {
+        return ventaRepository.findPageByTenantIdAndSucursalId(tenantId, sucursalId, pageable);
     }
 
     @Override

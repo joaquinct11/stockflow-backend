@@ -1,7 +1,6 @@
 package com.stockflow.service.impl;
 
 import com.stockflow.dto.reportes.*;
-import com.stockflow.entity.MovimientoInventario;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.ProductoStockSucursal;
 import com.stockflow.repository.ComprobanteRepository;
@@ -467,34 +466,41 @@ public class ReportesServiceImpl implements ReportesService {
 
         LocalDate hoy = LocalDate.now();
 
-        List<MovimientoInventario> movimientos =
-                movimientoRepository.findEntradasConVencimientoPorTenant(tenantId);
+        // Consulta StockLote (fuente de verdad del stock actual por lote).
+        // Solo carga lotes con stock > 0 que vencen en ≤ 90 días (incluidos ya vencidos).
+        // Columnas: [producto_id, nombre, lote, fecha_vencimiento, stock_actual, costo]
+        List<Object[]> rows = stockLoteRepository.findLotesEnRiesgoConProducto(tenantId);
 
-        BigDecimal capitalVencido  = BigDecimal.ZERO;
-        BigDecimal capitalRiesgo7d = BigDecimal.ZERO;
+        BigDecimal capitalVencido   = BigDecimal.ZERO;
+        BigDecimal capitalRiesgo7d  = BigDecimal.ZERO;
         BigDecimal capitalRiesgo30d = BigDecimal.ZERO;
         BigDecimal capitalRiesgo90d = BigDecimal.ZERO;
         long lotesVencidos = 0, lotes7d = 0, lotes30d = 0, lotes90d = 0;
 
         List<LoteRiesgoDetalleDTO> detalles = new ArrayList<>();
 
-        for (MovimientoInventario m : movimientos) {
-            long diasRestantes = ChronoUnit.DAYS.between(hoy, m.getFechaVencimiento());
-            BigDecimal costo   = m.getProducto().getCostoUnitario() != null
-                    ? m.getProducto().getCostoUnitario() : BigDecimal.ZERO;
-            BigDecimal valor   = costo.multiply(BigDecimal.valueOf(m.getCantidad() != null ? m.getCantidad() : 0));
+        for (Object[] row : rows) {
+            Long      productoId  = ((Number) row[0]).longValue();
+            String    nombre      = (String) row[1];
+            String    lote        = (String) row[2];
+            LocalDate fechaVenc   = row[3] instanceof java.sql.Date sqlDate
+                    ? sqlDate.toLocalDate() : (LocalDate) row[3];
+            Integer   stockActual = ((Number) row[4]).intValue();
+            BigDecimal costo      = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
 
-            LoteRiesgoDetalleDTO detalle = LoteRiesgoDetalleDTO.builder()
-                    .productoId(m.getProducto().getId())
-                    .productoNombre(m.getProducto().getNombre())
-                    .lote(m.getLote())
-                    .fechaVencimiento(m.getFechaVencimiento())
+            long       diasRestantes = ChronoUnit.DAYS.between(hoy, fechaVenc);
+            BigDecimal valor         = costo.multiply(BigDecimal.valueOf(stockActual));
+
+            detalles.add(LoteRiesgoDetalleDTO.builder()
+                    .productoId(productoId)
+                    .productoNombre(nombre)
+                    .lote(lote)
+                    .fechaVencimiento(fechaVenc)
                     .diasRestantes(diasRestantes)
-                    .cantidad(m.getCantidad())
+                    .cantidad(stockActual)
                     .costoUnitario(costo)
                     .valorRiesgo(valor)
-                    .build();
-            detalles.add(detalle);
+                    .build());
 
             if (diasRestantes < 0) {
                 capitalVencido = capitalVencido.add(valor);
@@ -511,9 +517,7 @@ public class ReportesServiceImpl implements ReportesService {
             }
         }
 
-        // Los 15 más urgentes: primero los vencidos (diasRestantes ASC) luego próximos
         List<LoteRiesgoDetalleDTO> urgentes = detalles.stream()
-                .filter(d -> d.getDiasRestantes() <= 90)
                 .sorted(Comparator.comparing(LoteRiesgoDetalleDTO::getDiasRestantes))
                 .limit(15)
                 .collect(Collectors.toList());

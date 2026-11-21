@@ -13,20 +13,24 @@ import java.util.List;
 @Repository
 public interface OrdenCompraRepository extends JpaRepository<OrdenCompra, Long> {
 
-    List<OrdenCompra> findByTenantId(String tenantId);
+    @Query("SELECT oc FROM OrdenCompra oc JOIN FETCH oc.proveedor LEFT JOIN FETCH oc.usuarioCreador WHERE oc.tenantId = :tenantId ORDER BY oc.createdAt DESC")
+    List<OrdenCompra> findByTenantId(@Param("tenantId") String tenantId);
 
-    @Query(value = "SELECT * FROM orden_compra WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId ORDER BY created_at DESC", nativeQuery = true)
+    @Query("SELECT oc FROM OrdenCompra oc JOIN FETCH oc.proveedor LEFT JOIN FETCH oc.usuarioCreador WHERE oc.tenantId = :tenantId AND oc.sucursalId = :sucursalId ORDER BY oc.createdAt DESC")
     List<OrdenCompra> findByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId);
 
-    List<OrdenCompra> findByTenantIdAndEstado(String tenantId, String estado);
+    @Query("SELECT oc FROM OrdenCompra oc JOIN FETCH oc.proveedor LEFT JOIN FETCH oc.usuarioCreador WHERE oc.tenantId = :tenantId AND oc.estado = :estado")
+    List<OrdenCompra> findByTenantIdAndEstado(@Param("tenantId") String tenantId, @Param("estado") String estado);
 
-    List<OrdenCompra> findByTenantIdAndProveedorId(String tenantId, Long proveedorId);
+    @Query("SELECT oc FROM OrdenCompra oc JOIN FETCH oc.proveedor LEFT JOIN FETCH oc.usuarioCreador WHERE oc.tenantId = :tenantId AND oc.proveedor.id = :proveedorId")
+    List<OrdenCompra> findByTenantIdAndProveedorId(@Param("tenantId") String tenantId, @Param("proveedorId") Long proveedorId);
 
-    List<OrdenCompra> findByTenantIdAndEstadoAndProveedorId(String tenantId, String estado, Long proveedorId);
+    @Query("SELECT oc FROM OrdenCompra oc JOIN FETCH oc.proveedor LEFT JOIN FETCH oc.usuarioCreador WHERE oc.tenantId = :tenantId AND oc.estado = :estado AND oc.proveedor.id = :proveedorId")
+    List<OrdenCompra> findByTenantIdAndEstadoAndProveedorId(@Param("tenantId") String tenantId, @Param("estado") String estado, @Param("proveedorId") Long proveedorId);
 
     /** OCs en estado ENVIADA cuya fecha de creación es anterior a :limite — sin recepcionar. */
     @Query("""
-            SELECT oc FROM OrdenCompra oc
+            SELECT oc FROM OrdenCompra oc JOIN FETCH oc.proveedor LEFT JOIN FETCH oc.usuarioCreador
             WHERE oc.tenantId = :tenantId
               AND oc.estado = 'ENVIADA'
               AND oc.createdAt < :limite

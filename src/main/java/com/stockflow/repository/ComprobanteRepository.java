@@ -1,6 +1,7 @@
 package com.stockflow.repository;
 
 import com.stockflow.entity.Comprobante;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -19,6 +20,9 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
     long countByTenantId(String tenantId);
 
     List<Comprobante> findBySunatEstadoAndEstadoNot(String sunatEstado, String estado);
+
+    @Query("SELECT c FROM Comprobante c WHERE c.sunatEstado = 'PENDIENTE' AND c.estado <> 'ANULADO' AND c.id > :lastId ORDER BY c.id ASC")
+    List<Comprobante> findPendientesAfterIdOrderById(@Param("lastId") Long lastId, Pageable pageable);
 
     Optional<Comprobante> findByVentaIdAndTenantId(Long ventaId, String tenantId);
 

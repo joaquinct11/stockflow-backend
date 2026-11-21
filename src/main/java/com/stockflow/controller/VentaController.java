@@ -39,6 +39,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -76,15 +79,24 @@ public class VentaController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_VENTAS')")
     public ResponseEntity<List<VentaDTO>> obtenerTodas(
-            @RequestParam(required = false) Long sucursalId) {
+            @RequestParam(required = false) Long sucursalId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        if (page < 0) {
+            throw new BadRequestException("El parámetro 'page' no puede ser negativo");
+        }
+        if (size < 1 || size > 100) {
+            throw new BadRequestException("El parámetro 'size' debe estar entre 1 y 100");
+        }
         String tenantId = TenantContext.getCurrentTenant();
-        log.info("💰 Obteniendo ventas para tenant: {} sucursalId={}", tenantId, sucursalId);
+        log.info("💰 Obteniendo ventas para tenant: {} sucursalId={} page={} size={}", tenantId, sucursalId, page, size);
 
-        List<Venta> ventas = sucursalId != null
-                ? ventaService.obtenerVentasPorTenantYSucursal(tenantId, sucursalId)
-                : ventaService.obtenerVentasPorTenant(tenantId);
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Venta> ventasPage = sucursalId != null
+                ? ventaService.obtenerVentasPorTenantYSucursalPaged(tenantId, sucursalId, pageable)
+                : ventaService.obtenerVentasPorTenantPaged(tenantId, pageable);
 
-        return ResponseEntity.ok(ventaMapper.toDTOList(ventas));
+        return ResponseEntity.ok(ventaMapper.toDTOList(ventasPage.getContent()));
     }
 
     @GetMapping("/{id}")

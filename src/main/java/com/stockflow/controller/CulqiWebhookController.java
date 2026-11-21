@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * Maneja los webhooks enviados por Culqi.
@@ -750,6 +751,9 @@ public class CulqiWebhookController {
     /** Máximo de reintentos antes de marcar el evento como PENDIENTE_REVISION. */
     static final int MAX_INTENTOS_RECONCILIACION = 3;
 
+    /** Máximo de eventos procesados por ciclo del scheduler para evitar saturación de threads. */
+    static final int BATCH_SIZE_SCHEDULER = 20;
+
     /**
      * Cada 5 minutos busca eventos SIN_CORRELACION recientes con reintentos disponibles
      * y los reintenta con datos enriquecidos desde la API de Culqi.
@@ -767,7 +771,8 @@ public class CulqiWebhookController {
 
         // Eventos SIN_CORRELACION: reintento completo con enriquecimiento de datos desde Culqi
         List<WebhookLog> sinCorrelacion = webhookLogRepository
-                .findSinCorrelacionPendientes(MAX_INTENTOS_RECONCILIACION, ventana);
+                .findSinCorrelacionPendientes(MAX_INTENTOS_RECONCILIACION, ventana,
+                        PageRequest.of(0, BATCH_SIZE_SCHEDULER));
         if (!sinCorrelacion.isEmpty()) {
             log.info("🔄 [Reconciliación] {} evento(s) SIN_CORRELACION a reintentar", sinCorrelacion.size());
             for (WebhookLog logEntry : sinCorrelacion) {
@@ -777,7 +782,8 @@ public class CulqiWebhookController {
 
         // A — Eventos PROCESADO_PARCIAL: reintentar solo la branch op (email ya enviado)
         List<WebhookLog> parciales = webhookLogRepository
-                .findProcesadoParcialPendientes(MAX_INTENTOS_RECONCILIACION, ventana);
+                .findProcesadoParcialPendientes(MAX_INTENTOS_RECONCILIACION, ventana,
+                        PageRequest.of(0, BATCH_SIZE_SCHEDULER));
         if (!parciales.isEmpty()) {
             log.info("🔄 [Reconciliación] {} evento(s) PROCESADO_PARCIAL a reintentar branch op",
                     parciales.size());

@@ -239,6 +239,30 @@ public interface StockLoteRepository extends JpaRepository<StockLote, Long> {
     @Query(value = "UPDATE stock_lotes SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
 
+    /**
+     * Lotes con stock real > 0 cuya fecha de vencimiento cae dentro de los próximos 90 días
+     * (incluyendo ya vencidos). Usado por el reporte de riesgo de vencimientos.
+     * Columnas: [producto_id, nombre, lote, fecha_vencimiento, stock_actual, costo]
+     * El costo es el del lote; si es null, se usa el costo del producto.
+     */
+    @Query(value = """
+            SELECT sl.producto_id,
+                   p.nombre,
+                   sl.lote,
+                   sl.fecha_vencimiento,
+                   sl.stock_actual,
+                   COALESCE(sl.costo_unitario, p.costo_unitario, 0) AS costo
+            FROM stock_lotes sl
+            JOIN productos p ON p.id = sl.producto_id
+            WHERE sl.tenant_id = :tenantId
+              AND sl.stock_actual > 0
+              AND sl.fecha_vencimiento IS NOT NULL
+              AND p.activo = true
+              AND sl.fecha_vencimiento <= (CURRENT_DATE + INTERVAL '90 days')
+            ORDER BY sl.fecha_vencimiento ASC
+            """, nativeQuery = true)
+    List<Object[]> findLotesEnRiesgoConProducto(@Param("tenantId") String tenantId);
+
     /** Lotes VENCIDOS con stock > 0 para el tenant (para módulo de baja). */
     @Query("""
             SELECT s FROM StockLote s
