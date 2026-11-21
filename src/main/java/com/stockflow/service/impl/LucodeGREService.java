@@ -153,6 +153,59 @@ public class LucodeGREService {
         }
     }
 
+    /**
+     * Consulta el estado de una GRE ya emitida en el OSE (Lucode) usando POST /api/v3/status.
+     * Retorna la respuesta del OSE con el estado tributario, hash, xmlUrl, cdrUrl y, si el OSE
+     * la incluye, pdfUrl.  Usar únicamente para verificación — nunca como sustituto de emitirGRE().
+     *
+     * Nota de reconciliación F-08: si el OSE no devuelve hash/xmlUrl/cdrUrl en el endpoint /status,
+     * el admin debe obtenerlos directamente del panel del OSE y pasarlos en ReconciliarGRERequest.
+     */
+    public LucodeGREResponse consultarEstadoGRE(String serie, int numero, String oseToken) {
+        if (oseToken == null || oseToken.isBlank()) {
+            throw new BadRequestException(
+                    "La facturación electrónica aún no está activada para este negocio.");
+        }
+
+        String url = apiSunatBaseUrl + "/api/v3/status";
+        java.util.Map<String, Object> body = java.util.Map.of(
+                "documento", "guia_remision_remitente",
+                "serie",     serie,
+                "numero",    numero
+        );
+
+        log.info("🔍 Consultando estado GRE [{}-{}] en Lucode [{}]", serie, numero, url);
+
+        try {
+            String rawJson = http.post()
+                    .uri(url)
+                    .header(org.springframework.http.HttpHeaders.AUTHORIZATION, "Bearer " + oseToken)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(
+                            status -> status.is4xxClientError() || status.is5xxServerError(),
+                            (req, resp) -> {
+                                byte[] bytes = resp.getBody().readAllBytes();
+                                String respBody = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                                log.warn("Lucode /status error {}: {}", resp.getStatusCode(), respBody);
+                                throw new RuntimeException("LUCODE_STATUS_ERROR:" + resp.getStatusCode() + ":" + respBody);
+                            })
+                    .body(String.class);
+
+            log.debug("📨 Lucode /status raw para {}-{}: {}", serie, numero, rawJson);
+            return mapper.readValue(rawJson, LucodeGREResponse.class);
+
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Error consultando estado GRE {}-{} en Lucode: {}", serie, numero, e.getMessage(), e);
+            throw new BadRequestException(
+                    "No fue posible consultar el estado de la GRE en el servicio tributario. " +
+                    "Verifica el token OSE e inténtalo nuevamente.");
+        }
+    }
+
     // ── Builder ───────────────────────────────────────────────────────────────
 
     LucodeGRERequest buildRequest(GuiaRemision guia) {

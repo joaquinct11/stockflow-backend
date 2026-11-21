@@ -33,4 +33,28 @@ public interface GuiaRemisionService {
 
     /** Genera PDF y retorna bytes. */
     byte[] generarPDF(Long id);
+
+    /**
+     * Recupera una guía atascada en EMITIENDO (interrupción sin respuesta de Lucode)
+     * trasladándola a ERROR para permitir edición y reintento.
+     * Solo aplicable si lucodeHash, xmlUrl y lucodeId son todos null
+     * (es decir, Lucode nunca confirmó la emisión).
+     */
+    GuiaRemisionResponse recuperarEmitiendo(Long id);
+
+    /**
+     * Reconcilia una GRE que quedó en estado ERROR local pero fue aceptada por SUNAT/Lucode
+     * (escenario F-08: bug de deserialización de campo pdf.a4 en LucodeGREPayload).
+     *
+     * Precondiciones:
+     *  - La guía debe estar en estado ERROR.
+     *  - No debe existir un movimiento de SALIDA previo con referencia="GRE-{id}".
+     *  - Se proporcionan los datos tributarios (hash, xmlUrl, cdrUrl) obtenidos del OSE.
+     *
+     * Efectos:
+     *  - Registra los movimientos de SALIDA de inventario que no se registraron por el bug.
+     *  - Actualiza el estado a EMITIDA con los datos tributarios correctos.
+     *  - Registra un evento RECONCILIACION_F08 en el historial.
+     */
+    GuiaRemisionResponse reconciliarGREAceptada(Long id, ReconciliarGRERequest request);
 }

@@ -13,9 +13,11 @@ import java.util.Optional;
 @Repository
 public interface DevolucionRepository extends JpaRepository<Devolucion, Long> {
 
-    List<Devolucion> findByTenantIdOrderByFechaDevolucionDesc(String tenantId);
+    @Query("SELECT DISTINCT d FROM Devolucion d JOIN FETCH d.venta LEFT JOIN FETCH d.usuario LEFT JOIN FETCH d.detalles WHERE d.tenantId = :tenantId ORDER BY d.fechaDevolucion DESC")
+    List<Devolucion> findByTenantIdOrderByFechaDevolucionDesc(@Param("tenantId") String tenantId);
 
-    List<Devolucion> findByVentaIdAndTenantId(Long ventaId, String tenantId);
+    @Query("SELECT DISTINCT d FROM Devolucion d JOIN FETCH d.venta LEFT JOIN FETCH d.usuario LEFT JOIN FETCH d.detalles WHERE d.venta.id = :ventaId AND d.tenantId = :tenantId")
+    List<Devolucion> findByVentaIdAndTenantId(@Param("ventaId") Long ventaId, @Param("tenantId") String tenantId);
 
     // ── Dashboard: top N devoluciones recientes (evita full-table-scan) ──
     @Query(value = "SELECT * FROM devoluciones WHERE tenant_id = :tenantId AND (:sucursalId IS NULL OR sucursal_id = :sucursalId) ORDER BY fecha_devolucion DESC LIMIT :limit", nativeQuery = true)

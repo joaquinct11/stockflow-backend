@@ -15,14 +15,17 @@ import java.util.Optional;
 @Repository
 public interface RecepcionRepository extends JpaRepository<Recepcion, Long> {
 
-    List<Recepcion> findByTenantId(String tenantId);
+    @Query("SELECT r FROM Recepcion r JOIN FETCH r.proveedor LEFT JOIN FETCH r.usuarioReceptor LEFT JOIN FETCH r.ordenCompra WHERE r.tenantId = :tenantId ORDER BY r.createdAt DESC")
+    List<Recepcion> findByTenantId(@Param("tenantId") String tenantId);
 
-    @Query(value = "SELECT * FROM recepcion WHERE tenant_id = :tenantId AND sucursal_id = :sucursalId ORDER BY created_at DESC", nativeQuery = true)
+    @Query("SELECT r FROM Recepcion r JOIN FETCH r.proveedor LEFT JOIN FETCH r.usuarioReceptor LEFT JOIN FETCH r.ordenCompra WHERE r.tenantId = :tenantId AND r.sucursalId = :sucursalId ORDER BY r.createdAt DESC")
     List<Recepcion> findByTenantIdAndSucursalId(@Param("tenantId") String tenantId, @Param("sucursalId") Long sucursalId);
 
-    List<Recepcion> findByTenantIdAndEstado(String tenantId, String estado);
+    @Query("SELECT r FROM Recepcion r JOIN FETCH r.proveedor LEFT JOIN FETCH r.usuarioReceptor LEFT JOIN FETCH r.ordenCompra WHERE r.tenantId = :tenantId AND r.estado = :estado")
+    List<Recepcion> findByTenantIdAndEstado(@Param("tenantId") String tenantId, @Param("estado") String estado);
 
-    List<Recepcion> findByOrdenCompraId(Long ocId);
+    @Query("SELECT r FROM Recepcion r JOIN FETCH r.proveedor LEFT JOIN FETCH r.usuarioReceptor LEFT JOIN FETCH r.ordenCompra WHERE r.ordenCompra.id = :ocId")
+    List<Recepcion> findByOrdenCompraId(@Param("ocId") Long ocId);
 
     @EntityGraph(attributePaths = "detalles")
     Optional<Recepcion> findWithDetallesById(Long id);

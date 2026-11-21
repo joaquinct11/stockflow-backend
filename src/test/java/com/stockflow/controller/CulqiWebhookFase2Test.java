@@ -178,7 +178,7 @@ class CulqiWebhookFase2Test {
             Suscripcion sActiva = suscripcionPro("ACTIVA");
             when(suscripcionRepository.findByPreapprovalId(SUB_ID)).thenReturn(Optional.of(sActiva));
             when(webhookLogRepository.findSinCorrelacionPendientes(
-                    eq(CulqiWebhookController.MAX_INTENTOS_RECONCILIACION), any(LocalDateTime.class)))
+                    eq(CulqiWebhookController.MAX_INTENTOS_RECONCILIACION), any(LocalDateTime.class), any()))
                     .thenReturn(List.of(logReconciliado));
 
             controller.reconciliarEventosPendientes();

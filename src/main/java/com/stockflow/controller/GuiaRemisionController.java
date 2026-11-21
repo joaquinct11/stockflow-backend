@@ -79,6 +79,20 @@ public class GuiaRemisionController {
         return ResponseEntity.ok(guiaService.cancelarBorrador(id));
     }
 
+    @PostMapping("/{id}/recuperar")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('EDITAR_GRE_BORRADOR')")
+    public ResponseEntity<GuiaRemisionResponse> recuperar(@PathVariable Long id) {
+        return ResponseEntity.ok(guiaService.recuperarEmitiendo(id));
+    }
+
+    @PostMapping("/{id}/reconciliar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<GuiaRemisionResponse> reconciliar(
+            @PathVariable Long id,
+            @Valid @RequestBody ReconciliarGRERequest request) {
+        return ResponseEntity.ok(guiaService.reconciliarGREAceptada(id, request));
+    }
+
     @GetMapping("/{id}/pdf")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('VER_GRE')")
     public ResponseEntity<byte[]> pdf(@PathVariable Long id) {
