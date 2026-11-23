@@ -6,6 +6,7 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
@@ -96,15 +97,17 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
             LEFT JOIN FETCH p.unidadMedida
             WHERE p.stockActual < p.stockMinimo
               AND p.tenantId = :tenantId
+              AND p.activo = true
             """)
     List<Producto> findProductosBajoStock(@Param("tenantId") String tenantId);
 
-    /** Versión liviana para scheduler: sin JOIN FETCH — solo id, nombre, stockActual, stockMinimo. */
+    /** Versión liviana para scheduler/dashboard: sin JOIN FETCH — solo id, nombre, stockActual, stockMinimo. */
     @Query("""
             SELECT p.id AS id, p.nombre AS nombre, p.stockActual AS stockActual, p.stockMinimo AS stockMinimo
             FROM Producto p
             WHERE p.stockActual < p.stockMinimo
               AND p.tenantId = :tenantId
+              AND p.activo = true
             """)
     List<ProductoStockInfo> findProductosBajoStockParaScheduler(@Param("tenantId") String tenantId);
 
@@ -115,6 +118,24 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     /** Suma el stock actual de todos los productos del tenant — usado en onboarding. */
     @Query("SELECT COALESCE(SUM(p.stockActual), 0) FROM Producto p WHERE p.tenantId = :tenantId")
     long sumStockActualByTenantId(@Param("tenantId") String tenantId);
+
+    /**
+     * Incremento atómico de stockActual (ENTRADA / DEVOLUCION / ANULACION).
+     * Previene lost-update causado por lecturas concurrentes en actualizarProducto().
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Producto p SET p.stockActual = p.stockActual + :delta, p.version = p.version + 1 WHERE p.id = :id AND p.tenantId = :tenantId")
+    int incrementarStockAtomico(@Param("id") Long id, @Param("delta") int delta, @Param("tenantId") String tenantId);
+
+    /**
+     * Decremento atómico de stockActual con guarda anti-negativos (VENTA / SALIDA).
+     * La cláusula WHERE p.stockActual >= :delta evita stock negativo sin lock explícito.
+     * Devuelve 1 si el UPDATE afectó la fila, 0 si el stock era insuficiente.
+     * Si devuelve 0 → lanzar excepción de negocio (stock insuficiente).
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Producto p SET p.stockActual = p.stockActual - :delta, p.version = p.version + 1 WHERE p.id = :id AND p.tenantId = :tenantId AND p.stockActual >= :delta")
+    int decrementarStockAtomico(@Param("id") Long id, @Param("delta") int delta, @Param("tenantId") String tenantId);
 
     /** True si el producto tiene ventas o devoluciones asociadas (impide borrado físico). */
     @Query(value = """

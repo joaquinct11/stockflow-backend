@@ -1,8 +1,10 @@
 package com.stockflow.controller;
 
 import com.stockflow.dto.ComprobanteDTO;
+import com.stockflow.dto.ItemDevolucionEstadoDTO;
 import com.stockflow.dto.ValidarNotaCreditoResponseDTO;
 import com.stockflow.dto.VentaDTO;
+import com.stockflow.dto.VentaResumenDTO;
 import com.stockflow.dto.DetalleVentaDTO;
 import com.stockflow.entity.*;
 import com.stockflow.entity.NotaCredito;
@@ -19,7 +21,9 @@ import com.stockflow.service.UsuarioService;
 import com.stockflow.entity.ProductoVarianteStockSucursal;
 import com.stockflow.entity.ProductoPresentacion;
 import com.stockflow.repository.DetalleVentaRepository;
+import com.stockflow.repository.DevolucionRepository;
 import com.stockflow.repository.ProductoPresentacionRepository;
+import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
@@ -43,8 +47,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.math.RoundingMode;
 
@@ -69,8 +75,10 @@ public class VentaController {
     private final SucursalRepository                        sucursalRepository;
     private final VentaRepository                           ventaRepository;
     private final DetalleVentaRepository                    detalleVentaRepository;
+    private final DevolucionRepository                      devolucionRepository;
     private final com.stockflow.service.StockLoteService   stockLoteService;
     private final ProductoPresentacionRepository            presentacionRepository;
+    private final com.stockflow.repository.ProductoRepository productoRepository;
 
     /**
      * ✅ ACTUALIZADO: Obtiene ventas del tenant actual.
@@ -99,7 +107,7 @@ public class VentaController {
         return ResponseEntity.ok(ventaMapper.toDTOList(ventasPage.getContent()));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<VentaDTO> obtenerPorId(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
@@ -166,7 +174,7 @@ public class VentaController {
         );
     }
 
-    @GetMapping("/{ventaId}/detalles")
+    @GetMapping("/{ventaId:\\d+}/detalles")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_DETALLE_VENTA')")
     public ResponseEntity<List<DetalleVentaDTO>> obtenerDetalles(@PathVariable Long ventaId) {
         String tenantId = TenantContext.getCurrentTenant();
@@ -395,8 +403,13 @@ public class VentaController {
                 } else {
                     // Cantidad en unidades base = cantidad vendida × factor de presentación
                     int cantidadBase = detalle.getCantidad() * (detalle.getFactor() != null ? detalle.getFactor() : 1);
-                    producto.setStockActual(producto.getStockActual() - cantidadBase);
-                    productoService.actualizarProducto(producto.getId(), producto);
+                    int filasAfectadas = productoRepository.decrementarStockAtomico(
+                            producto.getId(), cantidadBase, tenantId);
+                    if (filasAfectadas == 0) {
+                        throw new BadRequestException(
+                                "Stock insuficiente para '" + producto.getNombre() +
+                                "' (solicitado: " + cantidadBase + ")");
+                    }
 
                     // Descuento de lote: registra exactamente qué lotes se consumieron para poder
                     // restaurarlos con precisión al anular o devolver (evita el bug de reverse-FEFO)
@@ -447,7 +460,7 @@ public class VentaController {
                 .body(ventaMapper.toDTO(ventaCreada));
     }
 
-    @PatchMapping("/{id}/cliente")
+    @PatchMapping("/{id:\\d+}/cliente")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_EMITIR_COMPROBANTE') or hasAuthority('CREAR_VENTA')")
     public ResponseEntity<VentaDTO> asignarCliente(
             @PathVariable Long id,
@@ -463,7 +476,7 @@ public class VentaController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PatchMapping("/{id}/anular")
+    @PatchMapping("/{id:\\d+}/anular")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_ANULAR_VENTA') or hasAuthority('PERM_ELIMINAR_VENTA')")
     @Transactional
     public ResponseEntity<VentaDTO> anular(@PathVariable Long id) {
@@ -491,13 +504,67 @@ public class VentaController {
     /**
      * Convenience endpoint: get the comprobante associated with a venta.
      */
-    @GetMapping("/{ventaId}/comprobante")
+    @GetMapping("/{ventaId:\\d+}/comprobante")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_COMPROBANTE')")
     public ResponseEntity<ComprobanteDTO> obtenerComprobante(@PathVariable Long ventaId) {
         String tenantId = TenantContext.getCurrentTenant();
         return comprobanteService.obtenerPorVenta(ventaId, tenantId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // F-13: búsqueda de ventas para wizard de devoluciones
+    @GetMapping("/buscar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_VENTAS')")
+    public ResponseEntity<List<VentaResumenDTO>> buscarVentas(@RequestParam String q) {
+        String tenantId = TenantContext.getCurrentTenant();
+        String query = q == null ? "" : q.trim();
+        List<Object[]> rows = ventaRepository.buscarVentas(tenantId, query);
+        List<VentaResumenDTO> result = rows.stream().map(r -> {
+            LocalDateTime fecha = r[1] instanceof Timestamp
+                    ? ((Timestamp) r[1]).toLocalDateTime()
+                    : (LocalDateTime) r[1];
+            return VentaResumenDTO.builder()
+                    .id(((Number) r[0]).longValue())
+                    .createdAt(fecha)
+                    .clienteNombre((String) r[2])
+                    .clienteDocumento((String) r[3])
+                    .total((BigDecimal) r[4])
+                    .estado((String) r[5])
+                    .build();
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    // F-13: estado de devolución por ítem de venta (cuánto se vendió vs cuánto ya se devolvió)
+    @GetMapping("/{ventaId:\\d+}/estado-devolucion")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_VENTAS')")
+    public ResponseEntity<List<ItemDevolucionEstadoDTO>> estadoDevolucion(@PathVariable Long ventaId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        List<com.stockflow.entity.DetalleVenta> detalles = detalleVentaRepository.findByVentaId(ventaId);
+        List<Object[]> devueltos = devolucionRepository.sumarDevueltoPorProducto(ventaId, tenantId);
+        Map<Long, Integer> devueltoPorProducto = devueltos.stream()
+                .collect(Collectors.toMap(
+                        r -> ((Number) r[0]).longValue(),
+                        r -> ((Number) r[1]).intValue()));
+        List<ItemDevolucionEstadoDTO> result = detalles.stream().map(dv -> {
+            int yaDevuelto = devueltoPorProducto.getOrDefault(dv.getProducto().getId(), 0);
+            int pendiente = Math.max(0, dv.getCantidad() - yaDevuelto);
+            return ItemDevolucionEstadoDTO.builder()
+                    .detalleVentaId(dv.getId())
+                    .productoId(dv.getProducto().getId())
+                    .productoNombre(dv.getProducto().getNombre())
+                    .varianteId(dv.getVarianteId())
+                    .varianteDescripcion(dv.getVarianteDescripcion())
+                    .stockLoteId(dv.getStockLoteId())
+                    .presentacionId(dv.getPresentacionId())
+                    .factor(dv.getFactor())
+                    .cantidadVendida(dv.getCantidad())
+                    .cantidadDevuelta(yaDevuelto)
+                    .cantidadPendiente(pendiente)
+                    .build();
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(result);
     }
 
     /**

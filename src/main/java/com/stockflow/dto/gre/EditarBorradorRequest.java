@@ -27,6 +27,9 @@ public class EditarBorradorRequest {
     private Integer numeroBultos;
     private String observaciones;
 
+    // Para DELIVERY independiente (sin ventaId): permite asignar/cambiar la sucursal de origen
+    private Long sucursalOrigenId;
+
     // Destinatario (solo para DELIVERY)
     private String destinatarioTipoDoc;
     private String destinatarioNumDoc;

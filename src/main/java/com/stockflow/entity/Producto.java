@@ -106,4 +106,9 @@ public class Producto {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    /** Control de concurrencia optimista. Evita lost-update cuando edición y devolución corren en paralelo. */
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L;
+
 }

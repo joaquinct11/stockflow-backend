@@ -29,6 +29,7 @@ public interface ProductoMapper {
 
     // DTO → ENTITY
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "version", ignore = true)
     @Mapping(target = "createdAt", expression = "java(java.time.LocalDateTime.now())")
     @Mapping(target = "stockActual", defaultValue = "0")
     @Mapping(target = "stockMinimo", defaultValue = "10")

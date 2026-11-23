@@ -33,6 +33,15 @@ public interface UsuarioTenantRepository extends JpaRepository<UsuarioTenant, Lo
     @Query("SELECT ut FROM UsuarioTenant ut JOIN FETCH ut.rol WHERE ut.usuario.id = :usuarioId AND ut.activo = true")
     List<UsuarioTenant> findActivosConRolByUsuarioId(@Param("usuarioId") Long usuarioId);
 
+    /** Todos los activos del tenant con usuario y rol cargados (evita N+1 lazy). */
+    @Query("SELECT ut FROM UsuarioTenant ut JOIN FETCH ut.usuario JOIN FETCH ut.rol WHERE ut.tenantId = :tenantId AND ut.activo = true")
+    List<UsuarioTenant> findByTenantIdActivoFetch(@Param("tenantId") String tenantId);
+
+    /** Un usuario-tenant por clave compuesta con usuario y rol cargados. */
+    @Query("SELECT ut FROM UsuarioTenant ut JOIN FETCH ut.usuario JOIN FETCH ut.rol WHERE ut.usuario.id = :usuarioId AND ut.tenantId = :tenantId AND ut.activo = true")
+    Optional<UsuarioTenant> findByUsuarioIdAndTenantIdActivoFetch(@Param("usuarioId") Long usuarioId,
+                                                                   @Param("tenantId") String tenantId);
+
     /**
      * Profesionales activos por tenant y rol, filtrados opcionalmente por sucursal.
      * Si sucursalId es null, devuelve todos los que tengan ese rol activo en el tenant

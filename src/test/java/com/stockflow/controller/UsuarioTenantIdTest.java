@@ -94,7 +94,7 @@ class UsuarioTenantIdTest {
     @DisplayName("A — GET /usuarios → tenantId hidratado desde TenantContext")
     void obtenerTodos_tenantIdHidratado() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVet));
 
         List<UsuarioDTO> result = usuarioController.obtenerTodos().getBody();
@@ -109,7 +109,7 @@ class UsuarioTenantIdTest {
     @DisplayName("B — GET /usuarios → tenantId no es null")
     void obtenerTodos_tenantIdNoEsNull() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVet));
 
         List<UsuarioDTO> result = usuarioController.obtenerTodos().getBody();
@@ -123,7 +123,7 @@ class UsuarioTenantIdTest {
     @DisplayName("C — GET /usuarios/{id} → tenantId correcto desde TenantContext")
     void obtenerPorId_tenantIdCorrecto() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVet));
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorId(USUARIO_ID);
@@ -139,7 +139,7 @@ class UsuarioTenantIdTest {
     void obtenerPorEmail_tenantIdCorrecto() {
         TenantContext.setCurrentTenant(TENANT_VET);
         when(usuarioService.obtenerUsuarioPorEmail(EMAIL)).thenReturn(Optional.of(usuario));
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVet));
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorEmail(EMAIL);
@@ -158,7 +158,7 @@ class UsuarioTenantIdTest {
         updateDTO.setRolNombre("ADMIN");
         updateDTO.setSucursalId(SUCURSAL_19);
 
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVet));
         when(rolRepository.findByNombre("ADMIN")).thenReturn(Optional.of(rolAdmin));
         when(usuarioService.actualizarUsuario(eq(USUARIO_ID), any(UsuarioUpdateDTO.class), eq(rolAdmin)))
@@ -176,12 +176,12 @@ class UsuarioTenantIdTest {
     @DisplayName("F — mismo usuario: tenantId refleja el tenant activo (aislamiento)")
     void obtenerTodos_tenantIdAisladoPorTenant() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVet));
         List<UsuarioDTO> enVet = usuarioController.obtenerTodos().getBody();
 
         TenantContext.setCurrentTenant(TENANT_BOTICA);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_BOTICA))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_BOTICA))
                 .thenReturn(List.of(utBotica));
         List<UsuarioDTO> enBotica = usuarioController.obtenerTodos().getBody();
 
@@ -196,7 +196,7 @@ class UsuarioTenantIdTest {
     void tenantIdNoVieneDeLaEntidadUsuario() {
         // Usuario no tiene campo tenantId — el DTO obtiene el valor solo si el controller lo setea
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVet));
 
         List<UsuarioDTO> result = usuarioController.obtenerTodos().getBody();
@@ -212,7 +212,7 @@ class UsuarioTenantIdTest {
     @DisplayName("H — lista vacía devuelve lista vacía sin NPE")
     void obtenerTodos_listaVacia() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of());
 
         List<UsuarioDTO> result = usuarioController.obtenerTodos().getBody();
@@ -226,7 +226,7 @@ class UsuarioTenantIdTest {
     @DisplayName("I — GET /usuarios/{id} devuelve tenantId, rolNombre y sucursalId juntos")
     void obtenerPorId_todosLosCamposContextualesPresentes() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVet));
 
         UsuarioDTO body = usuarioController.obtenerPorId(USUARIO_ID).getBody();

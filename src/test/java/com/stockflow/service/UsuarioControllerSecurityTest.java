@@ -95,7 +95,7 @@ class UsuarioControllerSecurityTest {
     @Test
     @DisplayName("permite actualizar usuario que tiene relación activa en usuario_tenant del tenant activo")
     void actualizar_usuarioPerteneceAlTenant_permite() {
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(5L, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(5L, TENANT_VET))
                 .thenReturn(Optional.of(ut5Vet));
 
         ResponseEntity<?> response = usuarioController.actualizar(5L, updateDTO);
@@ -108,7 +108,7 @@ class UsuarioControllerSecurityTest {
     @DisplayName("rechaza actualizar usuario que pertenece a otro tenant (protección cross-tenant)")
     void actualizar_usuarioNoPerteneceTenant_lanzaResourceNotFound() {
         // Usuario 5 no tiene relación activa con TENANT_VET
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(5L, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(5L, TENANT_VET))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> usuarioController.actualizar(5L, updateDTO))
@@ -124,7 +124,7 @@ class UsuarioControllerSecurityTest {
     void actualizar_noUsaTenantIdLegacy() {
         // Escenario clave: tenant_id del usuario = TENANT_BOTICA (otro tenant)
         // pero usuario_tenant lo une a TENANT_VET — debe PERMITIRSE
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(5L, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(5L, TENANT_VET))
                 .thenReturn(Optional.of(ut5Vet));
 
         // Si usara u.getTenantId() == tenantId, fallaría porque BOTICA != VET

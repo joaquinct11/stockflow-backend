@@ -1,5 +1,6 @@
 package com.stockflow.service;
 
+import com.stockflow.dto.DashboardSummaryDTO;
 import com.stockflow.dto.ProductoImportResultDTO;
 import com.stockflow.dto.ProductoImportRowDTO;
 import com.stockflow.entity.Producto;
@@ -30,4 +31,7 @@ public interface ProductoService {
 
     /** Importación masiva desde Excel/CSV. Crea o actualiza según codigoBarras. */
     ProductoImportResultDTO importar(List<ProductoImportRowDTO> filas, String tenantId, Long sucursalId);
+
+    /** Resumen compacto para el Dashboard: evita cargar el catálogo completo. */
+    DashboardSummaryDTO getDashboardSummary(String tenantId, Long sucursalId);
 }

@@ -541,6 +541,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UsuarioProfileDTO obtenerPerfil(Long usuarioId) {
         log.info("📋 Obteniendo perfil del usuario: {}", usuarioId);
 

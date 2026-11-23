@@ -2,6 +2,7 @@ package com.stockflow.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -241,6 +242,24 @@ public class GlobalExceptionHandler {
         if (dbMessage.contains("tenants_ruc"))
             return "El RUC ya está registrado en el sistema.";
         return "El valor ya existe. Verifica los datos e intenta de nuevo.";
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLocking(
+            ObjectOptimisticLockingFailureException ex,
+            WebRequest request) {
+
+        log.warn("OPTIMISTIC_LOCK_CONFLICT [{}] : {}", path(request), ex.getMessage());
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error("Conflict")
+                .mensaje("Datos desactualizados. Recarga el producto e intenta de nuevo.")
+                .path(path(request))
+                .build();
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(Exception.class)

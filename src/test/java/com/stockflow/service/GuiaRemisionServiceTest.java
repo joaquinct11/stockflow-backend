@@ -85,6 +85,9 @@ class GuiaRemisionServiceTest {
         // Por defecto todos los ubigeos son válidos; tests específicos de ubigeo sobreescriben esto
         when(ubigeoRepository.existsById(anyString())).thenReturn(true);
 
+        Sucursal sucursalOrigen = Sucursal.builder().id(10L).tenantId(TENANT_ID).nombre("Tienda Origen").build();
+        when(sucursalRepo.findByIdAndTenantId(10L, TENANT_ID)).thenReturn(Optional.of(sucursalOrigen));
+
         when(guiaRepo.findMaxCorrelativo(TENANT_ID, "T001")).thenReturn(0);
         when(guiaRepo.existsByIdempotencyKey(anyString())).thenReturn(false);
         when(guiaRepo.save(any())).thenAnswer(inv -> {
@@ -281,6 +284,7 @@ class GuiaRemisionServiceTest {
     private CrearGuiaRemisionRequest buildRequest() {
         CrearGuiaRemisionRequest req = new CrearGuiaRemisionRequest();
         req.setTipoTraslado(TipoTrasladoGRE.DELIVERY);
+        req.setSucursalOrigenId(10L);  // F-09: DELIVERY independiente requiere sucursal origen
         req.setMotivoTrasladoCodigo("01");
         req.setModalidadTransporte(ModalidadTransporteGRE.PRIVADO);
         req.setFechaTraslado(LocalDate.now().plusDays(1));
@@ -304,6 +308,7 @@ class GuiaRemisionServiceTest {
     }
 
     private GuiaRemision buildGuia(EstadoTributarioGRE estado) {
+        Sucursal origen = Sucursal.builder().id(10L).tenantId(TENANT_ID).nombre("Tienda Origen").build();
         return GuiaRemision.builder()
                 .id(1L)
                 .tenantId(TENANT_ID)
@@ -316,6 +321,7 @@ class GuiaRemisionServiceTest {
                 .estadoTributario(estado)
                 .estadoLogistico(estado == EstadoTributarioGRE.EMITIDA
                         ? EstadoLogisticoGRE.EN_TRANSITO : EstadoLogisticoGRE.PENDIENTE)
+                .sucursalOrigen(origen)  // F-09: DELIVERY sin venta requiere sucursal origen
                 .items(new java.util.ArrayList<>())
                 .build();
     }
