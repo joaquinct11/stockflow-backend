@@ -19,6 +19,9 @@ public class ProductoDTO {
 
     private Long id;
 
+    /** Versión para optimistic locking. El frontend debe devolver el valor recibido al editar. */
+    private Long version;
+
     @NotBlank(message = "El nombre del producto es requerido")
     private String nombre;
 

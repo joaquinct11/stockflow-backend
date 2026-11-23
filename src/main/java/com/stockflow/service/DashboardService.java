@@ -5,6 +5,7 @@ import com.stockflow.entity.*;
 import com.stockflow.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -19,6 +20,7 @@ public class DashboardService {
     private final OrdenCompraRepository ordenCompraRepository;
     private final DevolucionRepository devolucionRepository;
 
+    @Transactional(readOnly = true)
     public List<ActividadRecienteDTO> getActividadReciente(String tenantId, Long sucursalId, int limit) {
         int fetch = limit * 2;
 

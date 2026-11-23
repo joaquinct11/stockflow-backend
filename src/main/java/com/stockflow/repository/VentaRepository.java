@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface VentaRepository extends JpaRepository<Venta, Long> {
@@ -36,7 +37,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
 
     List<Venta> findByCreatedAtBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
     long countByTenantId(String tenantId);
-    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
+    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.vendedor LEFT JOIN FETCH v.detalles WHERE v.tenantId = :tenantId AND v.createdAt BETWEEN :inicio AND :fin AND (:sucursalId IS NULL OR v.sucursalId = :sucursalId)")
     List<Venta> findVentasPorPeriodo(
             @Param("tenantId")   String tenantId,
             @Param("inicio")     LocalDateTime inicio,
@@ -254,6 +255,10 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     @Query("SELECT v FROM Venta v LEFT JOIN FETCH v.vendedor WHERE v.cajaId = :cajaId AND v.tenantId = :tenantId ORDER BY v.createdAt DESC")
     List<Venta> findByCajaIdAndTenantId(@Param("cajaId") Long cajaId, @Param("tenantId") String tenantId);
 
+    // ── Por ID con vendedor y detalles cargados (evita LazyInitializationException al mapear) ──
+    @Query("SELECT DISTINCT v FROM Venta v LEFT JOIN FETCH v.vendedor LEFT JOIN FETCH v.detalles d LEFT JOIN FETCH d.producto WHERE v.id = :id")
+    Optional<Venta> findByIdFetchVendedor(@Param("id") Long id);
+
     // ── Dashboard: top N ventas recientes (evita full-table-scan) ──
     @Query(value = "SELECT * FROM ventas WHERE tenant_id = :tenantId ORDER BY created_at DESC LIMIT :limit", nativeQuery = true)
     List<Venta> findTopNRecentesByTenantId(@Param("tenantId") String tenantId, @Param("limit") int limit);
@@ -301,4 +306,23 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
     @Modifying
     @Query(value = "UPDATE ventas SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
+
+    // F-13: búsqueda de ventas para wizard de devoluciones (por id exacto, nombre parcial o documento exacto)
+    // Documento usa igualdad exacta (no LIKE) para evitar que un dígito del ID coincida como subcadena
+    // con documentos de identidad (ej. "12345678" contiene todos los dígitos del 1 al 8).
+    @Query(value = """
+        SELECT v.id, v.created_at, COALESCE(c.nombre, 'Sin cliente') AS cliente_nombre,
+               c.numero_documento, v.total, v.estado
+        FROM ventas v
+        LEFT JOIN clientes c ON c.id = v.cliente_id
+        WHERE v.tenant_id = :tenantId
+          AND (
+            CAST(v.id AS TEXT) = :q
+            OR LOWER(c.nombre) LIKE LOWER(CONCAT('%', :q, '%'))
+            OR c.numero_documento = :q
+          )
+        ORDER BY v.created_at DESC
+        LIMIT 20
+        """, nativeQuery = true)
+    List<Object[]> buscarVentas(@Param("tenantId") String tenantId, @Param("q") String q);
 }

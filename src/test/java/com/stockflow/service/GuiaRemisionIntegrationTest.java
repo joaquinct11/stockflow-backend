@@ -55,6 +55,7 @@ class GuiaRemisionIntegrationTest {
 
     private static final String TENANT_ID = "integ-test-tenant";
     private Long guiaBorradorId;
+    private Long sucursalOrigenId;
 
     @BeforeAll
     void setupTenant() {
@@ -83,6 +84,16 @@ class GuiaRemisionIntegrationTest {
                 VALUES (?, ?, 'PRO', 0.00, 'ACTIVA', NOW())
                 """, usuarioId, TENANT_ID);
         }
+
+        // Sucursal de prueba para DELIVERY independiente (Regla F-09)
+        jdbc.update("""
+            INSERT INTO sucursales (tenant_id, nombre, es_principal, activo, created_at, updated_at)
+            VALUES (?, 'Almacén Central Integ', true, true, NOW(), NOW())
+            ON CONFLICT DO NOTHING
+            """, TENANT_ID);
+        sucursalOrigenId = jdbc.queryForObject(
+                "SELECT id FROM sucursales WHERE tenant_id = ? AND nombre = 'Almacén Central Integ' LIMIT 1",
+                Long.class, TENANT_ID);
 
         // Producto de prueba: usar columnas reales y lookup de unidad_medida global
         Long umId = jdbc.queryForObject(
@@ -309,6 +320,7 @@ class GuiaRemisionIntegrationTest {
         CrearGuiaRemisionRequest req = new CrearGuiaRemisionRequest();
         req.setIdempotencyKey(iKey);
         req.setTipoTraslado(TipoTrasladoGRE.DELIVERY);
+        req.setSucursalOrigenId(sucursalOrigenId);  // F-09: DELIVERY independiente requiere sucursal origen
         req.setMotivoTrasladoCodigo("01");
         req.setModalidadTransporte(ModalidadTransporteGRE.PRIVADO);
         req.setFechaTraslado(LocalDate.now().plusDays(1));

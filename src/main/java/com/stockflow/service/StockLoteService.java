@@ -160,22 +160,31 @@ public class StockLoteService {
     public void restaurarDesdeJson(String lotesConsumidosJson, Long stockLoteIdFallback, int cantidadBase,
                                     String tenantId, Long productoId, Long sucursalId) {
         if (lotesConsumidosJson != null && !lotesConsumidosJson.isBlank()) {
-            // Parsear [[loteId, cantidad], ...]
+            // Parsear [[loteId, cantidad], ...] y restaurar solo cantidadBase unidades (greedy)
             String contenido = lotesConsumidosJson.trim();
             contenido = contenido.substring(1, contenido.length() - 1); // quitar [ ]
             if (contenido.isBlank()) return;
+            int restante = cantidadBase;
             for (String par : contenido.split("(?<=\\]),(?=\\[)")) {
+                if (restante <= 0) break;
                 par = par.trim().replaceAll("[\\[\\]]", "");
                 String[] partes = par.split(",");
                 if (partes.length == 2) {
                     try {
                         Long loteId = Long.parseLong(partes[0].trim());
                         int cant = Integer.parseInt(partes[1].trim());
-                        restaurarLoteEspecifico(loteId, cant);
+                        int aRestaurar = Math.min(cant, restante);
+                        if (aRestaurar > 0) {
+                            restaurarLoteEspecifico(loteId, aRestaurar);
+                            restante -= aRestaurar;
+                        }
                     } catch (NumberFormatException e) {
                         log.warn("⚠️ JSON de lotes mal formado: {}", par);
                     }
                 }
+            }
+            if (restante > 0) {
+                log.warn("⚠️ JSON de lotes insuficiente: {} unidades sin lote para producto={}", restante, productoId);
             }
         } else if (stockLoteIdFallback != null) {
             // Ventas antiguas sin JSON: restaurar al lote original (comportamiento previo)

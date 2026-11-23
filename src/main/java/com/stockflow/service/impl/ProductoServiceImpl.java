@@ -1,5 +1,6 @@
 package com.stockflow.service.impl;
 
+import com.stockflow.dto.DashboardSummaryDTO;
 import com.stockflow.dto.ProductoImportResultDTO;
 import com.stockflow.dto.ProductoImportRowDTO;
 import com.stockflow.entity.Categoria;
@@ -149,6 +150,13 @@ public class ProductoServiceImpl implements ProductoService {
     public Producto actualizarProducto(Long id, Producto productoActualizado) {
         productoRepository.findById(id)
                 .map(producto -> {
+                    // Verificación de versión para OL: si el cliente envió una versión anterior a la de BD
+                    // → la edición está basada en datos obsoletos → rechazar con 409
+                    if (productoActualizado.getVersion() != null
+                            && !productoActualizado.getVersion().equals(producto.getVersion())) {
+                        throw new org.springframework.orm.ObjectOptimisticLockingFailureException(
+                                Producto.class, producto.getId());
+                    }
                     producto.setNombre(productoActualizado.getNombre());
                     String cb = productoActualizado.getCodigoBarras();
                     producto.setCodigoBarras(cb != null && cb.isBlank() ? null : cb);
@@ -663,5 +671,56 @@ public class ProductoServiceImpl implements ProductoService {
             entry.setStockActual((entry.getStockActual() != null ? entry.getStockActual() : 0) + delta);
             stockSucursalRepository.save(entry);
         });
+    }
+
+    @Override
+    public DashboardSummaryDTO getDashboardSummary(String tenantId, Long sucursalId) {
+        int total = (int) productoRepository.countByTenantIdAndActivoTrue(tenantId);
+
+        java.util.List<com.stockflow.dto.ProductoStockInfo> bajoStock =
+                productoRepository.findProductosBajoStockParaScheduler(tenantId);
+
+        // Desglose calculado sobre el listado completo, antes del truncado a 5 para display.
+        int sinStockCount = (int) bajoStock.stream()
+                .filter(p -> p.getStockActual() == null || p.getStockActual() <= 0)
+                .count();
+        int stockBajoMinimoCount = (int) bajoStock.stream()
+                .filter(p -> p.getStockActual() != null && p.getStockActual() > 0)
+                .count();
+
+        java.util.List<DashboardSummaryDTO.BajoStockItemDTO> bajoStockItems = bajoStock.stream()
+                .limit(5)
+                .map(p -> DashboardSummaryDTO.BajoStockItemDTO.builder()
+                        .id(p.getId())
+                        .nombre(p.getNombre())
+                        .stockActual(p.getStockActual())
+                        .stockMinimo(p.getStockMinimo())
+                        .build())
+                .toList();
+
+        java.time.LocalDate hoy  = java.time.LocalDate.now();
+        java.time.LocalDate en90 = hoy.plusDays(90);
+        java.util.List<Object[]> vencRows =
+                movimientoInventarioRepository.findProximosAVencerParaDashboard(tenantId, hoy, en90);
+
+        java.util.List<DashboardSummaryDTO.ProximoVencerItemDTO> proxVencer = vencRows.stream()
+                .limit(10)
+                .map(row -> DashboardSummaryDTO.ProximoVencerItemDTO.builder()
+                        .id(((Number) row[0]).longValue())
+                        .nombre((String) row[1])
+                        .codigoBarras((String) row[2])
+                        .stockActual(row[3] != null ? ((Number) row[3]).intValue() : 0)
+                        .fechaVencimiento(row[4] != null ? row[4].toString() : null)
+                        .build())
+                .toList();
+
+        return DashboardSummaryDTO.builder()
+                .totalProductos(total)
+                .bajoStockCount(bajoStock.size())
+                .sinStockCount(sinStockCount)
+                .stockBajoMinimoCount(stockBajoMinimoCount)
+                .bajoStockItems(bajoStockItems)
+                .productosProximosAVencer(proxVencer)
+                .build();
     }
 }

@@ -1,5 +1,6 @@
 package com.stockflow.controller;
 
+import com.stockflow.dto.DashboardSummaryDTO;
 import com.stockflow.dto.ProductoDTO;
 import com.stockflow.dto.ProductoImportResultDTO;
 import com.stockflow.dto.ProductoImportRowDTO;
@@ -261,11 +262,14 @@ public class ProductoController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * POST /api/productos/importar
-     * Importación masiva desde Excel/CSV (parseado en frontend, enviado como JSON).
-     * Crea nuevos productos o actualiza los existentes por codigoBarras.
-     */
+    @GetMapping("/dashboard-summary")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
+    public ResponseEntity<DashboardSummaryDTO> getDashboardSummary(
+            @RequestParam(required = false) Long sucursalId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        return ResponseEntity.ok(productoService.getDashboardSummary(tenantId, sucursalId));
+    }
+
     @PostMapping("/importar")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_CREAR_PRODUCTO')")
     public ResponseEntity<ProductoImportResultDTO> importar(

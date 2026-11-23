@@ -99,7 +99,7 @@ class UsuarioRolNombreTest {
     @DisplayName("Caso 1 — GET /{id} en tenant Vet → rolNombre = ADMIN")
     void obtenerPorId_tenantVet_rolAdmin() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVetAdmin));
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorId(USUARIO_ID);
@@ -115,7 +115,7 @@ class UsuarioRolNombreTest {
     @DisplayName("Caso 2 — mismo usuario GET /{id} en tenant Botica → rolNombre = VENDEDOR")
     void obtenerPorId_tenantBotica_rolVendedor() {
         TenantContext.setCurrentTenant(TENANT_BOTICA);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_BOTICA))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_BOTICA))
                 .thenReturn(Optional.of(utBoticaVendedor));
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorId(USUARIO_ID);
@@ -132,14 +132,14 @@ class UsuarioRolNombreTest {
     void rolEnVet_noAfectaRespuestaEnBotica() {
         // Vet: ADMIN
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVetAdmin));
         ResponseEntity<UsuarioDTO> respVet = usuarioController.obtenerPorId(USUARIO_ID);
         assertThat(respVet.getBody().getRolNombre()).isEqualTo("ADMIN");
 
         // Botica: VENDEDOR — independiente
         TenantContext.setCurrentTenant(TENANT_BOTICA);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_BOTICA))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_BOTICA))
                 .thenReturn(Optional.of(utBoticaVendedor));
         ResponseEntity<UsuarioDTO> respBotica = usuarioController.obtenerPorId(USUARIO_ID);
         assertThat(respBotica.getBody().getRolNombre()).isEqualTo("VENDEDOR");
@@ -155,7 +155,7 @@ class UsuarioRolNombreTest {
     @DisplayName("Caso 4 — GET /usuarios en Vet devuelve lista con rolNombre = ADMIN")
     void obtenerTodos_tenantVet_rolAdminEnLista() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetAdmin));
 
         ResponseEntity<List<UsuarioDTO>> resp = usuarioController.obtenerTodos();
@@ -169,7 +169,7 @@ class UsuarioRolNombreTest {
     @DisplayName("Caso 4b — GET /usuarios en Botica devuelve lista con rolNombre = VENDEDOR")
     void obtenerTodos_tenantBotica_rolVendedorEnLista() {
         TenantContext.setCurrentTenant(TENANT_BOTICA);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_BOTICA))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_BOTICA))
                 .thenReturn(List.of(utBoticaVendedor));
 
         ResponseEntity<List<UsuarioDTO>> resp = usuarioController.obtenerTodos();
@@ -184,7 +184,7 @@ class UsuarioRolNombreTest {
     @DisplayName("Caso 5 — GET /{id} inexistente en tenant → 404")
     void obtenerPorId_usuarioNoEnTenant_404() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.empty());
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorId(USUARIO_ID);
@@ -204,7 +204,7 @@ class UsuarioRolNombreTest {
         updateDTO.setRolNombre("ADMIN");
         updateDTO.setActivo(true);
 
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVetAdmin));
         when(rolRepository.findByNombre("ADMIN")).thenReturn(Optional.of(rolAdmin));
         when(usuarioService.obtenerUsuarioPorId(USUARIO_ID)).thenReturn(Optional.of(usuario));
@@ -223,7 +223,7 @@ class UsuarioRolNombreTest {
     @DisplayName("La lista no llama usuario.getRol() — rolNombre viene solo de UsuarioTenant")
     void lista_noDependeDeUsuarioGetRol_soloDeUsuarioTenant() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetAdmin));
 
         usuarioController.obtenerTodos();

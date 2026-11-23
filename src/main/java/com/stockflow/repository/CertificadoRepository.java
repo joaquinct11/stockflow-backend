@@ -34,6 +34,14 @@ public interface CertificadoRepository extends JpaRepository<CertificadoEstablec
     """, nativeQuery = true)
     List<CertificadoEstablecimiento> findCertificadosEnAlertas();
 
+    @Query(value = """
+        SELECT * FROM certificados_establecimiento
+        WHERE tenant_id = :tenantId
+          AND activo = true
+          AND fecha_vencimiento <= CURRENT_DATE + (dias_alerta * INTERVAL '1 day')
+    """, nativeQuery = true)
+    List<CertificadoEstablecimiento> findCertificadosEnAlertasByTenant(@Param("tenantId") String tenantId);
+
     /** Cuenta los certificados activos vencidos o por vencer (para el badge del sidebar) */
     @Query("""
         SELECT COUNT(c) FROM CertificadoEstablecimiento c

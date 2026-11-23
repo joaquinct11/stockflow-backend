@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,13 +29,17 @@ public class ComisionController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_COMISIONES')")
-    public ResponseEntity<List<ComisionDTO>> listar(@RequestParam(required = false) Long sucursalId) {
+    public ResponseEntity<List<ComisionDTO>> listar(
+            @RequestParam(required = false) Long sucursalId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
         String tenantId = TenantContext.getCurrentTenant();
-        List<ComisionDTO> lista = (sucursalId != null
-                ? comisionRepository.findByTenantIdAndSucursalIdAndDeletedAtIsNull(tenantId, sucursalId)
-                : comisionRepository.findByTenantIdAndDeletedAtIsNullOrderByFechaDesc(tenantId))
-                .stream().map(this::toDTO).toList();
-        return ResponseEntity.ok(lista);
+        var comisiones = (desde != null && hasta != null)
+                ? comisionRepository.findByTenantIdAndFechaBetween(tenantId, desde, hasta)
+                : sucursalId != null
+                    ? comisionRepository.findByTenantIdAndSucursalIdAndDeletedAtIsNull(tenantId, sucursalId)
+                    : comisionRepository.findByTenantIdAndDeletedAtIsNullOrderByFechaDesc(tenantId);
+        return ResponseEntity.ok(comisiones.stream().map(this::toDTO).toList());
     }
 
     @GetMapping("/{id}")

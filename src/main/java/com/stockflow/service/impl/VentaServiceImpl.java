@@ -59,8 +59,9 @@ public class VentaServiceImpl implements VentaService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public Optional<Venta> obtenerVentaPorId(Long id) {
-        return ventaRepository.findById(id);
+        return ventaRepository.findByIdFetchVendedor(id);
     }
 
     @Override
@@ -89,6 +90,7 @@ public class VentaServiceImpl implements VentaService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<Venta> obtenerVentasPorPeriodo(String tenantId, LocalDateTime inicio, LocalDateTime fin, Long sucursalId) {
         return ventaRepository.findVentasPorPeriodo(tenantId, inicio, fin, sucursalId);
     }
@@ -148,8 +150,7 @@ public class VentaServiceImpl implements VentaService {
 
             // Reponer en unidades base (cantidad × factor de presentación)
             int cantidadBase = detalle.getCantidad() * (detalle.getFactor() != null ? detalle.getFactor() : 1);
-            producto.setStockActual(producto.getStockActual() + cantidadBase);
-            productoRepository.save(producto);
+            productoRepository.incrementarStockAtomico(producto.getId(), cantidadBase, tenantId);
 
             // Restaurar los lotes exactos consumidos en la venta
             stockLoteService.restaurarDesdeJson(

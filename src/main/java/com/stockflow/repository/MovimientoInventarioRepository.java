@@ -190,6 +190,29 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
             @Param("hoy")      LocalDate hoy
     );
 
+    /** Por producto: id, nombre, codigoBarras, stockActual, MIN(fechaVencimiento)
+     *  para lotes que vencen entre :desde y :hasta y aún tienen stock real. */
+    @Query("""
+            SELECT m.producto.id, m.producto.nombre, m.producto.codigoBarras, m.producto.stockActual,
+                   MIN(m.fechaVencimiento)
+            FROM MovimientoInventario m
+            JOIN StockLote sl ON sl.movimientoId = m.id
+            WHERE m.tenantId = :tenantId
+              AND m.tipo IN ('ENTRADA', 'SALDO_INICIAL')
+              AND m.fechaVencimiento IS NOT NULL
+              AND m.fechaVencimiento >= :desde
+              AND m.fechaVencimiento <= :hasta
+              AND sl.stockActual > 0
+              AND m.producto.activo = true
+            GROUP BY m.producto.id, m.producto.nombre, m.producto.codigoBarras, m.producto.stockActual
+            ORDER BY MIN(m.fechaVencimiento) ASC
+            """)
+    List<Object[]> findProximosAVencerParaDashboard(
+            @Param("tenantId") String tenantId,
+            @Param("desde")    LocalDate desde,
+            @Param("hasta")    LocalDate hasta
+    );
+
     // ── Salidas por producto en rango (para cálculo de cobertura) ──
 
     @Query("SELECT m.producto.id, m.producto.nombre, m.producto.stockActual, SUM(m.cantidad) " +

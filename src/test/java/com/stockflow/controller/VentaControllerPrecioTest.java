@@ -11,6 +11,7 @@ import com.stockflow.mapper.DetalleVentaMapper;
 import com.stockflow.mapper.VentaMapper;
 import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.ProductoPresentacionRepository;
+import com.stockflow.repository.ProductoRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
 import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
@@ -41,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -82,6 +84,7 @@ class VentaControllerPrecioTest {
     @Mock private DetalleVentaRepository                    detalleVentaRepository;
     @Mock private StockLoteService                          stockLoteService;
     @Mock private ProductoPresentacionRepository            presentacionRepository;
+    @Mock private ProductoRepository                        productoRepository;
 
     @InjectMocks private VentaController controller;
 
@@ -166,6 +169,9 @@ class VentaControllerPrecioTest {
         when(ventaService.crearVenta(any())).thenReturn(ventaMock);
         when(ventaMapper.toDTO(any())).thenReturn(VentaDTO.builder().id(100L).build());
         when(stockLoteService.getStockVigente(anyString(), anyLong(), any())).thenReturn(999);
+        // Decremento atómico: por defecto, stock suficiente (1 fila afectada).
+        // Los tests de stock insuficiente lo sobreescriben a 0 en su propio contexto.
+        when(productoRepository.decrementarStockAtomico(anyLong(), anyInt(), anyString())).thenReturn(1);
     }
 
     @AfterEach
@@ -554,7 +560,52 @@ class VentaControllerPrecioTest {
     }
 
     // =========================================================================
-    // 8. Múltiples detalles — la validación aplica a cada uno
+    // 8. Stock insuficiente — decrementarStockAtomico devuelve 0
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Stock insuficiente — decrementarStockAtomico rechaza")
+    class StockInsuficiente {
+
+        @Test
+        @DisplayName("VENDEDOR: precio correcto pero sin stock → BadRequestException stock insuficiente")
+        void vendedor_precioOk_sinStock_rechaza() {
+            Producto p = producto(30.00);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(productoRepository.decrementarStockAtomico(anyLong(), anyInt(), anyString())).thenReturn(0);
+
+            assertThatThrownBy(() -> controller.crear(ventaDTO(detalle(1, 30.00)), vendedorAuth()))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("Stock insuficiente");
+        }
+
+        @Test
+        @DisplayName("ADMIN: precio libre pero sin stock → BadRequestException stock insuficiente")
+        void admin_precioLibre_sinStock_rechaza() {
+            Producto p = producto(30.00);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(productoRepository.decrementarStockAtomico(anyLong(), anyInt(), anyString())).thenReturn(0);
+
+            assertThatThrownBy(() -> controller.crear(ventaDTO(detalle(5, 1.00)), adminAuth()))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("Stock insuficiente");
+        }
+
+        @Test
+        @DisplayName("con stock suficiente decrementarStockAtomico=1 → venta acepta")
+        void stockSuficiente_acepta() {
+            Producto p = producto(30.00);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            // El setUp ya stub-ea a 1; test explícito para documentar el contrato
+            when(productoRepository.decrementarStockAtomico(anyLong(), anyInt(), anyString())).thenReturn(1);
+
+            assertThatCode(() -> controller.crear(ventaDTO(detalle(1, 30.00)), vendedorAuth()))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    // =========================================================================
+    // 10. Múltiples detalles — la validación aplica a cada uno
     // =========================================================================
 
     @Nested
@@ -591,7 +642,7 @@ class VentaControllerPrecioTest {
     }
 
     // =========================================================================
-    // 9. Persistencia del precioFinal — verificación vía mensaje de error
+    // 11. Persistencia del precioFinal — verificación vía mensaje de error
     // =========================================================================
 
     @Nested

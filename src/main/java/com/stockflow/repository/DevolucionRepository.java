@@ -28,4 +28,14 @@ public interface DevolucionRepository extends JpaRepository<Devolucion, Long> {
     @Modifying
     @Query(value = "UPDATE devoluciones SET sucursal_id = :sucursalId WHERE tenant_id = :tenantId AND sucursal_id IS NULL", nativeQuery = true)
     void asignarSucursalDondeEsNulo(@Param("sucursalId") Long sucursalId, @Param("tenantId") String tenantId);
+
+    // F-13: suma de unidades ya devueltas por productoId para una venta dada
+    @Query(value = """
+        SELECT dd.producto_id, SUM(dd.cantidad_devuelta * dd.factor)
+        FROM devolucion_detalle dd
+        JOIN devoluciones d ON d.id = dd.devolucion_id
+        WHERE d.venta_id = :ventaId AND d.tenant_id = :tenantId
+        GROUP BY dd.producto_id
+        """, nativeQuery = true)
+    List<Object[]> sumarDevueltoPorProducto(@Param("ventaId") Long ventaId, @Param("tenantId") String tenantId);
 }

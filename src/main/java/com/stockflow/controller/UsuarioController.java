@@ -52,7 +52,7 @@ public class UsuarioController {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👥 Obteniendo usuarios para tenant: {}", tenantId);
 
-        List<UsuarioDTO> dtos = usuarioTenantRepository.findByTenantIdAndActivoTrue(tenantId)
+        List<UsuarioDTO> dtos = usuarioTenantRepository.findByTenantIdActivoFetch(tenantId)
                 .stream()
                 .map(ut -> {
                     UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
@@ -69,7 +69,7 @@ public class UsuarioController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_USUARIOS')")
     public ResponseEntity<UsuarioDTO> obtenerPorId(@PathVariable Long id) {
         String tenantId = TenantContext.getCurrentTenant();
-        return usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(id, tenantId)
+        return usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(id, tenantId)
                 .map(ut -> {
                     UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
                     dto.setRolNombre(ut.getRol().getNombre());
@@ -86,7 +86,7 @@ public class UsuarioController {
     public ResponseEntity<UsuarioDTO> obtenerPorEmail(@PathVariable String email) {
         String tenantId = TenantContext.getCurrentTenant();
         return usuarioService.obtenerUsuarioPorEmail(email)
-                .flatMap(u -> usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(u.getId(), tenantId))
+                .flatMap(u -> usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(u.getId(), tenantId))
                 .map(ut -> {
                     UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
                     dto.setRolNombre(ut.getRol().getNombre());
@@ -181,7 +181,7 @@ public class UsuarioController {
         }
 
         // Seguridad cross-tenant: solo se puede editar un usuario que pertenece al tenant activo
-        usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(id, tenantId)
+        usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(id, tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
 
         // Roles de plataforma no pueden asignarse desde la administración de un tenant

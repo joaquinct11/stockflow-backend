@@ -276,46 +276,55 @@ public class NotificacionScheduler {
     public void verificarCertificados() {
         log.info("⏰ [Scheduler] Verificando certificados por vencer/vencidos...");
         LocalDate hoy = LocalDate.now();
+        List<String> tenantIds = tenantRepository.findAllActiveTenantIds();
+        int totalAlertas = 0;
 
-        List<CertificadoEstablecimiento> enAlerta = certificadoRepository.findCertificadosEnAlertas();
-        for (CertificadoEstablecimiento cert : enAlerta) {
-            String tenantId = cert.getTenantId();
-            boolean vencido = cert.getFechaVencimiento().isBefore(hoy);
-            long diasRestantes = java.time.temporal.ChronoUnit.DAYS.between(hoy, cert.getFechaVencimiento());
+        for (String tenantId : tenantIds) {
+            try {
+                List<CertificadoEstablecimiento> enAlerta =
+                        certificadoRepository.findCertificadosEnAlertasByTenant(tenantId);
+                totalAlertas += enAlerta.size();
 
-            String tipo    = vencido ? "CERT_VENCIDO" : "CERT_POR_VENCER";
-            String titulo  = vencido
-                    ? "🚨 Certificado VENCIDO: " + cert.getDescripcion()
-                    : "⚠️ Certificado por vencer: " + cert.getDescripcion();
-            String cuerpo  = vencido
-                    ? String.format("El certificado '%s' venció hace %d día(s) (%s). Renuévalo urgente.",
-                        cert.getDescripcion(), Math.abs(diasRestantes), cert.getFechaVencimiento())
-                    : String.format("El certificado '%s' vence el %s (en %d día(s)). Coordina su renovación.",
-                        cert.getDescripcion(), cert.getFechaVencimiento(), diasRestantes);
+                for (CertificadoEstablecimiento cert : enAlerta) {
+                    boolean vencido = cert.getFechaVencimiento().isBefore(hoy);
+                    long diasRestantes = java.time.temporal.ChronoUnit.DAYS.between(hoy, cert.getFechaVencimiento());
 
-            if (notificacionService.yaExisteNoLeida(tenantId, "ADMIN", tipo, cert.getId())) continue;
+                    String tipo   = vencido ? "CERT_VENCIDO" : "CERT_POR_VENCER";
+                    String titulo = vencido
+                            ? "🚨 Certificado VENCIDO: " + cert.getDescripcion()
+                            : "⚠️ Certificado por vencer: " + cert.getDescripcion();
+                    String cuerpo = vencido
+                            ? String.format("El certificado '%s' venció hace %d día(s) (%s). Renuévalo urgente.",
+                                cert.getDescripcion(), Math.abs(diasRestantes), cert.getFechaVencimiento())
+                            : String.format("El certificado '%s' vence el %s (en %d día(s)). Coordina su renovación.",
+                                cert.getDescripcion(), cert.getFechaVencimiento(), diasRestantes);
 
-            notificacionService.notificarRoles(
-                    tenantId, List.of("ADMIN"),
-                    tipo, titulo, cuerpo,
-                    cert.getId(), "CERTIFICADO"
-            );
+                    if (notificacionService.yaExisteNoLeida(tenantId, "ADMIN", tipo, cert.getId())) continue;
 
-            // Email a cada admin/gerente del tenant
-            usuarioRepository.findAdminYGerenteByTenant(tenantId).forEach(u -> {
-                try {
-                    emailService.enviarAlertaCertificado(
-                            u.getEmail(), u.getNombre(), cert.getDescripcion(),
-                            cert.getFechaVencimiento(), diasRestantes, vencido
+                    notificacionService.notificarRoles(
+                            tenantId, List.of("ADMIN"),
+                            tipo, titulo, cuerpo,
+                            cert.getId(), "CERTIFICADO"
                     );
-                } catch (Exception e) {
-                    log.warn("No se pudo enviar email de certificado para tenant {}: {}", tenantId, e.getMessage());
-                }
-            });
 
-            log.info("🔔 Alerta de certificado '{}' enviada para tenant {}", cert.getDescripcion(), tenantId);
+                    usuarioRepository.findAdminYGerenteByTenant(tenantId).forEach(u -> {
+                        try {
+                            emailService.enviarAlertaCertificado(
+                                    u.getEmail(), u.getNombre(), cert.getDescripcion(),
+                                    cert.getFechaVencimiento(), diasRestantes, vencido
+                            );
+                        } catch (Exception e) {
+                            log.warn("No se pudo enviar email de certificado para tenant {}: {}", tenantId, e.getMessage());
+                        }
+                    });
+
+                    log.info("🔔 Alerta de certificado '{}' enviada para tenant {}", cert.getDescripcion(), tenantId);
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ [Scheduler] Error verificarCertificados tenant {}: {}", tenantId, e.getMessage());
+            }
         }
-        log.info("⏰ [Scheduler] Certificados verificados ({} en alerta).", enAlerta.size());
+        log.info("⏰ [Scheduler] Certificados verificados ({} en alerta).", totalAlertas);
     }
 
     // ── Limpieza de notificaciones antiguas — todos los días a las 3:00 AM Lima ─
