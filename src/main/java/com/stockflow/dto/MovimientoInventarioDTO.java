@@ -60,4 +60,7 @@ public class MovimientoInventarioDTO {
     /** Si viene informado en un AJUSTE, aplica el ajuste a ese lote específico (movimientoId del lote) */
     private Long ajusteLoteMovimientoId;
 
+    /** Para DEVOLUCION: ID de la venta original; permite recuperar lote/fechaVencimiento automáticamente (Caso A). */
+    private Long ventaId;
+
 }

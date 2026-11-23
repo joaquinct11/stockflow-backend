@@ -99,7 +99,7 @@ class AdminControllerPermisosTest {
     @DisplayName("A — rolNombre en respuesta viene de UsuarioTenant, no de Usuario")
     void listarUsuarios_rolNombreDesdeUsuarioTenant() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
 
         List<UsuarioDTO> result = adminController.listarUsuarios().getBody();
@@ -114,7 +114,7 @@ class AdminControllerPermisosTest {
     @DisplayName("B — sucursalId en respuesta viene de UsuarioTenant")
     void listarUsuarios_sucursalIdDesdeUsuarioTenant() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
 
         List<UsuarioDTO> result = adminController.listarUsuarios().getBody();
@@ -129,13 +129,13 @@ class AdminControllerPermisosTest {
     void mismoUsuario_diferenteRolPorTenant() {
         // Vet
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
         List<UsuarioDTO> enVet = adminController.listarUsuarios().getBody();
 
         // Juan SAC
         TenantContext.setCurrentTenant(TENANT_JUAN);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_JUAN))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_JUAN))
                 .thenReturn(List.of(utJuanGestor));
         List<UsuarioDTO> enJuan = adminController.listarUsuarios().getBody();
 
@@ -149,12 +149,12 @@ class AdminControllerPermisosTest {
     @DisplayName("D — mismo usuario devuelve sucursal 19 en Vet y null en Juan SAC")
     void mismoUsuario_diferenteSucursalPorTenant() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
         List<UsuarioDTO> enVet = adminController.listarUsuarios().getBody();
 
         TenantContext.setCurrentTenant(TENANT_JUAN);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_JUAN))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_JUAN))
                 .thenReturn(List.of(utJuanGestor));
         List<UsuarioDTO> enJuan = adminController.listarUsuarios().getBody();
 
@@ -168,7 +168,7 @@ class AdminControllerPermisosTest {
     @DisplayName("E — usuario con rol ADMIN devuelve rolNombre='ADMIN', no null")
     void usuarioAdmin_devuelveRolNombreAdmin() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetAdmin));
 
         List<UsuarioDTO> result = adminController.listarUsuarios().getBody();
@@ -183,7 +183,7 @@ class AdminControllerPermisosTest {
     @DisplayName("F — rolNombre llega correctamente al llamar getDefaultPermisos")
     void listarUsuarios_rolNombreCorrectoParaDefaultPermisos() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
         when(rolePermissionDefaults.getBasePermissions("VENDEDOR"))
                 .thenReturn(java.util.Set.of("CREAR_VENTA", "VER_VENTAS"));
@@ -204,8 +204,8 @@ class AdminControllerPermisosTest {
     @DisplayName("G — usuario de otro tenant no aparece en la lista del tenant actual")
     void usuarioOtroTenant_noApareceEnListaVet() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        // findByTenantIdAndActivoTrue solo devuelve UT de Vet
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        // findByTenantIdActivoFetch solo devuelve UT de Vet
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
         // utJuanGestor (Juan SAC) nunca debe aparecer
 
@@ -219,12 +219,12 @@ class AdminControllerPermisosTest {
     // ── H: usuario inactivo en UT del tenant no aparece (activo=false filtra) ─
 
     @Test
-    @DisplayName("H — findByTenantIdAndActivoTrue excluye UsuarioTenant con activo=false")
+    @DisplayName("H — findByTenantIdActivoFetch excluye UsuarioTenant con activo=false")
     void usuarioInactivoEnUT_noApareceEnLista() {
         // El repositorio ya aplica el filtro activoTrue — si UT está inactivo,
-        // findByTenantIdAndActivoTrue no lo devuelve
+        // findByTenantIdActivoFetch no lo devuelve
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of()); // vacío porque todos los UT están inactivos
 
         List<UsuarioDTO> result = adminController.listarUsuarios().getBody();
@@ -238,7 +238,7 @@ class AdminControllerPermisosTest {
     @DisplayName("I — dos usuarios del mismo tenant devuelven sus propios rolNombre")
     void dosUsuariosMismoTenant_cadaUnoDevuelveSuRol() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetAdmin, utVetVendedorB));
 
         List<UsuarioDTO> result = adminController.listarUsuarios().getBody();
@@ -254,7 +254,7 @@ class AdminControllerPermisosTest {
     @DisplayName("J — sucursalId null en UsuarioTenant se mantiene null en DTO")
     void sucursalIdNullEnUT_permanaceNullEnDTO() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetAdmin)); // sucursalId = null
 
         List<UsuarioDTO> result = adminController.listarUsuarios().getBody();
@@ -268,7 +268,7 @@ class AdminControllerPermisosTest {
     @DisplayName("K — tenantId en DTO viene de TenantContext (no null)")
     void listarUsuarios_tenantIdNoNulo() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
 
         List<UsuarioDTO> result = adminController.listarUsuarios().getBody();
@@ -283,12 +283,12 @@ class AdminControllerPermisosTest {
     @DisplayName("L — tenantId correcto por tenant activo (aislamiento entre tenants)")
     void listarUsuarios_tenantIdAisladoPorTenant() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetVendedor));
         List<UsuarioDTO> enVet = adminController.listarUsuarios().getBody();
 
         TenantContext.setCurrentTenant(TENANT_JUAN);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_JUAN))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_JUAN))
                 .thenReturn(List.of(utJuanGestor));
         List<UsuarioDTO> enJuan = adminController.listarUsuarios().getBody();
 

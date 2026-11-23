@@ -10,6 +10,8 @@ import com.stockflow.entity.Sucursal;
 import com.stockflow.entity.Usuario;
 import com.stockflow.mapper.MovimientoInventarioMapper;
 import com.stockflow.entity.UsuarioTenant;
+import com.stockflow.entity.DetalleVenta;
+import com.stockflow.entity.StockLote;
 import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
@@ -255,6 +257,25 @@ public class MovimientoInventarioController {
         java.time.LocalDate fechaVencimiento = (esEntrada || esDevolucion) ? movimientoDTO.getFechaVencimiento() : null;
         String registroSanitario = esEntrada ? movimientoDTO.getRegistroSanitario() : null;
 
+        // Caso A: DEVOLUCION con trazabilidad — recuperar lote/fechaVencimiento del lote original
+        Long stockLoteIdOriginal = null;
+        if (esDevolucion && movimientoDTO.getVentaId() != null) {
+            DetalleVenta detalle = detalleVentaRepository
+                    .findByVentaIdAndProductoIdAndTenantId(movimientoDTO.getVentaId(), producto.getId(), tenantId)
+                    .orElseThrow(() -> new BadRequestException("No se encontró el producto en la venta indicada"));
+            if (movimientoDTO.getCantidad() > detalle.getCantidad()) {
+                throw new BadRequestException("La cantidad devuelta (" + movimientoDTO.getCantidad()
+                        + ") no puede superar la cantidad vendida (" + detalle.getCantidad() + ")");
+            }
+            if (detalle.getStockLoteId() != null) {
+                StockLote sl = stockLoteRepository.findById(detalle.getStockLoteId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Lote original no encontrado"));
+                lote = sl.getLote();
+                fechaVencimiento = sl.getFechaVencimiento();
+                stockLoteIdOriginal = sl.getId();
+            }
+        }
+
         // Si viene varianteId, incluir talla/color en la descripción para que sea visible en el Kardex
         String descripcionFinal = movimientoDTO.getDescripcion() != null ? movimientoDTO.getDescripcion() : "";
         if (movimientoDTO.getVarianteId() != null) {
@@ -306,14 +327,21 @@ public class MovimientoInventarioController {
         // Registrar en stock_lotes cuando hay número de lote (con o sin fecha de vencimiento).
         // Farmacia obliga fecha; otros rubros (ej. ferretería) pueden omitirla — el FEFO los coloca al final.
         if ((esEntrada || esDevolucion) && lote != null) {
-            stockLoteService.registrarLote(
-                    tenantId, movimientoCreado.getId(), producto.getId(),
-                    movimientoDTO.getSucursalId(), lote,
-                    fechaVencimiento, movimientoDTO.getCantidad(), proveedorId, precioVenta, costoUnitario);
+            if (stockLoteIdOriginal != null) {
+                // Caso A: restaurar al lote original (no crear uno nuevo)
+                stockLoteService.restaurarLoteEspecifico(stockLoteIdOriginal, movimientoDTO.getCantidad());
+            } else {
+                stockLoteService.registrarLote(
+                        tenantId, movimientoCreado.getId(), producto.getId(),
+                        movimientoDTO.getSucursalId(), lote,
+                        fechaVencimiento, movimientoDTO.getCantidad(), proveedorId, precioVenta, costoUnitario);
+            }
         }
 
         // Guardar stock previo para calcular delta en ajustes FEFO
         final int stockPrevio = producto.getStockActual();
+        // deltaStock: se calculará en el bloque no-variante para usarlo en el incremento atómico final
+        int deltaStock = 0;
 
         // Actualizar stock (AJUSTE_PRECIO no toca el stock)
         if (!esAjustePrecio) {
@@ -369,11 +397,21 @@ public class MovimientoInventarioController {
             } else {
                 int nuevoStock = producto.getStockActual();
                 switch (movimientoDTO.getTipo()) {
-                    case "ENTRADA": case "DEVOLUCION": nuevoStock += movimientoDTO.getCantidad(); break;
-                    case "SALIDA": case "MERMA": nuevoStock -= movimientoDTO.getCantidad(); break;
-                    case "AJUSTE":  nuevoStock  = movimientoDTO.getCantidad(); break;
+                    case "ENTRADA": case "DEVOLUCION":
+                        deltaStock = movimientoDTO.getCantidad();
+                        nuevoStock += deltaStock;
+                        // NO seteamos producto.stockActual aquí: se hará con incremento
+                        // atómico DESPUÉS de actualizarProducto para evitar lost-update.
+                        break;
+                    case "SALIDA": case "MERMA":
+                        deltaStock = -movimientoDTO.getCantidad();
+                        nuevoStock += deltaStock;
+                        break;
+                    case "AJUSTE":
+                        nuevoStock = movimientoDTO.getCantidad();
+                        producto.setStockActual(nuevoStock); // AJUSTE es set absoluto
+                        break;
                 }
-                producto.setStockActual(nuevoStock);
 
                 // Actualizar también el stock por sucursal si viene informado
                 if (movimientoDTO.getSucursalId() != null) {
@@ -494,7 +532,15 @@ public class MovimientoInventarioController {
 
         productoService.actualizarProducto(producto.getId(), producto);
 
-        log.info("✅ Movimiento creado: {} - Nuevo stock: {}", movimientoDTO.getTipo(), producto.getStockActual());
+        // Para ENTRADA/DEVOLUCION/SALIDA/MERMA sin variante: incremento atómico del stock global.
+        // Corre DESPUÉS de actualizarProducto para que sea la última escritura sobre stockActual
+        // dentro de esta transacción, evitando que ediciones concurrentes del producto lo sobreescriban.
+        if (!esAjustePrecio && !esAjuste && movimientoDTO.getVarianteId() == null && deltaStock != 0) {
+            productoRepository.incrementarStockAtomico(producto.getId(), deltaStock, tenantId);
+        }
+
+        log.info("✅ Movimiento creado: {} - Nuevo stock estimado: {}",
+                movimientoDTO.getTipo(), stockPrevio + deltaStock);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(movimientoMapper.toDTO(movimientoCreado));
@@ -735,10 +781,9 @@ public class MovimientoInventarioController {
         lote.setStockActual(lote.getStockActual() - cantidad);
         stockLoteRepository.save(lote);
 
-        // Descontar del producto
+        // Descontar del producto (incremento atómico — evita lost-update F-13)
+        productoRepository.incrementarStockAtomico(producto.getId(), -cantidad, tenantId);
         int nuevoStock = Math.max(0, producto.getStockActual() - cantidad);
-        producto.setStockActual(nuevoStock);
-        productoService.actualizarProducto(producto.getId(), producto);
 
         // Actualizar ProductoStockSucursal si el lote tiene sucursal
         if (lote.getSucursalId() != null) {

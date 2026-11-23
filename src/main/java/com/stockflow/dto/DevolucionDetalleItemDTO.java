@@ -22,6 +22,6 @@ public class DevolucionDetalleItemDTO {
     @Min(value = 1, message = "La cantidad a devolver debe ser mayor a 0")
     private Integer cantidadDevuelta;
 
-    @NotNull(message = "El precioUnitario es requerido")
+    // Opcional: si no se envía, el servicio lo deriva del DetalleVenta original
     private BigDecimal precioUnitario;
 }

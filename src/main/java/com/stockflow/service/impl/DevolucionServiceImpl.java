@@ -94,7 +94,11 @@ public class DevolucionServiceImpl implements DevolucionService {
                 );
             }
 
-            BigDecimal subtotal = item.getPrecioUnitario().multiply(BigDecimal.valueOf(item.getCantidadDevuelta()));
+            // Derivar precio del DetalleVenta original cuando el cliente no lo envía
+            BigDecimal precio = (item.getPrecioUnitario() != null)
+                    ? item.getPrecioUnitario()
+                    : original.getPrecioUnitario();
+            BigDecimal subtotal = precio.multiply(BigDecimal.valueOf(item.getCantidadDevuelta()));
             totalDevuelto = totalDevuelto.add(subtotal);
 
             Producto producto = productoRepository.findById(item.getProductoId())
@@ -107,7 +111,7 @@ public class DevolucionServiceImpl implements DevolucionService {
             detalles.add(DevolucionDetalle.builder()
                     .producto(producto)
                     .cantidadDevuelta(item.getCantidadDevuelta())
-                    .precioUnitario(item.getPrecioUnitario())
+                    .precioUnitario(precio)
                     .subtotal(subtotal)
                     .factor(factor)
                     .build());
@@ -149,8 +153,8 @@ public class DevolucionServiceImpl implements DevolucionService {
                 if ("SERVICIO".equals(producto.getTipo())) continue;
                 // Reponer en unidades base: cantidad devuelta × factor de presentación
                 int cantidadBase = det.getCantidadDevuelta() * (det.getFactor() != null ? det.getFactor() : 1);
-                producto.setStockActual(producto.getStockActual() + cantidadBase);
-                productoRepository.save(producto);
+                // Incremento atómico: evita lost-update si actualizarProducto() corre concurrentemente
+                productoRepository.incrementarStockAtomico(producto.getId(), cantidadBase, tenantId);
 
                 // Reponer también en producto_stock_sucursal
                 if (sucursalId != null) {

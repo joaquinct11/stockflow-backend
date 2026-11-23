@@ -239,11 +239,18 @@ class GuiaRemisionStockValidationTest {
     }
 
     @Test
-    @DisplayName("GRE-STOCK-5: Sin sucursal origen → validación de stock omitida, Lucode llamado")
-    void sinSucursalOrigen_saltaValidacionStock() {
+    @DisplayName("GRE-STOCK-5: Caso D (DELIVERY con venta) → validación de stock omitida, Lucode llamado")
+    void conVenta_saltaValidacionStock() {
+        // F-10: la validación de stock se omite SOLO cuando hay venta asociada (POS ya lo hizo).
+        // Antes (F-09) se omitía también sin sucursal — esa lógica fue reemplazada por F-10.
+        Venta venta = new Venta();
+        venta.setId(99L);
+        venta.setTenantId(TENANT_ID);
+
         Producto prod = buildProducto();
         GuiaRemision guia = buildGuiaConItems(prod, BigDecimal.valueOf(1000));
-        guia.setSucursalOrigen(null);
+        guia.setVenta(venta);        // Caso D: venta presente → stock ya descontó el POS
+        guia.setSucursalOrigen(null); // sin sucursal (tenant legacy)
         when(guiaRepo.findByIdAndTenantIdForUpdate(GUIA_ID, TENANT_ID)).thenReturn(Optional.of(guia));
         when(lucodeGREService.emitirGRE(any(), anyString())).thenReturn(exitoLucode());
 

@@ -102,7 +102,7 @@ class UsuarioSucursalIdTest {
     @DisplayName("Caso 1 — GET /{id} en Vet (sucursal 19) → sucursalId = 19")
     void obtenerPorId_vetConSucursal_devuelveSucursalId() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVetConSucursal));
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorId(USUARIO_ID);
@@ -117,7 +117,7 @@ class UsuarioSucursalIdTest {
     @DisplayName("Caso 2 — GET /{id} en Juan SAC (sucursal null) → sucursalId = null")
     void obtenerPorId_juanSacSinSucursal_devuelveNull() {
         TenantContext.setCurrentTenant(TENANT_JUANSAC);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_JUANSAC))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_JUANSAC))
                 .thenReturn(Optional.of(utJuanSacSinSucursal));
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorId(USUARIO_ID);
@@ -132,13 +132,13 @@ class UsuarioSucursalIdTest {
     void mismoUsuario_dosTenants_cadaUnoDevuelveSuSucursal() {
         // Vet
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVetConSucursal));
         ResponseEntity<UsuarioDTO> respVet = usuarioController.obtenerPorId(USUARIO_ID);
 
         // Juan SAC
         TenantContext.setCurrentTenant(TENANT_JUANSAC);
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_JUANSAC))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_JUANSAC))
                 .thenReturn(Optional.of(utJuanSacSinSucursal));
         ResponseEntity<UsuarioDTO> respJuan = usuarioController.obtenerPorId(USUARIO_ID);
 
@@ -152,7 +152,7 @@ class UsuarioSucursalIdTest {
     @DisplayName("Caso 4 — obtenerTodos() en Vet devuelve sucursalId = 19")
     void obtenerTodos_vetTenant_devuelveSucursal19() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetConSucursal));
 
         ResponseEntity<List<UsuarioDTO>> resp = usuarioController.obtenerTodos();
@@ -165,7 +165,7 @@ class UsuarioSucursalIdTest {
     @DisplayName("Caso 4b — obtenerTodos() en Juan SAC devuelve sucursalId = null")
     void obtenerTodos_juanSacTenant_devuelveSucursalNull() {
         TenantContext.setCurrentTenant(TENANT_JUANSAC);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_JUANSAC))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_JUANSAC))
                 .thenReturn(List.of(utJuanSacSinSucursal));
 
         ResponseEntity<List<UsuarioDTO>> resp = usuarioController.obtenerTodos();
@@ -183,7 +183,7 @@ class UsuarioSucursalIdTest {
     void obtenerPorEmail_vetTenant_devuelveSucursal19() {
         TenantContext.setCurrentTenant(TENANT_VET);
         when(usuarioService.obtenerUsuarioPorEmail(EMAIL)).thenReturn(Optional.of(usuario));
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVetConSucursal));
 
         ResponseEntity<UsuarioDTO> resp = usuarioController.obtenerPorEmail(EMAIL);
@@ -225,7 +225,7 @@ class UsuarioSucursalIdTest {
         UsuarioUpdateDTO updateDTO = UsuarioUpdateDTO.builder()
                 .nombre("Test").rolNombre("CAJERO").sucursalId(SUCURSAL_VET).activo(true).build();
 
-        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdAndActivoTrue(USUARIO_ID, TENANT_VET))
+        when(usuarioTenantRepository.findByUsuarioIdAndTenantIdActivoFetch(USUARIO_ID, TENANT_VET))
                 .thenReturn(Optional.of(utVetConSucursal));
         when(rolRepository.findByNombre("CAJERO")).thenReturn(Optional.of(rolCajero));
         when(usuarioService.actualizarUsuario(eq(USUARIO_ID), any(), any())).thenReturn(usuario);
@@ -242,7 +242,7 @@ class UsuarioSucursalIdTest {
     @DisplayName("sucursalId null en UsuarioTenant → DTO.sucursalId = null (sin sustitución)")
     void sucursalIdNullEnUT_permanaceNullEnDTO() {
         TenantContext.setCurrentTenant(TENANT_JUANSAC);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_JUANSAC))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_JUANSAC))
                 .thenReturn(List.of(utJuanSacSinSucursal));
 
         ResponseEntity<List<UsuarioDTO>> resp = usuarioController.obtenerTodos();
@@ -257,7 +257,7 @@ class UsuarioSucursalIdTest {
     @DisplayName("El mapper se llama con Usuario — pero sucursalId NO viene de él sino de UsuarioTenant")
     void sucursalId_noDependeDeUsuarioGetSucursalId() {
         TenantContext.setCurrentTenant(TENANT_VET);
-        when(usuarioTenantRepository.findByTenantIdAndActivoTrue(TENANT_VET))
+        when(usuarioTenantRepository.findByTenantIdActivoFetch(TENANT_VET))
                 .thenReturn(List.of(utVetConSucursal));
 
         usuarioController.obtenerTodos();

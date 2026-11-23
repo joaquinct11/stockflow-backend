@@ -99,6 +99,9 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
                     .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada: " + req.getVentaId()));
         }
 
+        // Regla F-09/F-10: DELIVERY independiente (sin venta) requiere sucursal o punto de despacho
+        validarOrigenDelivery(req.getTipoTraslado(), venta, origen, tenantId, tenant);
+
         // Construir entidad
         GuiaRemision guia = GuiaRemision.builder()
                 .tenantId(tenantId)
@@ -227,6 +230,19 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
         guia.setDestinatarioNumDoc(req.getDestinatarioNumDoc());
         guia.setDestinatarioRazonSocial(req.getDestinatarioRazonSocial());
         guia.setDestinatarioDireccion(req.getDestinatarioDireccion());
+
+        // Actualizar sucursal origen si se provee (permite a DELIVERY independiente asignar origen)
+        if (req.getSucursalOrigenId() != null) {
+            Sucursal nuevoOrigen = sucursalRepo.findByIdAndTenantId(req.getSucursalOrigenId(), tenantId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Sucursal no encontrada id=" + req.getSucursalOrigenId()));
+            guia.setSucursalOrigen(nuevoOrigen);
+        }
+
+        // Regla F-09/F-10: DELIVERY independiente (sin venta) requiere sucursal o punto de despacho
+        Tenant tenant = tenantRepo.findByTenantId(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado: " + tenantId));
+        validarOrigenDelivery(guia.getTipoTraslado(), guia.getVenta(), guia.getSucursalOrigen(), tenantId, tenant);
 
         // Reemplazar items (orphanRemoval=true elimina los anteriores)
         guia.getItems().clear();
@@ -364,6 +380,10 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
         Tenant tenant = tenantRepo.findByTenantId(tenantId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tenant no encontrado: " + tenantId));
 
+        // Regla F-09/F-10: DELIVERY independiente debe tener sucursal o punto de despacho antes de emitir.
+        // Aplica también a borradores creados antes de estas validaciones.
+        validarOrigenDelivery(guia.getTipoTraslado(), guia.getVenta(), guia.getSucursalOrigen(), tenantId, tenant);
+
         // Regla 5a: validar stock ANTES de marcar EMITIENDO para no contaminar el estado
         // si el inventario es insuficiente.  Lanza BadRequestException sin efectos secundarios.
         validarStockParaEmision(guia);
@@ -393,7 +413,9 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
             }
 
             // Lucode confirmó éxito — ahora sí registrar SALIDA de inventario
-            if (guia.getSucursalOrigen() != null) {
+            // Caso A (con sucursal) y Caso B (legacy sin sucursal): ambos descontan stock
+            // Caso D (con venta): registrarSalidaInventario lo omite internamente
+            if (guia.getVenta() == null) {
                 registrarSalidaInventario(guia, tenantId, userId);
             }
 
@@ -618,8 +640,8 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
         }
 
         // Registrar SALIDA de inventario (misma lógica que registrarSalidaInventario)
-        // Si tiene venta_id, el POS ya descontó stock — omitir igual que en el flujo normal
-        if (guia.getSucursalOrigen() != null && guia.getVenta() == null) {
+        // Caso A y B: descontar stock. Caso D (con venta): el POS ya descontó.
+        if (guia.getVenta() == null) {
             registrarSalidaInventario(guia, tenantId, userId);
         }
 
@@ -685,22 +707,56 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
                         "Sucursal no encontrada id=" + req.getSucursalDestinoId()));
     }
 
+    // ── VALIDACIÓN F-09/F-10: DELIVERY INDEPENDIENTE ─────────────────────────
+
+    /**
+     * Valida el origen de una GRE DELIVERY independiente (sin venta).
+     *
+     * Caso A — Tenant con sucursales, origen seleccionado: OK.
+     * Caso A-fallido — Tiene sucursales pero no se seleccionó origen: rechaza.
+     * Caso B — Sin sucursales, con ubigeo_despacho y dirección_despacho: OK (tenant legacy).
+     * Caso C — Sin sucursales ni punto de despacho: rechaza con guía hacia Configuración.
+     * Caso D — Con venta: OK sin verificación (POS manejó el inventario).
+     */
+    private void validarOrigenDelivery(TipoTrasladoGRE tipo, Venta venta, Sucursal origen,
+                                       String tenantId, Tenant tenant) {
+        if (tipo != TipoTrasladoGRE.DELIVERY) return;
+        if (venta != null) return;    // Caso D
+        if (origen != null) return;   // Caso A con sucursal seleccionada
+
+        long totalSucursales = sucursalRepo.countByTenantIdAndActivoTrue(tenantId);
+        if (totalSucursales > 0) {
+            // Caso A-fallido: el tenant usa sucursales pero no indicó una para este despacho
+            throw new BadRequestException(
+                    "Una guía DELIVERY sin venta asociada requiere una sucursal de origen. " +
+                    "Indica desde qué sucursal se realizará el despacho.");
+        }
+
+        // Sin sucursales: verificar punto de despacho del tenant (Caso B vs Caso C)
+        if (tenant.getUbigeoDespacho() != null && !tenant.getUbigeoDespacho().isBlank()
+                && tenant.getDireccionDespacho() != null && !tenant.getDireccionDespacho().isBlank()) {
+            return; // Caso B: punto de despacho legacy configurado
+        }
+
+        // Caso C: sin sucursales ni punto de despacho
+        throw new BadRequestException(
+                "Para emitir guías DELIVERY sin sucursales, debes configurar el punto de despacho " +
+                "en Configuración → Guías de Remisión (dirección y ubigeo de despacho).");
+    }
+
     // ── VALIDACIÓN DE STOCK ───────────────────────────────────────────────────
 
     /**
      * Verifica que haya stock suficiente para todos los ítems antes de llamar a Lucode.
-     * Se omite cuando la guía no tiene sucursal de origen (traslados DELIVERY sin salida propia).
-     * Prioriza el stock de lotes vigentes (FEFO); si no hay lotes registrados usa stockActual.
+     * - Caso D (con venta): omite — el POS ya validó stock al crear la venta.
+     * - Caso A (con sucursal): valida stock de esa sucursal.
+     * - Caso B (sin sucursal, legacy): valida stock general del tenant (sucursalId=null).
      */
     private void validarStockParaEmision(GuiaRemision guia) {
-        // Para DELIVERY vinculada a una venta, el POS ya redujo el stock al momento de la venta.
-        // Para DELIVERY sin origen y sin venta (envío independiente), no hay sucursal de referencia
-        // — omitimos la validación (gap documentado; los controles de negocio deben prevenirlo).
-        if (guia.getSucursalOrigen() == null) return;
-        if (guia.getVenta() != null) return; // POS ya validó y descontó stock al crear la venta
+        if (guia.getVenta() != null) return; // Caso D: POS ya validó y descontó
 
-        String tenantId       = guia.getTenantId();
-        Long   sucursalId     = guia.getSucursalOrigen().getId();
+        String tenantId   = guia.getTenantId();
+        Long   sucursalId = guia.getSucursalOrigen() != null ? guia.getSucursalOrigen().getId() : null;
 
         for (GuiaRemisionItem item : guia.getItems()) {
             Producto producto = item.getProducto();
@@ -746,7 +802,8 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
     }
 
     private void registrarSalidaInventario(GuiaRemision guia, String tenantId, Long userId) {
-        if (guia.getVenta() != null) return; // POS ya descontó inventario al crear la venta
+        if (guia.getVenta() != null) return; // Caso D: POS ya descontó inventario
+        Long sucursalId = guia.getSucursalOrigen() != null ? guia.getSucursalOrigen().getId() : null;
         for (GuiaRemisionItem item : guia.getItems()) {
             int cantidadBase = item.getCantidad().intValue() * getFactorPresentacion(item, tenantId);
             MovimientoInventario mov = MovimientoInventario.builder()
@@ -754,11 +811,14 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
                     .cantidad(cantidadBase)
                     .tipo("SALIDA")
                     .tenantId(tenantId)
+                    .sucursalId(sucursalId)
                     .descripcion("GRE " + guia.getNumeroCompleto() + " - Traslado salida")
                     .referencia("GRE-" + guia.getId())
                     .createdAt(LocalDateTime.now())
                     .build();
             movimientoService.crearMovimiento(mov);
+            // Descontar lotes FEFO (sucursalId=null para Caso B legacy, id concreto para Caso A)
+            stockLoteService.descontarFefo(tenantId, item.getProducto().getId(), sucursalId, cantidadBase);
         }
     }
 

@@ -49,7 +49,7 @@ public class AdminController {
     public ResponseEntity<List<UsuarioDTO>> listarUsuarios() {
         String tenantId = TenantContext.getCurrentTenant();
         log.info("👥 [Admin] Listando usuarios del tenant: {}", tenantId);
-        List<UsuarioDTO> dtos = usuarioTenantRepository.findByTenantIdAndActivoTrue(tenantId)
+        List<UsuarioDTO> dtos = usuarioTenantRepository.findByTenantIdActivoFetch(tenantId)
                 .stream()
                 .map(ut -> {
                     UsuarioDTO dto = usuarioMapper.toDTO(ut.getUsuario());
