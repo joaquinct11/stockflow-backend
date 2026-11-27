@@ -88,6 +88,8 @@ class F14StockGRESucursalIntegrationTest {
                 "VALUES ('" + TENANT   + "', 'F14 A', true, 'OTRO') ON CONFLICT (tenant_id) DO NOTHING");
         jdbc.execute("INSERT INTO tenants (tenant_id, nombre, activo, rubro) " +
                 "VALUES ('" + TENANT_B + "', 'F14 B', true, 'OTRO') ON CONFLICT (tenant_id) DO NOTHING");
+        jdbc.execute("UPDATE tenants SET ose_token = 'tok-f14-test' WHERE tenant_id = '" + TENANT   + "'");
+        jdbc.execute("UPDATE tenants SET ose_token = 'tok-f14-test' WHERE tenant_id = '" + TENANT_B + "'");
 
         sucursalOrigenId = jdbc.queryForObject(
                 "INSERT INTO sucursales (nombre, tenant_id, es_principal, activo) " +

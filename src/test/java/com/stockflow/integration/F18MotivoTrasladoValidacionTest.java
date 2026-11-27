@@ -84,6 +84,7 @@ class F18MotivoTrasladoValidacionTest {
     void limpiarYMock() {
         jdbc.execute("DELETE FROM guia_remision_eventos WHERE tenant_id = '" + TENANT + "'");
         jdbc.execute("DELETE FROM guias_remision WHERE tenant_id = '" + TENANT + "'");
+        jdbc.execute("DELETE FROM sucursales WHERE tenant_id = '" + TENANT + "'");
 
         LucodeGREResponse ok = new LucodeGREResponse();
         ok.setSuccess(true);
@@ -222,9 +223,9 @@ class F18MotivoTrasladoValidacionTest {
             Long greId = jdbc.queryForObject(
                     "INSERT INTO guias_remision " +
                     "(tenant_id, tipo_traslado, motivo_traslado_codigo, modalidad_transporte, " +
-                    " fecha_traslado, estado_tributario, estado_logistico, numero_correlativo, " +
+                    " fecha_traslado, estado_tributario, estado_logistico, serie, correlativo, " +
                     " destinatario_razon_social, destinatario_tipo_doc, destinatario_num_doc) " +
-                    "VALUES (?, 'DELIVERY', '02', 'PRIVADO', ?, 'BORRADOR', 'PENDIENTE', 9901, " +
+                    "VALUES (?, 'DELIVERY', '02', 'PRIVADO', ?, 'BORRADOR', 'PENDIENTE', 'T001', 9901, " +
                     " 'Cliente Histórico', '1', '87654321') RETURNING id",
                     Long.class,
                     TENANT, LocalDate.now());

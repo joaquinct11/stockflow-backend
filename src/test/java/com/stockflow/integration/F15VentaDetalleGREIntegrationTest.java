@@ -91,6 +91,7 @@ class F15VentaDetalleGREIntegrationTest {
                 + TENANT_A + "', 'F15 A', true, 'OTRO') ON CONFLICT (tenant_id) DO NOTHING");
         jdbc.execute("INSERT INTO tenants (tenant_id, nombre, activo, rubro) VALUES ('"
                 + TENANT_B + "', 'F15 B', true, 'OTRO') ON CONFLICT (tenant_id) DO NOTHING");
+        jdbc.execute("UPDATE tenants SET ose_token = 'tok-f15-test' WHERE tenant_id = '" + TENANT_A + "'");
 
         Long umId = jdbc.queryForObject(
                 "SELECT id FROM unidad_medida WHERE tenant_id IS NULL LIMIT 1", Long.class);

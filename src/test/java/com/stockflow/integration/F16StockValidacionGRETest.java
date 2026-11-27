@@ -62,11 +62,14 @@ class F16StockValidacionGRETest {
 
     private Long productoId;
     private Long productoConVentaId;
+    private Long ventaF04Id;
 
     @BeforeAll
     void setup() {
         jdbc.execute("INSERT INTO tenants (tenant_id, nombre, activo, rubro) " +
                 "VALUES ('" + TENANT + "', 'F16 Test', true, 'OTRO') ON CONFLICT (tenant_id) DO NOTHING");
+        jdbc.execute("UPDATE tenants SET ubigeo_despacho = '150101', direccion_despacho = 'Av. Test 123, Lima', " +
+                "ose_token = 'tok-f16-test' WHERE tenant_id = '" + TENANT + "'");
 
         Long umId = jdbc.queryForObject(
                 "SELECT id FROM unidad_medida WHERE tenant_id IS NULL LIMIT 1", Long.class);
@@ -81,6 +84,11 @@ class F16StockValidacionGRETest {
                 "INSERT INTO productos (nombre, stock_actual, costo_unitario, precio_venta, " +
                 "unidad_medida_id, activo, tenant_id, version) " +
                 "VALUES ('F16 ProdVenta', 0, 5.00, 10.00, " + umId + ", true, '" + TENANT + "', 0) RETURNING id",
+                Long.class);
+
+        ventaF04Id = jdbc.queryForObject(
+                "INSERT INTO ventas (total, estado, tenant_id, created_at) " +
+                "VALUES (10.00, 'COMPLETADA', '" + TENANT + "', NOW()) RETURNING id",
                 Long.class);
     }
 
@@ -184,7 +192,7 @@ class F16StockValidacionGRETest {
     void f04_deliveryConVentaId_omiteValidacionStock_lucodeLlamado() {
         // productoConVentaId tiene stock_actual=0, pero la GRE lleva ventaId
         // → validarStockParaEmision se omite (F-15 ya tomó el stock al crear la venta)
-        Long guiaId = crearBorradorDelivery(productoConVentaId, 2, 999L);
+        Long guiaId = crearBorradorDelivery(productoConVentaId, 2, ventaF04Id);
 
         assertThatCode(() -> emitir(guiaId)).doesNotThrowAnyException();
 
