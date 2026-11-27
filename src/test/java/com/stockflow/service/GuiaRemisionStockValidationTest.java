@@ -51,11 +51,17 @@ class GuiaRemisionStockValidationTest {
     @Mock private TenantRepository                 tenantRepo;
     @Mock private VentaRepository                  ventaRepo;
     @Mock private ProductoPresentacionRepository   presentacionRepo;
-    @Mock private MovimientoInventarioService      movimientoService;
-    @Mock private LucodeGREService                 lucodeGREService;
-    @Mock private GuiaRemisionPdfService           pdfService;
-    @Mock private StockLoteService                 stockLoteService;
-    @Spy  private ObjectMapper                     objectMapper = new ObjectMapper();
+    @Mock private MovimientoInventarioService          movimientoService;
+    @Mock private MovimientoInventarioRepository       movimientoRepo;
+    @Mock private LucodeGREService                     lucodeGREService;
+    @Mock private GuiaRemisionPdfService               pdfService;
+    @Mock private StockLoteService                     stockLoteService;
+    @Mock private UbigeoRepository                     ubigeoRepository;
+    @Mock private ProductoStockSucursalRepository      stockSucursalRepo;
+    @Mock private ProductoVarianteRepository           varianteRepo;
+    @Mock private ProductoVarianteStockSucursalRepository varianteSucursalRepo;
+    @Mock private com.stockflow.service.impl.GreSerieContadorService serieContadorService;
+    @Spy  private ObjectMapper                         objectMapper = new ObjectMapper();
 
     @InjectMocks private GuiaRemisionServiceImpl service;
 

@@ -68,6 +68,10 @@ public class MovimientoInventario {
     @Column(name = "sucursal_id")
     private Long sucursalId;
 
+    /** F-23: variante asociada al movimiento (nullable para movimientos sin variante). */
+    @Column(name = "variante_id")
+    private Long varianteId;
+
     @PrePersist
     protected void prePersist() {
         if (createdAt == null) {

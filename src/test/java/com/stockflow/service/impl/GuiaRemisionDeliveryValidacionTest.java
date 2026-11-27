@@ -59,6 +59,10 @@ class GuiaRemisionDeliveryValidacionTest {
     @Mock GuiaRemisionPdfService           pdfService;
     @Mock StockLoteService                 stockLoteService;
     @Mock UbigeoRepository                 ubigeoRepository;
+    @Mock com.stockflow.repository.ProductoStockSucursalRepository stockSucursalRepo;
+    @Mock com.stockflow.repository.ProductoVarianteRepository varianteRepo;
+    @Mock com.stockflow.repository.ProductoVarianteStockSucursalRepository varianteSucursalRepo;
+    @Mock GreSerieContadorService serieContadorService;
 
     private GuiaRemisionServiceImpl service;
 
@@ -70,7 +74,8 @@ class GuiaRemisionDeliveryValidacionTest {
                 guiaRepo, eventoRepo, sucursalRepo, productoRepo, tenantRepo,
                 ventaRepo, presentacionRepo, movimientoService, movimientoRepo,
                 lucodeGREService, pdfService, new ObjectMapper(), stockLoteService,
-                ubigeoRepository);
+                ubigeoRepository, stockSucursalRepo, varianteRepo, varianteSucursalRepo,
+                serieContadorService);
     }
 
     @AfterEach
@@ -85,6 +90,7 @@ class GuiaRemisionDeliveryValidacionTest {
         t.setTenantId(TENANT);
         t.setSerieGuia("T001");
         t.setNombre("Empresa Test");
+        t.setOseToken("tok-test");
         return t;
     }
 
@@ -284,7 +290,7 @@ class GuiaRemisionDeliveryValidacionTest {
     @DisplayName("T-DEL-6: Editar borrador DELIVERY sin origen (Caso A-fallido: tenant con sucursales) es rechazado")
     void editar_deliveryBorradorSinOrigen_rechazado() {
         GuiaRemision guia = buildBorradorDelivery(55L, null, null); // sin origen, sin venta
-        when(guiaRepo.findByIdAndTenantId(55L, TENANT)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(55L, TENANT)).thenReturn(Optional.of(guia));
         // F-10: editarBorrador carga el tenant para pasar a validarOrigenDelivery
         when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(buildTenant()));
         // Caso A-fallido: tenant tiene sucursales pero no se seleccionó origen

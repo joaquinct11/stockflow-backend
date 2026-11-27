@@ -4,6 +4,7 @@ import com.stockflow.dto.DetalleVentaDTO;
 import com.stockflow.dto.VentaDTO;
 import com.stockflow.entity.Producto;
 import com.stockflow.entity.ProductoPresentacion;
+import com.stockflow.entity.StockLote;
 import com.stockflow.entity.Usuario;
 import com.stockflow.entity.Venta;
 import com.stockflow.exception.BadRequestException;
@@ -33,6 +34,9 @@ import org.mockito.quality.Strictness;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
+import com.stockflow.entity.MovimientoInventario;
+import org.mockito.ArgumentCaptor;
+
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
@@ -46,6 +50,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -601,6 +608,351 @@ class VentaControllerPrecioTest {
 
             assertThatCode(() -> controller.crear(ventaDTO(detalle(1, 30.00)), vendedorAuth()))
                     .doesNotThrowAnyException();
+        }
+    }
+
+    // =========================================================================
+    // 9. Lotes con precio de venta propio — precio autorizado = StockLote.precioVenta
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Lote con precioVenta propio — precio autorizado es el del lote")
+    class LoteConPrecioVenta {
+
+        static final Long LOTE_A_ID = 101L;
+        static final Long LOTE_B_ID = 102L;
+
+        private StockLote loteConPrecio(Long id, double precio) {
+            return StockLote.builder()
+                    .id(id).productoId(PROD_ID).tenantId(TENANT)
+                    .stockActual(100).stockInicial(100)
+                    .precioVenta(BigDecimal.valueOf(precio))
+                    .build();
+        }
+
+        private StockLote loteSinPrecio(Long id) {
+            return StockLote.builder()
+                    .id(id).productoId(PROD_ID).tenantId(TENANT)
+                    .stockActual(100).stockInicial(100)
+                    .precioVenta(null)
+                    .build();
+        }
+
+        private DetalleVentaDTO detalleLote(int cantidad, double precio, Long loteId) {
+            return DetalleVentaDTO.builder()
+                    .productoId(PROD_ID).cantidad(cantidad)
+                    .precioUnitario(BigDecimal.valueOf(precio))
+                    .stockLoteId(loteId).build();
+        }
+
+        @Test
+        @DisplayName("LOTE-B (S/5.50) con producto general S/3.50: VENDEDOR envía 5.50 → acepta")
+        void loteB_precioVentaPropio_vendedorAcepta() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_B_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_B_ID, 5.50)));
+
+            assertThatCode(() ->
+                    controller.crear(ventaDTO(detalleLote(1, 5.50, LOTE_B_ID)), vendedorAuth()))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("LOTE-B (S/5.50): VENDEDOR envía precio general S/3.50 → BadRequestException")
+        void loteB_vendedorEnviaPrecioGeneral_rechaza() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_B_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_B_ID, 5.50)));
+
+            // El precio autorizado es el del lote (5.50), pero se envía el general (3.50)
+            assertThatThrownBy(() ->
+                    controller.crear(ventaDTO(detalleLote(1, 3.50, LOTE_B_ID)), vendedorAuth()))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("Precio inválido");
+        }
+
+        @Test
+        @DisplayName("LOTE-A (S/3.50) coincide con precio general: VENDEDOR acepta normalmente")
+        void loteA_mismoQuePrecioGeneral_acepta() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+
+            assertThatCode(() ->
+                    controller.crear(ventaDTO(detalleLote(1, 3.50, LOTE_A_ID)), vendedorAuth()))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("Lote sin precioVenta propio (null): autoriza precio general del producto")
+        void loteSinPrecioVenta_usaPrecioGeneral_acepta() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteSinPrecio(LOTE_A_ID)));
+
+            // sin precioVenta en el lote → cae al precioVenta general del producto
+            assertThatCode(() ->
+                    controller.crear(ventaDTO(detalleLote(1, 3.50, LOTE_A_ID)), vendedorAuth()))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("Lote sin precioVenta propio: VENDEDOR envía precio manipulado → rechaza")
+        void loteSinPrecioVenta_precioManipulado_rechaza() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteSinPrecio(LOTE_A_ID)));
+
+            assertThatThrownBy(() ->
+                    controller.crear(ventaDTO(detalleLote(1, 1.00, LOTE_A_ID)), vendedorAuth()))
+                    .isInstanceOf(BadRequestException.class);
+        }
+
+        @Test
+        @DisplayName("ADMIN con LOTE-B puede enviar precio distinto al del lote → acepta (precio libre)")
+        void admin_lotePrecioDistinto_acepta() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_B_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_B_ID, 5.50)));
+
+            assertThatCode(() ->
+                    controller.crear(ventaDTO(detalleLote(1, 4.00, LOTE_B_ID)), adminAuth()))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    // =========================================================================
+    // 12. KardexConsolidacion — un movimiento de SALIDA por producto por venta
+    // =========================================================================
+
+    @Nested
+    @DisplayName("KardexConsolidacion — un movimiento de SALIDA consolidado por producto")
+    class KardexConsolidacion {
+
+        static final Long LOTE_A_ID = 201L;
+        static final Long LOTE_B_ID = 202L;
+        static final Long LOTE_C_ID = 203L;
+        static final Long PROD2_ID  = 77L;
+
+        private StockLote loteConPrecio(Long id, double precio) {
+            return StockLote.builder()
+                    .id(id).productoId(PROD_ID).tenantId(TENANT)
+                    .stockActual(100).stockInicial(100)
+                    .precioVenta(BigDecimal.valueOf(precio))
+                    .build();
+        }
+
+        private DetalleVentaDTO detalleLote(int cantidad, double precio, Long loteId) {
+            return DetalleVentaDTO.builder()
+                    .productoId(PROD_ID).cantidad(cantidad)
+                    .precioUnitario(BigDecimal.valueOf(precio))
+                    .stockLoteId(loteId).build();
+        }
+
+        /** TK-01: venta de 1 lote → 1 movimiento (baseline sin regresión). */
+        @Test
+        @DisplayName("TK-01: venta de 1 lote → exactamente 1 movimiento de SALIDA creado")
+        void tk01_unLote_creaUnSoloMovimiento() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+
+            controller.crear(ventaDTO(detalleLote(2, 3.50, LOTE_A_ID)), adminAuth());
+
+            verify(movimientoService, times(1)).crearMovimiento(any());
+        }
+
+        /** TK-02: 2 unidades del mismo lote (1 detalle) → 1 movimiento con cantidad = 2. */
+        @Test
+        @DisplayName("TK-02: 2 unidades del mismo lote → 1 movimiento con cantidad consolidada = 2")
+        void tk02_dosUnidadesMismoLote_cantidadTotal() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+
+            controller.crear(ventaDTO(detalleLote(2, 3.50, LOTE_A_ID)), adminAuth());
+
+            ArgumentCaptor<MovimientoInventario> cap = ArgumentCaptor.forClass(MovimientoInventario.class);
+            verify(movimientoService, times(1)).crearMovimiento(cap.capture());
+            assertThat(cap.getValue().getCantidad()).isEqualTo(2);
+            assertThat(cap.getValue().getTipo()).isEqualTo("SALIDA");
+        }
+
+        /** TK-03: mismo producto vendido desde 2 lotes distintos → 1 movimiento (el bug principal). */
+        @Test
+        @DisplayName("TK-03: mismo producto desde 2 lotes → exactamente 1 movimiento de SALIDA (no 2)")
+        void tk03_dosLotesMismoProducto_unSoloMovimiento() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+            when(stockLoteService.findLoteById(LOTE_B_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_B_ID, 3.50)));
+
+            VentaDTO dto = VentaDTO.builder()
+                    .vendedorId(VEND_ID)
+                    .detalles(List.of(detalleLote(1, 3.50, LOTE_A_ID), detalleLote(1, 3.50, LOTE_B_ID)))
+                    .metodoPago("EFECTIVO").estado("COMPLETADA").build();
+
+            controller.crear(dto, adminAuth());
+
+            verify(movimientoService, times(1)).crearMovimiento(any());
+        }
+
+        /** TK-04: 2 lotes (1+1) del mismo producto → cantidad consolidada = 2. */
+        @Test
+        @DisplayName("TK-04: 2 lotes (1+1) del mismo producto → 1 movimiento con cantidad = 2")
+        void tk04_dosLotesMismoProducto_cantidadSumada() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+            when(stockLoteService.findLoteById(LOTE_B_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_B_ID, 3.50)));
+
+            VentaDTO dto = VentaDTO.builder()
+                    .vendedorId(VEND_ID)
+                    .detalles(List.of(detalleLote(1, 3.50, LOTE_A_ID), detalleLote(1, 3.50, LOTE_B_ID)))
+                    .metodoPago("EFECTIVO").estado("COMPLETADA").build();
+
+            controller.crear(dto, adminAuth());
+
+            ArgumentCaptor<MovimientoInventario> cap = ArgumentCaptor.forClass(MovimientoInventario.class);
+            verify(movimientoService, times(1)).crearMovimiento(cap.capture());
+            assertThat(cap.getValue().getCantidad()).isEqualTo(2);
+            assertThat(cap.getValue().getTipo()).isEqualTo("SALIDA");
+            assertThat(cap.getValue().getReferencia()).contains("Venta #");
+        }
+
+        /** TK-05: 3 lotes del mismo producto → 1 movimiento con cantidad = 3. */
+        @Test
+        @DisplayName("TK-05: 3 lotes (1+1+1) del mismo producto → 1 movimiento con cantidad = 3")
+        void tk05_tresLotesMismoProducto_cantidadSumada() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+            when(stockLoteService.findLoteById(LOTE_B_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_B_ID, 3.50)));
+            when(stockLoteService.findLoteById(LOTE_C_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_C_ID, 3.50)));
+
+            VentaDTO dto = VentaDTO.builder()
+                    .vendedorId(VEND_ID)
+                    .detalles(List.of(
+                            detalleLote(1, 3.50, LOTE_A_ID),
+                            detalleLote(1, 3.50, LOTE_B_ID),
+                            detalleLote(1, 3.50, LOTE_C_ID)))
+                    .metodoPago("EFECTIVO").estado("COMPLETADA").build();
+
+            controller.crear(dto, adminAuth());
+
+            ArgumentCaptor<MovimientoInventario> cap = ArgumentCaptor.forClass(MovimientoInventario.class);
+            verify(movimientoService, times(1)).crearMovimiento(cap.capture());
+            assertThat(cap.getValue().getCantidad()).isEqualTo(3);
+        }
+
+        /** TK-06: variantes → movimiento individual por variante (no consolidado con no-variantes). */
+        @Test
+        @DisplayName("TK-06: 2 variantes del mismo producto → 2 movimientos individuales (una por variante)")
+        void tk06_dosVariantes_dosMovimientosIndividuales() {
+            Producto remera = producto(59.90);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(remera));
+            com.stockflow.entity.ProductoVariante var1 = mock(com.stockflow.entity.ProductoVariante.class);
+            when(var1.getStockActual()).thenReturn(100);
+            when(productoVarianteRepository.findByIdAndTenantId(anyLong(), anyString()))
+                    .thenReturn(Optional.of(var1));
+
+            DetalleVentaDTO dv1 = DetalleVentaDTO.builder()
+                    .productoId(PROD_ID).cantidad(1)
+                    .precioUnitario(BigDecimal.valueOf(59.90))
+                    .varianteId(10L).varianteDescripcion("Talla M / Rojo").build();
+            DetalleVentaDTO dv2 = DetalleVentaDTO.builder()
+                    .productoId(PROD_ID).cantidad(1)
+                    .precioUnitario(BigDecimal.valueOf(59.90))
+                    .varianteId(11L).varianteDescripcion("Talla L / Azul").build();
+
+            VentaDTO dto = VentaDTO.builder()
+                    .vendedorId(VEND_ID).detalles(List.of(dv1, dv2))
+                    .metodoPago("EFECTIVO").estado("COMPLETADA").build();
+
+            controller.crear(dto, adminAuth());
+
+            verify(movimientoService, times(2)).crearMovimiento(any());
+        }
+
+        /** TK-07: dos productos distintos en la misma venta → dos movimientos separados. */
+        @Test
+        @DisplayName("TK-07: 2 productos distintos en la misma venta → 2 movimientos de SALIDA separados")
+        void tk07_dosProductosDiferentes_dosMovimientos() {
+            Producto p1 = producto(3.50);
+            Producto p2 = Producto.builder()
+                    .id(PROD2_ID).nombre("Ibuprofeno")
+                    .precioVenta(BigDecimal.valueOf(5.00))
+                    .costoUnitario(BigDecimal.ONE)
+                    .stockActual(100).tenantId(TENANT).build();
+
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p1));
+            when(productoService.obtenerProductoPorId(PROD2_ID)).thenReturn(Optional.of(p2));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+
+            DetalleVentaDTO d1 = detalleLote(1, 3.50, LOTE_A_ID);
+            DetalleVentaDTO d2 = DetalleVentaDTO.builder()
+                    .productoId(PROD2_ID).cantidad(2)
+                    .precioUnitario(BigDecimal.valueOf(5.00)).build();
+
+            VentaDTO dto = VentaDTO.builder()
+                    .vendedorId(VEND_ID).detalles(List.of(d1, d2))
+                    .metodoPago("EFECTIVO").estado("COMPLETADA").build();
+
+            controller.crear(dto, adminAuth());
+
+            verify(movimientoService, times(2)).crearMovimiento(any());
+        }
+
+        /** TK-08: producto tipo SERVICIO no genera ningún movimiento de inventario. */
+        @Test
+        @DisplayName("TK-08: producto tipo SERVICIO → ningún movimiento de inventario creado")
+        void tk08_servicioNoGeneraMovimiento() {
+            Producto servicio = Producto.builder()
+                    .id(PROD_ID).nombre("Consulta Médica").tipo("SERVICIO")
+                    .precioVenta(BigDecimal.valueOf(80.00))
+                    .costoUnitario(BigDecimal.ONE)
+                    .stockActual(0).tenantId(TENANT).build();
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(servicio));
+
+            controller.crear(ventaDTO(detalle(1, 80.00)), adminAuth());
+
+            verify(movimientoService, never()).crearMovimiento(any());
+        }
+
+        /** TK-09: venta histórica con un solo lote sigue funcionando sin regresión. */
+        @Test
+        @DisplayName("TK-09: venta histórica con un solo lote → movimiento correcto sin regresión")
+        void tk09_ventaUnLote_noRegresion() {
+            Producto p = producto(3.50);
+            when(productoService.obtenerProductoPorId(PROD_ID)).thenReturn(Optional.of(p));
+            when(stockLoteService.findLoteById(LOTE_A_ID))
+                    .thenReturn(Optional.of(loteConPrecio(LOTE_A_ID, 3.50)));
+
+            assertThatCode(() ->
+                    controller.crear(ventaDTO(detalleLote(5, 3.50, LOTE_A_ID)), adminAuth()))
+                    .doesNotThrowAnyException();
+
+            ArgumentCaptor<MovimientoInventario> cap = ArgumentCaptor.forClass(MovimientoInventario.class);
+            verify(movimientoService, times(1)).crearMovimiento(cap.capture());
+            assertThat(cap.getValue().getCantidad()).isEqualTo(5);
+            assertThat(cap.getValue().getTipo()).isEqualTo("SALIDA");
+            assertThat(cap.getValue().getReferencia()).contains("Venta #");
         }
     }
 

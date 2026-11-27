@@ -316,6 +316,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long> {
         FROM ventas v
         LEFT JOIN clientes c ON c.id = v.cliente_id
         WHERE v.tenant_id = :tenantId
+          AND v.estado <> 'ANULADA'
           AND (
             CAST(v.id AS TEXT) = :q
             OR LOWER(c.nombre) LIKE LOWER(CONCAT('%', :q, '%'))

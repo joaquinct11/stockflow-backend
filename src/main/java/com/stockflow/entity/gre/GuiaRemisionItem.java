@@ -45,4 +45,8 @@ public class GuiaRemisionItem {
     /** ID de la presentación farmacéutica seleccionada (nullable). Usado para recalcular cantidadBase. */
     @Column(name = "presentacion_id")
     private Long presentacionId;
+
+    /** F-23: variante seleccionada (talla/color). Nullable para compatibilidad con GRE históricas. */
+    @Column(name = "variante_id")
+    private Long varianteId;
 }

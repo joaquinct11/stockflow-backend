@@ -2,8 +2,11 @@ package com.stockflow.service;
 
 import com.stockflow.dto.ActividadRecienteDTO;
 import com.stockflow.entity.*;
+import com.stockflow.entity.gre.GuiaRemisionEvento;
+import com.stockflow.entity.gre.TipoEventoGRE;
 import com.stockflow.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +17,20 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DashboardService {
 
+    private static final List<TipoEventoGRE> TIPOS_GRE_ACTIVIDAD = List.of(
+            TipoEventoGRE.CREADA,
+            TipoEventoGRE.EMITIDA,
+            TipoEventoGRE.RECEPCION_CONFIRMADA,
+            TipoEventoGRE.CANCELADA,
+            TipoEventoGRE.ERROR_LUCODE
+    );
+
     private final VentaRepository ventaRepository;
     private final ComprobanteRepository comprobanteRepository;
     private final MovimientoInventarioRepository movimientoRepository;
     private final OrdenCompraRepository ordenCompraRepository;
     private final DevolucionRepository devolucionRepository;
+    private final GuiaRemisionEventoRepository greEventoRepository;
 
     @Transactional(readOnly = true)
     public List<ActividadRecienteDTO> getActividadReciente(String tenantId, Long sucursalId, int limit) {
@@ -117,6 +129,41 @@ public class DashboardService {
                         .usuarioNombre(nombreUsuario(d.getUsuario()))
                         .fechaHora(d.getFechaDevolucion())
                         .build()));
+
+        // --- Eventos GRE: un evento por guía (el más reciente relevante), sin exponer datos técnicos ---
+        // fetch * 5 permite obtener suficientes GREs únicas después de deduplicar por guía_remision_id
+        int gresFetch = fetch * 5;
+        List<GuiaRemisionEvento> greEventos = sucursalId != null
+                ? greEventoRepository.findTopNRecentesParaActividadBySucursal(
+                        tenantId, TIPOS_GRE_ACTIVIDAD, sucursalId, PageRequest.of(0, gresFetch))
+                : greEventoRepository.findTopNRecentesParaActividad(
+                        tenantId, TIPOS_GRE_ACTIVIDAD, PageRequest.of(0, gresFetch));
+
+        // LinkedHashMap: preserva orden de inserción (DESC por created_at) →
+        // la primera vez que vemos un greId es el evento más reciente para esa guía
+        Map<Long, GuiaRemisionEvento> porGreId = new LinkedHashMap<>();
+        greEventos.stream()
+                .filter(e -> e.getCreatedAt() != null && e.getGuiaRemision() != null)
+                .forEach(e -> porGreId.putIfAbsent(e.getGuiaRemision().getId(), e));
+
+        porGreId.values().forEach(e -> {
+            String gre = e.getGuiaRemision().getSerie() + "-" + e.getGuiaRemision().getCorrelativo();
+            String desc = switch (e.getTipoEvento()) {
+                case CREADA               -> "GRE " + gre + " creada (borrador)";
+                case EMITIDA              -> "GRE " + gre + " emitida exitosamente";
+                case RECEPCION_CONFIRMADA -> "GRE " + gre + " recepción confirmada";
+                case CANCELADA            -> "GRE " + gre + " cancelada";
+                case ERROR_LUCODE         -> "GRE " + gre + " error de emisión";
+                default                   -> "GRE " + gre;
+            };
+            items.add(ActividadRecienteDTO.builder()
+                    .tipo("GRE_" + e.getTipoEvento().name())
+                    .descripcion(desc)
+                    .detalle(null)         // nunca exponer descripcion del evento (puede contener hash/XML)
+                    .usuarioNombre(e.getUsuario())
+                    .fechaHora(e.getCreatedAt().toLocalDateTime())
+                    .build());
+        });
 
         items.sort(Comparator.comparing(ActividadRecienteDTO::getFechaHora).reversed());
         return items.stream().limit(limit).toList();

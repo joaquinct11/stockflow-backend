@@ -20,6 +20,9 @@ import com.stockflow.service.ProductoService;
 import com.stockflow.service.UsuarioService;
 import com.stockflow.entity.ProductoVarianteStockSucursal;
 import com.stockflow.entity.ProductoPresentacion;
+import com.stockflow.dto.VentaDetalleGREDTO;
+import com.stockflow.entity.Cliente;
+import com.stockflow.repository.ClienteRepository;
 import com.stockflow.repository.DetalleVentaRepository;
 import com.stockflow.repository.DevolucionRepository;
 import com.stockflow.repository.ProductoPresentacionRepository;
@@ -49,8 +52,10 @@ import org.springframework.data.domain.Sort;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.math.RoundingMode;
 
@@ -78,6 +83,7 @@ public class VentaController {
     private final DevolucionRepository                      devolucionRepository;
     private final com.stockflow.service.StockLoteService   stockLoteService;
     private final ProductoPresentacionRepository            presentacionRepository;
+    private final ClienteRepository                         clienteRepository;
     private final com.stockflow.repository.ProductoRepository productoRepository;
 
     /**
@@ -363,6 +369,10 @@ public class VentaController {
 
         // 4) Por cada detalle: descontar stock + crear movimiento SALIDA
         //    Los servicios (tipo = SERVICIO) no tocan el inventario.
+        // Acumuladores para movimientos SALIDA consolidados (no-variante): evita una fila duplicada
+        // en Kardex cuando el mismo producto se vende desde múltiples lotes en la misma venta.
+        Map<Long, Integer> salidaAcumCant = new LinkedHashMap<>();
+        Map<Long, Producto> salidaAcumProd = new LinkedHashMap<>();
         for (DetalleVenta detalle : detalles) {
             Producto producto = detalle.getProducto();
             boolean esServicio = "SERVICIO".equals(producto.getTipo());
@@ -442,18 +452,40 @@ public class VentaController {
                 String varDesc = detalle.getVarianteDescripcion() != null
                         ? " [" + detalle.getVarianteDescripcion() + "]" : "";
                 int cantBase = detalle.getCantidad() * (detalle.getFactor() != null ? detalle.getFactor() : 1);
-                MovimientoInventario movimiento = MovimientoInventario.builder()
-                        .producto(producto)
-                        .usuario(vendedor)
-                        .tipo("SALIDA")
-                        .cantidad(cantBase)
-                        .descripcion("Venta #" + ventaCreada.getId() + varDesc)
-                        .referencia("Venta #" + ventaCreada.getId())
-                        .tenantId(tenantId)
-                        .sucursalId(ventaCreada.getSucursalId())
-                        .build();
-                movimientoService.crearMovimiento(movimiento);
+                if (detalle.getVarianteId() != null) {
+                    // Variante: movimiento individual (cada variante es un producto diferente)
+                    MovimientoInventario movimiento = MovimientoInventario.builder()
+                            .producto(producto)
+                            .usuario(vendedor)
+                            .tipo("SALIDA")
+                            .cantidad(cantBase)
+                            .descripcion("Venta #" + ventaCreada.getId() + varDesc)
+                            .referencia("Venta #" + ventaCreada.getId())
+                            .tenantId(tenantId)
+                            .sucursalId(ventaCreada.getSucursalId())
+                            .build();
+                    movimientoService.crearMovimiento(movimiento);
+                } else {
+                    // Sin variante: acumular por producto → un solo movimiento al final del loop
+                    salidaAcumCant.merge(producto.getId(), cantBase, Integer::sum);
+                    salidaAcumProd.putIfAbsent(producto.getId(), producto);
+                }
             }
+        }
+        // Crear un movimiento de SALIDA consolidado por producto (no-variante)
+        for (Map.Entry<Long, Integer> entry : salidaAcumCant.entrySet()) {
+            Producto prod = salidaAcumProd.get(entry.getKey());
+            MovimientoInventario movConsolidado = MovimientoInventario.builder()
+                    .producto(prod)
+                    .usuario(vendedor)
+                    .tipo("SALIDA")
+                    .cantidad(entry.getValue())
+                    .descripcion("Venta #" + ventaCreada.getId())
+                    .referencia("Venta #" + ventaCreada.getId())
+                    .tenantId(tenantId)
+                    .sucursalId(ventaCreada.getSucursalId())
+                    .build();
+            movimientoService.crearMovimiento(movConsolidado);
         }
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -567,6 +599,67 @@ public class VentaController {
         return ResponseEntity.ok(result);
     }
 
+    // F-15: datos de una venta formateados para precargar una GRE DELIVERY motivo 01
+    @GetMapping("/{ventaId:\\d+}/detalle-para-gre")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE') or hasAuthority('PERM_VER_VENTAS')")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public ResponseEntity<VentaDetalleGREDTO> detalleParaGRE(@PathVariable Long ventaId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        Venta venta = ventaRepository.findByIdFetchVendedor(ventaId)
+                .filter(v -> tenantId.equals(v.getTenantId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Venta no encontrada: " + ventaId));
+        if ("ANULADA".equals(venta.getEstado())) {
+            throw new BadRequestException("La venta está anulada y no puede vincularse a una guía de remisión.");
+        }
+
+        // Cliente (puede ser null para venta a consumidor final)
+        String clienteNombre = "Sin nombre";
+        String clienteTipoDoc = null;
+        String clienteNumDoc = null;
+        String clienteDireccion = null;
+        if (venta.getClienteId() != null) {
+            Cliente cliente = clienteRepository.findById(venta.getClienteId()).orElse(null);
+            if (cliente != null) {
+                clienteNombre = cliente.getNombre();
+                clienteTipoDoc = mapTipoDocSunat(cliente.getTipoDocumento());
+                clienteNumDoc = cliente.getNumeroDocumento();
+                clienteDireccion = cliente.getDireccion();
+            }
+        }
+
+        List<VentaDetalleGREDTO.ItemDTO> items = venta.getDetalles().stream()
+                .map(dv -> VentaDetalleGREDTO.ItemDTO.builder()
+                        .productoId(dv.getProducto().getId())
+                        .productoNombre(dv.getProducto().getNombre())
+                        .cantidad(dv.getCantidad())
+                        .factor(dv.getFactor() != null ? dv.getFactor() : 1)
+                        .presentacionId(dv.getPresentacionId())
+                        .unidadMedida("NIU")
+                        .build())
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(VentaDetalleGREDTO.builder()
+                .ventaId(venta.getId())
+                .estado(venta.getEstado())
+                .clienteNombre(clienteNombre)
+                .clienteTipoDoc(clienteTipoDoc)
+                .clienteNumDoc(clienteNumDoc)
+                .clienteDireccion(clienteDireccion)
+                .items(items)
+                .build());
+    }
+
+    private static String mapTipoDocSunat(String tipoDocumento) {
+        if (tipoDocumento == null) return null;
+        return switch (tipoDocumento.toUpperCase()) {
+            case "RUC"       -> "6";
+            case "DNI"       -> "1";
+            case "CE"        -> "4";
+            case "PASAPORTE" -> "7";
+            default          -> null;
+        };
+    }
+
     /**
      * Precio único autorizado por el servidor para el detalle dado. Nunca null.
      *
@@ -581,6 +674,13 @@ public class VentaController {
                     .orElseThrow(() -> new BadRequestException(
                             "Presentación no encontrada: " + detalleDTO.getPresentacionId()));
             return resolverPrecioMayoristaPresentacion(presentacion, producto, detalleDTO.getCantidad());
+        }
+        // Lote con precio de venta propio → se respeta como precio autorizado para la unidad base
+        if (detalleDTO.getStockLoteId() != null) {
+            Optional<StockLote> loteOpt = stockLoteService.findLoteById(detalleDTO.getStockLoteId());
+            if (loteOpt.isPresent() && loteOpt.get().getPrecioVenta() != null) {
+                return loteOpt.get().getPrecioVenta();
+            }
         }
         BigDecimal mayorista = resolverPrecioMayorista(producto, detalleDTO.getCantidad());
         return mayorista != null ? mayorista : producto.getPrecioVenta();

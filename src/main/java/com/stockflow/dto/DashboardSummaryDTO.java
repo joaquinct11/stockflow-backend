@@ -9,11 +9,11 @@ import java.util.List;
 public class DashboardSummaryDTO {
 
     private int totalProductos;
-    /** Total de productos activos con stockActual < stockMinimo (sin stock + bajo mínimo). */
+    /** Total de productos activos con stockActual <= stockMinimo (sin stock + bajo mínimo). */
     private int bajoStockCount;
     /** Productos activos con stockActual <= 0. */
     private int sinStockCount;
-    /** Productos activos con stockActual > 0 y stockActual < stockMinimo (y stockMinimo > 0). */
+    /** Productos activos con stockActual > 0 y stockActual <= stockMinimo (y stockMinimo > 0). */
     private int stockBajoMinimoCount;
     private List<BajoStockItemDTO> bajoStockItems;
     private List<ProximoVencerItemDTO> productosProximosAVencer;
