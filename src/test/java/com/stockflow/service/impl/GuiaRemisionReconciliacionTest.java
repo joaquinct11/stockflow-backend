@@ -69,6 +69,10 @@ class GuiaRemisionReconciliacionTest {
     @Mock GuiaRemisionPdfService           pdfService;
     @Mock StockLoteService                 stockLoteService;
     @Mock UbigeoRepository                 ubigeoRepository;
+    @Mock com.stockflow.repository.ProductoStockSucursalRepository stockSucursalRepo;
+    @Mock com.stockflow.repository.ProductoVarianteRepository varianteRepo;
+    @Mock com.stockflow.repository.ProductoVarianteStockSucursalRepository varianteSucursalRepo;
+    @Mock GreSerieContadorService serieContadorService;
 
     private GuiaRemisionServiceImpl service;
 
@@ -80,7 +84,15 @@ class GuiaRemisionReconciliacionTest {
                 guiaRepo, eventoRepo, sucursalRepo, productoRepo, tenantRepo,
                 ventaRepo, presentacionRepo, movimientoService, movimientoRepo,
                 lucodeGREService, pdfService, new ObjectMapper(), stockLoteService,
-                ubigeoRepository);
+                ubigeoRepository, stockSucursalRepo, varianteRepo, varianteSucursalRepo,
+                serieContadorService);
+
+        // F-22: reconciliarGREAceptada consulta el tenant para verificar OSE token.
+        // Sin oseToken el guard de hash se omite (no llama a Lucode).
+        com.stockflow.entity.Tenant tenantMock = new com.stockflow.entity.Tenant();
+        tenantMock.setTenantId(TENANT);
+        tenantMock.setOseToken(null);
+        lenient().when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(tenantMock));
     }
 
     @AfterEach

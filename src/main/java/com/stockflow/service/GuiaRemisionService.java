@@ -1,6 +1,7 @@
 package com.stockflow.service;
 
 import com.stockflow.dto.gre.*;
+import com.stockflow.entity.gre.EstadoTributarioGRE;
 import com.stockflow.entity.gre.GuiaRemision;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,8 +26,11 @@ public interface GuiaRemisionService {
     /** Cancela un borrador (no emitido). */
     GuiaRemisionResponse cancelarBorrador(Long id);
 
-    /** Lista paginada del tenant. */
-    Page<GuiaRemisionListResponse> listar(Pageable pageable);
+    /** Lista paginada del tenant con búsqueda, filtro por estado y filtro por sucursal opcionales. */
+    Page<GuiaRemisionListResponse> listar(String q, EstadoTributarioGRE estado, Long sucursalId, Pageable pageable);
+
+    /** Estadísticas para los KPIs del listado, filtradas por sucursal opcional. */
+    GuiaRemisionStatsResponse stats(Long sucursalId);
 
     /** Detalle completo. */
     GuiaRemisionResponse obtener(Long id);
@@ -57,4 +61,11 @@ public interface GuiaRemisionService {
      *  - Registra un evento RECONCILIACION_F08 en el historial.
      */
     GuiaRemisionResponse reconciliarGREAceptada(Long id, ReconciliarGRERequest request);
+
+    /**
+     * Consulta el estado de una GRE en Lucode (solo lectura, no modifica nada local).
+     * Útil para diagnosticar GREs en ERROR o para obtener hash/xml/cdr antes de reconciliar.
+     * Lanza BadRequestException si el OSE no está habilitado o la GRE no existe en Lucode.
+     */
+    com.stockflow.dto.gre.lucode.LucodeGREResponse consultarEstadoEnLucode(Long id);
 }

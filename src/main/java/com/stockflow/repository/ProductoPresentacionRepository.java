@@ -13,11 +13,13 @@ import java.util.Optional;
 @Repository
 public interface ProductoPresentacionRepository extends JpaRepository<ProductoPresentacion, Long> {
 
-    List<ProductoPresentacion> findByProductoIdAndTenantId(Long productoId, String tenantId);
+    @Query("SELECT p FROM ProductoPresentacion p LEFT JOIN FETCH p.unidadMedida WHERE p.producto.id = :productoId AND p.tenantId = :tenantId")
+    List<ProductoPresentacion> findByProductoIdAndTenantId(@Param("productoId") Long productoId, @Param("tenantId") String tenantId);
 
     List<ProductoPresentacion> findByProductoId(Long productoId);
 
-    Optional<ProductoPresentacion> findByProductoIdAndEsPrincipalTrueAndTenantId(Long productoId, String tenantId);
+    @Query("SELECT p FROM ProductoPresentacion p LEFT JOIN FETCH p.unidadMedida WHERE p.producto.id = :productoId AND p.esPrincipal = true AND p.tenantId = :tenantId")
+    Optional<ProductoPresentacion> findByProductoIdAndEsPrincipalTrueAndTenantId(@Param("productoId") Long productoId, @Param("tenantId") String tenantId);
 
     boolean existsByProductoIdAndUnidadMedidaId(Long productoId, Long unidadMedidaId);
 

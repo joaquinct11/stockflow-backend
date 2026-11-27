@@ -44,3 +44,9 @@ apisunat:
 cors:
   allowed-origins:
     - http://localhost:5173
+
+# DIGEMID: 5 registros en el CSV de test, threshold bajo para validación
+# async=false evita carreras de hilos entre el contexto Spring y los tests
+digemid:
+  min-expected: 3
+  async: false

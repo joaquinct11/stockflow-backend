@@ -95,7 +95,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
             SELECT p FROM Producto p
             LEFT JOIN FETCH p.categoriaRef
             LEFT JOIN FETCH p.unidadMedida
-            WHERE p.stockActual < p.stockMinimo
+            WHERE p.stockActual <= p.stockMinimo
               AND p.tenantId = :tenantId
               AND p.activo = true
             """)
@@ -105,7 +105,7 @@ public interface ProductoRepository extends JpaRepository<Producto, Long> {
     @Query("""
             SELECT p.id AS id, p.nombre AS nombre, p.stockActual AS stockActual, p.stockMinimo AS stockMinimo
             FROM Producto p
-            WHERE p.stockActual < p.stockMinimo
+            WHERE p.stockActual <= p.stockMinimo
               AND p.tenantId = :tenantId
               AND p.activo = true
             """)
