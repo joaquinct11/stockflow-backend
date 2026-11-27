@@ -125,6 +125,9 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
 
         // F-18: solo motivos 01 (Venta) y 04 (Traslado entre establecimientos) están soportados
         validarMotivoSoportado(req.getMotivoTrasladoCodigo());
+        String motivoFinal = (req.getMotivoTrasladoCodigo() == null || req.getMotivoTrasladoCodigo().isBlank())
+                ? (req.getTipoTraslado() == TipoTrasladoGRE.SUCURSALES ? "04" : "01")
+                : req.getMotivoTrasladoCodigo();
 
         // Regla F-09/F-10: DELIVERY independiente (sin venta) requiere sucursal o punto de despacho
         validarOrigenDelivery(req.getTipoTraslado(), venta, origen, tenantId, tenant);
@@ -140,7 +143,7 @@ public class GuiaRemisionServiceImpl implements GuiaRemisionService {
                 .serie(serie)
                 .correlativo(correlativo)
                 .tipoTraslado(req.getTipoTraslado())
-                .motivoTrasladoCodigo(req.getMotivoTrasladoCodigo())
+                .motivoTrasladoCodigo(motivoFinal)
                 .motivoTrasladoDescripcion(req.getMotivoTrasladoDescripcion())
                 .modalidadTransporte(req.getModalidadTransporte())
                 .fechaTraslado(req.getFechaTraslado())

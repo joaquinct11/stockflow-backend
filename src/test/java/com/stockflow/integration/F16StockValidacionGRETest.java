@@ -156,7 +156,7 @@ class F16StockValidacionGRETest {
 
         assertThatThrownBy(() -> emitir(guiaId))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("stock");
+                .hasMessageContaining("Stock");
 
         verify(lucodeGREService, never()).emitirGRE(any(), any());
     }
@@ -170,7 +170,7 @@ class F16StockValidacionGRETest {
 
         assertThatThrownBy(() -> emitir(guiaId))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("stock");
+                .hasMessageContaining("Stock");
 
         verify(lucodeGREService, never()).emitirGRE(any(), any());
     }
