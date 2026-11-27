@@ -4,10 +4,13 @@ import com.stockflow.dto.DashboardSummaryDTO;
 import com.stockflow.dto.ProductoDTO;
 import com.stockflow.dto.ProductoImportResultDTO;
 import com.stockflow.dto.ProductoImportRowDTO;
+import com.stockflow.dto.VarianteConStockDTO;
 import com.stockflow.entity.Producto;
+import com.stockflow.entity.ProductoVariante;
 import com.stockflow.mapper.ProductoMapper;
 import com.stockflow.repository.MovimientoInventarioRepository;
 import com.stockflow.repository.ProductoStockSucursalRepository;
+import com.stockflow.repository.ProductoVarianteRepository;
 import com.stockflow.repository.ProductoVarianteStockSucursalRepository;
 import com.stockflow.service.ProductoService;
 import com.stockflow.util.TenantContext;
@@ -35,6 +38,7 @@ public class ProductoController {
     private final MovimientoInventarioRepository movimientoRepository;
     private final ProductoStockSucursalRepository stockSucursalRepository;
     private final ProductoVarianteStockSucursalRepository varianteStockSucursalRepository;
+    private final ProductoVarianteRepository varianteRepo;
     private final com.stockflow.service.StockLoteService stockLoteService;
 
     /**
@@ -166,6 +170,42 @@ public class ProductoController {
         );
     }
 
+    @GetMapping("/buscar-gre")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
+    public ResponseEntity<List<ProductoDTO>> buscarParaGre(
+            @RequestParam String nombre,
+            @RequestParam(required = false) Long sucursalId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        List<ProductoDTO> dtos = productoMapper.toDTOList(
+                productoService.buscarProductosPorNombre(nombre, tenantId));
+        if (sucursalId != null) {
+            // Mismo mecanismo que obtenerTodos(): PSS por sucursal es la fuente correcta
+            Map<Long, Integer> stockPss = stockSucursalRepository
+                    .findBySucursalIdAndTenantId(sucursalId, tenantId)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            s -> s.getProducto().getId(),
+                            s -> s.getStockActual() != null ? s.getStockActual() : 0
+                    ));
+            Map<Long, Integer> stockVariante = varianteStockSucursalRepository
+                    .sumStockPorProductoYSucursal(sucursalId, tenantId)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            row -> ((Number) row[0]).longValue(),
+                            row -> ((Number) row[1]).intValue()
+                    ));
+            dtos.forEach(dto -> {
+                if (dto.getId() == null) return;
+                if (stockVariante.containsKey(dto.getId())) {
+                    dto.setStockActual(stockVariante.get(dto.getId()));
+                } else if (stockPss.containsKey(dto.getId())) {
+                    dto.setStockActual(stockPss.get(dto.getId()));
+                }
+            });
+        }
+        return ResponseEntity.ok(dtos);
+    }
+
     @GetMapping("/bajo-stock")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
     public ResponseEntity<List<ProductoDTO>> obtenerProductosBajoStock() {
@@ -268,6 +308,34 @@ public class ProductoController {
             @RequestParam(required = false) Long sucursalId) {
         String tenantId = TenantContext.getCurrentTenant();
         return ResponseEntity.ok(productoService.getDashboardSummary(tenantId, sucursalId));
+    }
+
+    /** F-23: Variantes activas de un producto con su stock en la sucursal indicada (o global si no hay sucursalId). */
+    @GetMapping("/{id}/variantes-con-stock")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('PERM_VER_PRODUCTOS')")
+    public ResponseEntity<List<VarianteConStockDTO>> variantesConStock(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long sucursalId) {
+        String tenantId = TenantContext.getCurrentTenant();
+        List<ProductoVariante> variantes = varianteRepo.findByProductoIdAndActivoTrueAndTenantId(id, tenantId);
+        List<VarianteConStockDTO> result = variantes.stream().map(v -> {
+            int stock;
+            if (sucursalId != null) {
+                stock = varianteStockSucursalRepository.findByVarianteIdAndSucursalId(v.getId(), sucursalId)
+                        .map(pvss -> pvss.getStockActual() != null ? pvss.getStockActual() : 0)
+                        .orElse(0);
+            } else {
+                stock = v.getStockActual() != null ? v.getStockActual() : 0;
+            }
+            return VarianteConStockDTO.builder()
+                    .id(v.getId())
+                    .talla(v.getTalla())
+                    .color(v.getColor())
+                    .sku(v.getSku())
+                    .stockEnSucursal(stock)
+                    .build();
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/importar")

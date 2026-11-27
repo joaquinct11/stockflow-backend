@@ -20,7 +20,7 @@ public class DashboardController {
     @GetMapping("/actividad-reciente")
     @PreAuthorize("hasAuthority('PERM_VER_DASHBOARD')")
     public ResponseEntity<List<ActividadRecienteDTO>> actividadReciente(
-            @RequestParam(defaultValue = "15") int limit,
+            @RequestParam(defaultValue = "25") int limit,
             @RequestParam(required = false) Long sucursalId) {
 
         String tenantId = TenantContext.getCurrentTenant();

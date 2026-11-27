@@ -64,6 +64,10 @@ class GuiaRemisionF10TenantLegacyTest {
     @Mock GuiaRemisionPdfService           pdfService;
     @Mock StockLoteService                 stockLoteService;
     @Mock UbigeoRepository                 ubigeoRepository;
+    @Mock com.stockflow.repository.ProductoStockSucursalRepository stockSucursalRepo;
+    @Mock com.stockflow.repository.ProductoVarianteRepository varianteRepo;
+    @Mock com.stockflow.repository.ProductoVarianteStockSucursalRepository varianteSucursalRepo;
+    @Mock GreSerieContadorService serieContadorService;
 
     private GuiaRemisionServiceImpl service;
 
@@ -75,7 +79,16 @@ class GuiaRemisionF10TenantLegacyTest {
                 guiaRepo, eventoRepo, sucursalRepo, productoRepo, tenantRepo,
                 ventaRepo, presentacionRepo, movimientoService, movimientoRepo,
                 lucodeGREService, pdfService, new ObjectMapper(), stockLoteService,
-                ubigeoRepository);
+                ubigeoRepository, stockSucursalRepo, varianteRepo, varianteSucursalRepo,
+                serieContadorService);
+
+        // F-22: reconciliarGREAceptada consulta tenantRepo; sin oseToken omite verificación Lucode.
+        // Los tests individuales que llaman emitirGRE sobreescriben este mock con su builder propio.
+        Tenant tenantBase = new Tenant();
+        tenantBase.setTenantId(TENANT);
+        tenantBase.setSerieGuia("T001");
+        tenantBase.setOseToken(null);
+        lenient().when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(tenantBase));
     }
 
     @AfterEach
@@ -90,6 +103,7 @@ class GuiaRemisionF10TenantLegacyTest {
         t.setTenantId(TENANT);
         t.setSerieGuia("T001");
         t.setNombre("Empresa Con Sucursales");
+        t.setOseToken("tok-test");
         return t;
     }
 
@@ -100,6 +114,7 @@ class GuiaRemisionF10TenantLegacyTest {
         t.setNombre("Botica Santa Fe");
         t.setUbigeoDespacho("150101");
         t.setDireccionDespacho("Jr. Amazonas 456, Lima");
+        t.setOseToken("tok-test");
         return t;
     }
 
@@ -108,6 +123,7 @@ class GuiaRemisionF10TenantLegacyTest {
         t.setTenantId(TENANT);
         t.setSerieGuia("T001");
         t.setNombre("Empresa Sin Configurar");
+        t.setOseToken("tok-test");
         return t;
     }
 
@@ -323,6 +339,7 @@ class GuiaRemisionF10TenantLegacyTest {
         when(guiaRepo.existsByIdempotencyKey(any())).thenReturn(false);
         when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(buildTenantConSucursales()));
         when(guiaRepo.findMaxCorrelativo(TENANT, "T001")).thenReturn(0);
+        when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT)).thenReturn(2L);
         when(sucursalRepo.findByIdAndTenantId(10L, TENANT)).thenReturn(Optional.of(origen));
         when(sucursalRepo.findByIdAndTenantId(20L, TENANT)).thenReturn(Optional.of(destino));
         when(productoRepo.findById(5L)).thenReturn(Optional.of(buildProducto()));
@@ -347,8 +364,8 @@ class GuiaRemisionF10TenantLegacyTest {
         req.setTransporte(td);
 
         assertThatNoException().isThrownBy(() -> service.crearBorrador(req));
-        // F-10 no consultó el count de sucursales (TRASLADO no llega a esa lógica)
-        verify(sucursalRepo, never()).countByTenantIdAndActivoTrue(any());
+        // F-28 sí consulta el count de sucursales para traslado SUCURSALES
+        verify(sucursalRepo, times(1)).countByTenantIdAndActivoTrue(TENANT);
     }
 
     // ── T-F10-7: Caso B — emitirGRE registra SALIDA con sucursalId=null ───────
@@ -404,7 +421,7 @@ class GuiaRemisionF10TenantLegacyTest {
     @DisplayName("T-F10-9: Caso C — editarBorrador sin punto de despacho es rechazado")
     void casoC_editarBorrador_rechazado() {
         GuiaRemision guia = buildBorradorDelivery(55L, null, null);
-        when(guiaRepo.findByIdAndTenantId(55L, TENANT)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(55L, TENANT)).thenReturn(Optional.of(guia));
         when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(buildTenantLegacySinDespacho()));
         when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT)).thenReturn(0L);
 
@@ -422,7 +439,7 @@ class GuiaRemisionF10TenantLegacyTest {
     void casoB_editarBorrador_permitido() {
         Producto producto = buildProducto();
         GuiaRemision guia = buildBorradorDelivery(55L, null, null);
-        when(guiaRepo.findByIdAndTenantId(55L, TENANT)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(55L, TENANT)).thenReturn(Optional.of(guia));
         when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(buildTenantLegacyConDespacho()));
         when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT)).thenReturn(0L);
         when(productoRepo.findById(5L)).thenReturn(Optional.of(producto));

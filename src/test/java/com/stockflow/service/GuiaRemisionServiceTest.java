@@ -40,13 +40,20 @@ class GuiaRemisionServiceTest {
     @Mock private SucursalRepository           sucursalRepo;
     @Mock private ProductoRepository           productoRepo;
     @Mock private TenantRepository             tenantRepo;
-    @Mock private MovimientoInventarioService  movimientoService;
-    @Mock private PlanLimitService             planLimitService;
-    @Mock private LucodeGREService             lucodeGREService;
-    @Mock private GuiaRemisionPdfService       pdfService;
-    @Mock private StockLoteService             stockLoteService;
-    @Mock private UbigeoRepository             ubigeoRepository;
-    @Spy  private ObjectMapper                 objectMapper = new ObjectMapper();
+    @Mock private MovimientoInventarioService      movimientoService;
+    @Mock private MovimientoInventarioRepository   movimientoRepo;
+    @Mock private VentaRepository                  ventaRepo;
+    @Mock private ProductoPresentacionRepository   presentacionRepo;
+    @Mock private PlanLimitService                 planLimitService;
+    @Mock private LucodeGREService                 lucodeGREService;
+    @Mock private GuiaRemisionPdfService           pdfService;
+    @Mock private StockLoteService                 stockLoteService;
+    @Mock private UbigeoRepository                 ubigeoRepository;
+    @Mock private ProductoStockSucursalRepository  stockSucursalRepo;
+    @Mock private ProductoVarianteRepository       varianteRepo;
+    @Mock private ProductoVarianteStockSucursalRepository varianteSucursalRepo;
+    @Mock private com.stockflow.service.impl.GreSerieContadorService serieContadorService;
+    @Spy  private ObjectMapper                     objectMapper = new ObjectMapper();
 
     @InjectMocks private GuiaRemisionServiceImpl service;
 
@@ -141,6 +148,7 @@ class GuiaRemisionServiceTest {
     void sucursales_mismoOrigenDestino_bloqueado() {
         Sucursal s = Sucursal.builder().id(5L).tenantId(TENANT_ID).nombre("Tienda A").build();
         when(sucursalRepo.findByIdAndTenantId(5L, TENANT_ID)).thenReturn(Optional.of(s));
+        when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT_ID)).thenReturn(2L);
 
         CrearGuiaRemisionRequest req = buildRequest();
         req.setTipoTraslado(TipoTrasladoGRE.SUCURSALES);
@@ -251,7 +259,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-7a: Cancelar guía BORRADOR cambia a CANCELADA")
     void cancelar_borrador_ok() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         GuiaRemisionResponse resp = service.cancelarBorrador(1L);
         assertThat(resp.getEstadoTributario()).isEqualTo(EstadoTributarioGRE.CANCELADA);
@@ -261,7 +269,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-7b: Cancelar guía EMITIDA lanza BadRequestException")
     void cancelar_emitida_bloqueado() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIDA);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatThrownBy(() -> service.cancelarBorrador(1L))
                 .isInstanceOf(BadRequestException.class)
@@ -332,7 +340,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-ADMIN-1: Editar borrador actualiza campos escalares correctamente")
     void editarBorrador_borrador_actualizaCampos() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         EditarBorradorRequest req = buildEditRequest();
         req.setObservaciones("Observacion editada");
@@ -350,7 +358,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-ADMIN-2: Editar guía en estado ERROR está permitido")
     void editarBorrador_error_permitido() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.ERROR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         GuiaRemisionResponse resp = service.editarBorrador(1L, buildEditRequest());
         assertThat(resp).isNotNull();
@@ -362,7 +370,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-ADMIN-3: Editar guía EMITIDA lanza BadRequestException")
     void editarBorrador_emitida_bloqueado() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIDA);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatThrownBy(() -> service.editarBorrador(1L, buildEditRequest()))
                 .isInstanceOf(BadRequestException.class)
@@ -373,7 +381,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-ADMIN-3b: Editar guía EMITIENDO lanza BadRequestException")
     void editarBorrador_emitiendo_bloqueado() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIENDO);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatThrownBy(() -> service.editarBorrador(1L, buildEditRequest()))
                 .isInstanceOf(BadRequestException.class)
@@ -386,7 +394,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-ADMIN-4: Eliminar guía BORRADOR llama a delete sin excepción")
     void eliminarBorrador_borrador_ok() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatCode(() -> service.eliminarBorrador(1L)).doesNotThrowAnyException();
         verify(guiaRepo).delete(guia);
@@ -398,7 +406,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-ADMIN-5: Eliminar guía ERROR está permitido (nunca fue emitida)")
     void eliminarBorrador_error_permitido() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.ERROR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatCode(() -> service.eliminarBorrador(1L)).doesNotThrowAnyException();
         verify(guiaRepo).delete(guia);
@@ -410,7 +418,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-ADMIN-6: Eliminar guía EMITIDA lanza BadRequestException")
     void eliminarBorrador_emitida_bloqueado() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIDA);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatThrownBy(() -> service.eliminarBorrador(1L))
                 .isInstanceOf(BadRequestException.class)
@@ -456,7 +464,7 @@ class GuiaRemisionServiceTest {
         guia.setTransporte(transporteExistente);
         transporteExistente.setGuiaRemision(guia);
 
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         EditarBorradorRequest req = buildEditRequest();
         req.getTransporte().setDireccionPartida("Partida nueva");
@@ -480,7 +488,7 @@ class GuiaRemisionServiceTest {
         // sin transporte previo
         assertThat(guia.getTransporte()).isNull();
 
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         service.editarBorrador(1L, buildEditRequest());
 
@@ -506,7 +514,7 @@ class GuiaRemisionServiceTest {
         guia.setTransporte(transporteExistente);
         transporteExistente.setGuiaRemision(guia);
 
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         EditarBorradorRequest req1 = buildEditRequest();
         req1.getTransporte().setDireccionPartida("Partida B");
@@ -537,7 +545,7 @@ class GuiaRemisionServiceTest {
         guia.setTransporte(transporteExistente);
         transporteExistente.setGuiaRemision(guia);
 
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         EditarBorradorRequest req = buildEditRequest();
         req.getTransporte().setUbigeoPartida("150101");
@@ -559,7 +567,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-TRANSPORTE-5: El nuevo transporte creado lleva el tenantId correcto")
     void editarBorrador_nuevoTransporte_tieneTenantCorrecto() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         service.editarBorrador(1L, buildEditRequest());
 
@@ -592,7 +600,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-RECUP-1: recuperarEmitiendo transiciona EMITIENDO → ERROR y registra evento")
     void recuperarEmitiendo_estadoEmitiendo_transicionaAError() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIENDO);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         service.recuperarEmitiendo(1L);
 
@@ -609,7 +617,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-RECUP-2: recuperarEmitiendo lanza BadRequest si el estado no es EMITIENDO")
     void recuperarEmitiendo_estadoBorrador_lanzaError() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatThrownBy(() -> service.recuperarEmitiendo(1L))
                 .isInstanceOf(BadRequestException.class)
@@ -624,7 +632,7 @@ class GuiaRemisionServiceTest {
     void recuperarEmitiendo_conLucodeHash_lanzaError() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIENDO);
         guia.setLucodeHash("abc123hash");
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatThrownBy(() -> service.recuperarEmitiendo(1L))
                 .isInstanceOf(BadRequestException.class)
@@ -639,7 +647,7 @@ class GuiaRemisionServiceTest {
     void recuperarEmitiendo_conXmlUrl_lanzaError() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.EMITIENDO);
         guia.setXmlUrl("https://cdn.example.com/gre.xml");
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
 
         assertThatThrownBy(() -> service.recuperarEmitiendo(1L))
                 .isInstanceOf(BadRequestException.class)
@@ -758,7 +766,7 @@ class GuiaRemisionServiceTest {
     @DisplayName("GRE-UBIGEO-6: Ubigeo inexistente en editarBorrador rechaza sin modificar inventario")
     void editarBorrador_ubigeoInexistente_rechazado() {
         GuiaRemision guia = buildGuia(EstadoTributarioGRE.BORRADOR);
-        when(guiaRepo.findByIdAndTenantId(1L, TENANT_ID)).thenReturn(Optional.of(guia));
+        when(guiaRepo.findByIdAndTenantIdWithSucursales(1L, TENANT_ID)).thenReturn(Optional.of(guia));
         when(ubigeoRepository.existsById("888888")).thenReturn(false);
 
         EditarBorradorRequest req = buildEditRequest();

@@ -677,26 +677,50 @@ public class ProductoServiceImpl implements ProductoService {
     public DashboardSummaryDTO getDashboardSummary(String tenantId, Long sucursalId) {
         int total = (int) productoRepository.countByTenantIdAndActivoTrue(tenantId);
 
-        java.util.List<com.stockflow.dto.ProductoStockInfo> bajoStock =
-                productoRepository.findProductosBajoStockParaScheduler(tenantId);
+        int bajoStockCount;
+        int sinStockCount;
+        int stockBajoMinimoCount;
+        java.util.List<DashboardSummaryDTO.BajoStockItemDTO> bajoStockItems;
 
-        // Desglose calculado sobre el listado completo, antes del truncado a 5 para display.
-        int sinStockCount = (int) bajoStock.stream()
-                .filter(p -> p.getStockActual() == null || p.getStockActual() <= 0)
-                .count();
-        int stockBajoMinimoCount = (int) bajoStock.stream()
-                .filter(p -> p.getStockActual() != null && p.getStockActual() > 0)
-                .count();
-
-        java.util.List<DashboardSummaryDTO.BajoStockItemDTO> bajoStockItems = bajoStock.stream()
-                .limit(5)
-                .map(p -> DashboardSummaryDTO.BajoStockItemDTO.builder()
-                        .id(p.getId())
-                        .nombre(p.getNombre())
-                        .stockActual(p.getStockActual())
-                        .stockMinimo(p.getStockMinimo())
-                        .build())
-                .toList();
+        if (sucursalId != null) {
+            // Stock real por sucursal (PSS + PVSS): misma fuente que el módulo Productos
+            java.util.List<Object[]> rows =
+                    stockSucursalRepository.findAllBajoStockEfectivoBySucursal(sucursalId, tenantId);
+            bajoStockCount = rows.size();
+            sinStockCount = (int) rows.stream()
+                    .filter(r -> r[2] == null || ((Number) r[2]).intValue() <= 0)
+                    .count();
+            stockBajoMinimoCount = bajoStockCount - sinStockCount;
+            bajoStockItems = rows.stream()
+                    .limit(5)
+                    .map(r -> DashboardSummaryDTO.BajoStockItemDTO.builder()
+                            .id(((Number) r[0]).longValue())
+                            .nombre((String) r[1])
+                            .stockActual(r[2] != null ? ((Number) r[2]).intValue() : 0)
+                            .stockMinimo(r[3] != null ? ((Number) r[3]).intValue() : 0)
+                            .build())
+                    .toList();
+        } else {
+            // Sin sucursal seleccionada: usar stock global (compatible con tenants sin sucursales)
+            java.util.List<com.stockflow.dto.ProductoStockInfo> bajoStock =
+                    productoRepository.findProductosBajoStockParaScheduler(tenantId);
+            bajoStockCount = bajoStock.size();
+            sinStockCount = (int) bajoStock.stream()
+                    .filter(p -> p.getStockActual() == null || p.getStockActual() <= 0)
+                    .count();
+            stockBajoMinimoCount = (int) bajoStock.stream()
+                    .filter(p -> p.getStockActual() != null && p.getStockActual() > 0)
+                    .count();
+            bajoStockItems = bajoStock.stream()
+                    .limit(5)
+                    .map(p -> DashboardSummaryDTO.BajoStockItemDTO.builder()
+                            .id(p.getId())
+                            .nombre(p.getNombre())
+                            .stockActual(p.getStockActual())
+                            .stockMinimo(p.getStockMinimo())
+                            .build())
+                    .toList();
+        }
 
         java.time.LocalDate hoy  = java.time.LocalDate.now();
         java.time.LocalDate en90 = hoy.plusDays(90);
@@ -716,7 +740,7 @@ public class ProductoServiceImpl implements ProductoService {
 
         return DashboardSummaryDTO.builder()
                 .totalProductos(total)
-                .bajoStockCount(bajoStock.size())
+                .bajoStockCount(bajoStockCount)
                 .sinStockCount(sinStockCount)
                 .stockBajoMinimoCount(stockBajoMinimoCount)
                 .bajoStockItems(bajoStockItems)

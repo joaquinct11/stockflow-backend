@@ -26,4 +26,7 @@ public class GuiaRemisionItemDTO {
     /** ID de la presentación farmacéutica (opcional). Cuando se envía, el backend
      *  usa su factor para convertir cantidad → cantidadBase en validación de stock y movimientos. */
     private Long presentacionId;
+
+    /** F-23: ID de la variante seleccionada (talla/color). Nullable; solo para productos con variantes. */
+    private Long varianteId;
 }

@@ -24,5 +24,6 @@ public class GuiaRemisionListResponse {
     private EstadoTributarioGRE estadoTributario;
     private EstadoLogisticoGRE estadoLogistico;
     private Long ventaId;
+    private String pdfUrl;
     private OffsetDateTime createdAt;
 }
