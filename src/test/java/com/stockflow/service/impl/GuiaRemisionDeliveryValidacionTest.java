@@ -250,6 +250,7 @@ class GuiaRemisionDeliveryValidacionTest {
         when(guiaRepo.existsByIdempotencyKey(any())).thenReturn(false);
         when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(buildTenant()));
         when(guiaRepo.findMaxCorrelativo(TENANT, "T001")).thenReturn(0);
+        when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT)).thenReturn(2L);
         Sucursal destino = buildSucursal(20L, "Sucursal B");
         when(sucursalRepo.findByIdAndTenantId(20L, TENANT)).thenReturn(Optional.of(destino));
 
@@ -271,6 +272,7 @@ class GuiaRemisionDeliveryValidacionTest {
         when(guiaRepo.existsByIdempotencyKey(any())).thenReturn(false);
         when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(buildTenant()));
         when(guiaRepo.findMaxCorrelativo(TENANT, "T001")).thenReturn(0);
+        when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT)).thenReturn(2L);
         Sucursal origen = buildSucursal(10L, "Almacén Central");
         when(sucursalRepo.findByIdAndTenantId(10L, TENANT)).thenReturn(Optional.of(origen));
 

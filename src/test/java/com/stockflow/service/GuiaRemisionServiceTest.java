@@ -148,6 +148,7 @@ class GuiaRemisionServiceTest {
     void sucursales_mismoOrigenDestino_bloqueado() {
         Sucursal s = Sucursal.builder().id(5L).tenantId(TENANT_ID).nombre("Tienda A").build();
         when(sucursalRepo.findByIdAndTenantId(5L, TENANT_ID)).thenReturn(Optional.of(s));
+        when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT_ID)).thenReturn(2L);
 
         CrearGuiaRemisionRequest req = buildRequest();
         req.setTipoTraslado(TipoTrasladoGRE.SUCURSALES);

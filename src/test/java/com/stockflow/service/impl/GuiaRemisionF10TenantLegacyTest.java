@@ -339,6 +339,7 @@ class GuiaRemisionF10TenantLegacyTest {
         when(guiaRepo.existsByIdempotencyKey(any())).thenReturn(false);
         when(tenantRepo.findByTenantId(TENANT)).thenReturn(Optional.of(buildTenantConSucursales()));
         when(guiaRepo.findMaxCorrelativo(TENANT, "T001")).thenReturn(0);
+        when(sucursalRepo.countByTenantIdAndActivoTrue(TENANT)).thenReturn(2L);
         when(sucursalRepo.findByIdAndTenantId(10L, TENANT)).thenReturn(Optional.of(origen));
         when(sucursalRepo.findByIdAndTenantId(20L, TENANT)).thenReturn(Optional.of(destino));
         when(productoRepo.findById(5L)).thenReturn(Optional.of(buildProducto()));
@@ -363,8 +364,8 @@ class GuiaRemisionF10TenantLegacyTest {
         req.setTransporte(td);
 
         assertThatNoException().isThrownBy(() -> service.crearBorrador(req));
-        // F-10 no consultó el count de sucursales (TRASLADO no llega a esa lógica)
-        verify(sucursalRepo, never()).countByTenantIdAndActivoTrue(any());
+        // F-28 sí consulta el count de sucursales para traslado SUCURSALES
+        verify(sucursalRepo, times(1)).countByTenantIdAndActivoTrue(TENANT);
     }
 
     // ── T-F10-7: Caso B — emitirGRE registra SALIDA con sucursalId=null ───────
